@@ -4,6 +4,7 @@
 const N = 7;
 const T_ATK = 0, T_DEF = 1, T_HEAL = 2, T_MANA = 3, T_GOLD = 4, T_VIS = 5, T_STONE = 6, T_PRISM = 7;
 let _gid = 1;
+const sfx = (n, a) => { if (typeof Sound !== 'undefined' && !Clock.headless) Sound.play(n, a); };
 
 function newGem(t, sp = null) {
   return { id: _gid++, t, sp, ice: 0, fog: 0, x: 0, y: 0, vy: 0, flash: 0 };
@@ -296,10 +297,11 @@ class Board {
       if (t === T_STONE) g.ice = 0;
       this.burst(kc(k), kr(k), GEM_COLORS[t] || '#ccc', 4);
     }
+    if (keys.length) sfx(t === T_STONE ? 'stone' : t === T_PRISM ? 'prism' : 'swap');
     return keys;
   }
-  freeze(keys) { for (const k of keys) { const g = this.at(k); if (g) { g.ice = 1; g.flash = 1; this.burst(kc(k), kr(k), '#bdf3ff', 4); } } return keys; }
-  fogify(keys) { for (const k of keys) { const g = this.at(k); if (g) { g.fog = 3; g.flash = 0.6; } } return keys; }
+  freeze(keys) { if (keys.length) sfx('ice'); for (const k of keys) { const g = this.at(k); if (g) { g.ice = 1; g.flash = 1; this.burst(kc(k), kr(k), '#bdf3ff', 4); } } return keys; }
+  fogify(keys) { if (keys.length) sfx('fog'); for (const k of keys) { const g = this.at(k); if (g) { g.fog = 3; g.flash = 0.6; } } return keys; }
   cleanse(toT) {
     const changed = [];
     this.forEach((g, k) => {

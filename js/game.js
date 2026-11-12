@@ -208,6 +208,7 @@ class Game {
     b.hint = { k1, k2, t: 1 };
     await wait(260);
     b.swap(mv.r, mv.c, mv.r2, mv.c2);
+    sfx('swap');
     await wait(200);
     b.hint = null;
     if (mv.prism) {
@@ -240,6 +241,7 @@ class Game {
       if (st.maxLen >= 5) bonus = true;
       const info = { cascade, atkRuns: st.atkRuns, bombs: st.acts.filter(a => a.sp === 'bomb').length, maxLen: st.maxLen, acts: st.acts.length };
       b.applyStep(st);
+      this.stepSound(st, cascade);
       if (st.acts.length) b.shake = Math.min(1, 0.3 + st.acts.length * 0.2);
       if (cascade >= 1 && effects) this.ui.combo(h, cascade + 1);
       await wait(230);
@@ -253,6 +255,15 @@ class Game {
     }
     if (!b.hasMoves()) { b.shuffleGems(); await wait(400); }
     return { bonus, total, cascade };
+  }
+
+  stepSound(st, cascade) {
+    const top = st.counts.indexOf(Math.max(...st.counts));
+    sfx('match', { type: top, cascade });
+    if (st.acts.some(a => a.sp === 'prism')) sfx('prism');
+    else if (st.acts.some(a => a.sp === 'bomb')) sfx('bomb');
+    else if (st.acts.some(a => a.sp === 'h' || a.sp === 'v')) sfx('line');
+    if (st.stones) sfx('stone');
   }
 
   async settle(h, effects) {
@@ -401,6 +412,7 @@ class Game {
       for (const x of other.heroes) this.addGold(x, 120);
       const names = ['внешняя', 'внутренняя', 'башня ингибитора'];
       this.ui.log(`🏰 Пала ${names[idx]} ${idx < 2 ? 'башня' : ''} ${tm.name.toLowerCase()} на линии <b>${lane.toUpperCase()}</b>${by ? ` — добил ${this.tag(by)}` : ''}. +120💰 всей команде.`, this.enemyOf(team));
+      sfx('tower');
       this.ui.banner('БАШНЯ РАЗРУШЕНА', `${other.name} разрушают ${lane.toUpperCase()} · ${['T1', 'T2', 'T3'][idx]}`, this.enemyOf(team));
       if (by) this.gainXp(by, 80);
     }
@@ -421,6 +433,7 @@ class Game {
       const type = npc.type;
       tm.dragons.push(type.id);
       this.ui.log(`🐉 ${this.tag(h)} добивает: <b>${type.name}</b> достаётся команде ${tm.name}! (${type.buff})`, h.team);
+      sfx('roar');
       this.ui.banner(`${type.icon} ${type.name.toUpperCase()}`, `${tm.name} получают: ${type.buff}`, h.team);
       for (const x of tm.heroes) { this.addGold(x, 60); this.gainXp(x, 60); }
       if (tm.dragons.length === 4 && !tm.soul) {
@@ -439,6 +452,7 @@ class Game {
       npc.spawnAt = this.minute + 7;
       for (const x of tm.heroes) { this.addGold(x, 300); this.gainXp(x, 150); }
       this.ui.log(`👾 ${this.tag(h)} добивает <b>Барона</b>! ${tm.name} усиливают осаду на 4 минуты, +300💰 каждому.`, h.team);
+      sfx('roar');
       this.ui.banner('👾 БАРОН ПОВЕРЖЕН', `${tm.name} получают Длань Барона`, h.team);
       tm.pressure = 0;
       tm.momentum = Math.max(tm.momentum, 2);
@@ -486,6 +500,7 @@ class Game {
     const d = tgt.hp - before;
     src.healed += d;
     if (d >= 1) {
+      if (d > 30) sfx('heal');
       if (src !== tgt) this.ui.projectile(src, tgt, '#45e07a');
       this.ui.float(tgt, `+${Math.round(d)}`, '#45e07a');
     }
@@ -493,6 +508,7 @@ class Game {
   shieldHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
     tgt.shield = Math.min(tgt.maxHp * 0.7, tgt.shield + amt);
+    if (amt > 30) sfx('shield');
     if (src !== tgt) this.ui.projectile(src, tgt, '#4ea8ff');
     this.ui.float(tgt, `🛡${Math.round(amt)}`, '#4ea8ff');
   }
@@ -505,6 +521,7 @@ class Game {
   stun(src, tgt) {
     if (!tgt.alive) return;
     tgt.stunned = 1;
+    sfx('stun');
     this.ui.float(tgt, 'ОГЛУШЕНИЕ', '#ffe066');
   }
 
@@ -564,6 +581,7 @@ class Game {
     if (this.over) return;
     this.over = true;
     this.winner = winner;
+    sfx('victory');
     this.ui.log(`🏆 <b>${this.teams[winner].name} уничтожают Нексус и побеждают!</b>`, winner);
   }
 
@@ -738,6 +756,7 @@ class Game {
     lane.ward[et] *= 0.4;
     this.persist.push(ev);
     this.ui.log(msg, j.team);
+    sfx('gank');
     this.ui.banner('ГАНГ!', `${j.name} → ${best.l.toUpperCase()}`, j.team, true);
   }
 
@@ -864,6 +883,7 @@ class Game {
           npc.max = npc.hp = Math.round(2400 + this.minute * 110);
           npc.atk = 70 + this.minute * 6;
           this.ui.log(`👾 В логове пробудился <b>Барон</b>!`, 'sys');
+          sfx('roar');
           this.ui.banner('БАРОН ПРОБУДИЛСЯ', 'Логово на верхней реке', 'sys');
         }
       }

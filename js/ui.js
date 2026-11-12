@@ -352,6 +352,7 @@ const UI = {
     later(330, () => {
       const p = this.heroDst(t);
       this.floatAt([p[0] + 30, p[1]], `-${n}`, shieldOnly ? '#cfe3ff' : '#ff6b6b', n > 250 ? 'big' : '');
+      sfx(n > 250 ? 'bigHit' : 'hit');
       const c = this.cards.get(t.id).c; c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit');
     });
   },
@@ -374,7 +375,7 @@ const UI = {
     else if (kind === 'mana') { const b = r.mpFill.parentElement.getBoundingClientRect(); p = [b.left + b.width / 2, b.top + b.height / 2]; }
     else if (kind === 'vision') { const m = $('#minimap').getBoundingClientRect(); const q = Minimap.heroPos(h, m.width); p = q ? [m.left + q[0], m.top + q[1]] : null; }
     FX.shot(this.heroSrc(h), p, color, false);
-    if (kind === 'gold' && amt) later(400, () => this.floatAt(p, `+${amt}`, '#ffd76b', 'small'));
+    if (kind === 'gold' && amt) later(400, () => { this.floatAt(p, `+${amt}`, '#ffd76b', 'small'); sfx('coin'); });
   },
   combo(h, n) {
     if (h !== this.view) return;
@@ -383,6 +384,7 @@ const UI = {
     c.classList.remove('show'); void c.offsetWidth; c.classList.add('show');
   },
   cast(h, s, key) {
+    sfx('cast', { ult: key === 'r' });
     const r = this.cards.get(h.id);
     const sk = key === 'q' ? r.skQ : r.skR;
     sk.classList.remove('casting'); void sk.offsetWidth; sk.classList.add('casting');
@@ -397,6 +399,7 @@ const UI = {
   },
   banner(title, sub, team, small) {
     const col = team === 'blue' ? '#3fa7ff' : team === 'red' ? '#ff4d5e' : '#c8aa6e';
+    sfx(small ? 'whoosh' : 'banner');
     const b = el('div', 'banner' + (small ? ' small' : ''), `<h2>${title}</h2><p>${sub || ''}</p>`);
     b.style.setProperty('--bc', col);
     b.style.animationDuration = (2.4 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
@@ -407,6 +410,7 @@ const UI = {
   },
   killFeed(src, tgt) {
     const e = el('div', 'kf', src ? `<span class="tag ${src.team}">${src.def.emoji} ${src.name}</span><span class="x">⚔</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${tgt.name}</span>` : `<span class="x">☠</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${tgt.name}</span>`);
+    if (src) sfx('kill');
     const kf = $('#killfeed'); kf.appendChild(e);
     if (kf.children.length > 4) kf.firstChild.remove();
     setTimeout(() => e.remove(), 4600);
@@ -414,11 +418,12 @@ const UI = {
   },
   levelUp(h) {
     const r = this.cards.get(h.id);
+    sfx('levelUp');
     r.portrait.classList.remove('lvlup'); void r.portrait.offsetWidth; r.portrait.classList.add('lvlup');
     this.float(h, `Уровень ${h.lvl}!`, '#ffe066');
     const p = this.heroDst(h); if (p) FX.burst(p[0], p[1], '#ffe066', 16, 120);
   },
-  shop(h, items) { this.float(h, '🛒 ' + items.map(i => ITEMS[i].icon).join(''), '#ffd76b'); },
+  shop(h, items) { sfx('coin'); this.float(h, '🛒 ' + items.map(i => ITEMS[i].icon).join(''), '#ffd76b'); },
   boardHit(h, color) {
     const r = this.cards.get(h.id);
     const b = r.mini.getBoundingClientRect();
@@ -477,6 +482,7 @@ const Draft = {
       const browse = U.shuffle(avail.slice()).slice(0, 4);
       for (const b of browse) {
         const c = cards.get(b.id); c.classList.add('hover');
+        sfx('draft', { n: U.ri(8) });
         await wait(170); c.classList.remove('hover');
       }
       const choice = U.pick(cand);
@@ -485,6 +491,7 @@ const Draft = {
       $('#draft-detail').innerHTML = this.heroCard(choice);
       await wait(420);
       cc.classList.remove('hover');
+      sfx('lockin');
       cc.classList.add('taken');
       cc.dataset.team = t === 'blue' ? 'СИНИЕ' : 'КРАСНЫЕ';
       cc.style.setProperty('--tc', t === 'blue' ? '#1e6fa8' : '#a82a36');

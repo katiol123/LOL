@@ -14,6 +14,17 @@ const App = {
 
   init() {
     FX.init();
+    Sound.init();
+    addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
+    addEventListener('keydown', () => Sound.unlock(), { capture: true });
+    const syncSnd = () => document.querySelectorAll('.snd-toggle').forEach(b => b.classList.toggle('off', b.dataset.snd === 'sfx' ? !Sound.enabled : !Sound.music));
+    document.querySelectorAll('.snd-toggle').forEach(b => b.onclick = e => {
+      e.stopPropagation(); Sound.unlock();
+      if (b.dataset.snd === 'sfx') Sound.setEnabled(!Sound.enabled); else Sound.setMusic(!Sound.music);
+      syncSnd(); Sound.play('click');
+    });
+    syncSnd();
+    document.addEventListener('click', e => { if (e.target.closest('.btn, .speed button, .pool-card')) Sound.play('click'); });
     // легенда камней
     const lg = $('#gem-legend');
     GEMS.forEach((g, t) => {
@@ -38,7 +49,7 @@ const App = {
     $('#btn-start').onclick = () => this.start();
     $('#btn-again').onclick = () => this.start();
     $('#btn-menu').onclick = () => this.show('screen-title');
-    document.querySelectorAll('.speed button').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.speed));
+    document.querySelectorAll('.speed button[data-speed]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.speed));
     addEventListener('keydown', e => {
       if (!this.game) return;
       if (e.code === 'Space') { e.preventDefault(); this.setSpeed(Clock.paused ? (this.lastSpeed || 1) : 0); }
@@ -63,7 +74,7 @@ const App = {
   setSpeed(s) {
     if (s === 0) { Clock.paused = true; }
     else { Clock.paused = false; Clock.speed = s; this.lastSpeed = s; }
-    document.querySelectorAll('.speed button').forEach(b => b.classList.toggle('on', +b.dataset.speed === (Clock.paused ? 0 : Clock.speed)));
+    document.querySelectorAll('.speed button[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === (Clock.paused ? 0 : Clock.speed)));
   },
 
   async start() {

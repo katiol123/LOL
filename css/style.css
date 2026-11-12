@@ -139,6 +139,9 @@ button { font-family: inherit; }
 .clock { font-family: var(--title); font-size: 22px; color: var(--gold2); line-height: 1; }
 .speed { display: flex; gap: 3px; margin-top: 3px; }
 .speed button { background: #121a2e; color: var(--muted); border: 1px solid #2a3554; border-radius: 4px; font-size: 11px; padding: 1px 7px; cursor: pointer; }
+.title-snd { position: absolute; top: 14px; right: 16px; z-index: 2; display: flex; gap: 6px; }
+.title-snd .snd-toggle { background: rgba(16,24,44,.8); border: 1px solid var(--panel-b); color: #fff; border-radius: 8px; font-size: 16px; padding: 6px 10px; cursor: pointer; }
+.snd-toggle.off { opacity: .35; filter: grayscale(1); }
 .speed button.on { background: var(--gold); color: #111; border-color: var(--gold); }
 
 #game-grid { flex: 1; display: grid; grid-template-columns: minmax(270px, 330px) 1fr minmax(270px, 330px); gap: 10px; padding: 10px; min-height: 0; }
