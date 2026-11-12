@@ -39,7 +39,7 @@ class Hero {
   get enemyTeam() { return this.team === 'blue' ? 'red' : 'blue'; }
   get lane() { return ROLE_LANE[this.role]; }
   get alive() { return this.dead <= 0; }
-  itemStat(k) { return U.sum(this.items, it => ITEMS[it][k] || 0); }
+  itemStat(k) { return U.sum(this.items, it => ITEMS[it][k] || 0) + (this.elix || 0) * (ELIXIR[k] || 0); }
   recalc() {
     const b = BASE_STATS[this.role], m = this.def.mod || {}, L = this.lvl - 1;
     const ratio = this.maxHp ? this.hp / this.maxHp : 1;
@@ -75,8 +75,8 @@ class Game {
     this.lanes = {};
     for (const l of LANES) this.lanes[l] = { id: l, push: 0, ward: { blue: 0, red: 0 }, farm: { blue: 0, red: 0 } };
     this.dragonQueue = U.shuffle(DRAGONS.slice());
-    this.dragon = { kind: 'dragon', alive: false, spawnAt: 5, hp: 0, max: 0, type: this.dragonQueue[0] };
-    this.baron = { kind: 'baron', alive: false, spawnAt: 20, hp: 0, max: 0 };
+    this.dragon = { kind: 'dragon', alive: false, spawnAt: 6, hp: 0, max: 0, type: this.dragonQueue[0], retryAt: 0 };
+    this.baron = { kind: 'baron', alive: false, spawnAt: 20, hp: 0, max: 0, retryAt: 0 };
     this.persist = [];
     this.events = [];
     this.active = null;
@@ -92,7 +92,7 @@ class Game {
   enemiesIn(h) { const ev = h.ev; if (!ev || !ev.sides) return []; return ev.sides[h.enemyTeam].filter(x => x.alive); }
   alliesIn(h) { const ev = h.ev; if (!ev || !ev.sides) return [h]; return ev.sides[h.team].filter(x => x.alive); }
   allTeam(h) { return this.teams[h.team].heroes.filter(x => x.alive); }
-  allEnemies(h) { return this.teams[h.enemyTeam].heroes.filter(x => x.alive); }
+  allEnemies(h) { return this.teams[h.enemyTeam].heroes.filter(x => x.alive && !(x.ev && x.ev.type === 'recall')); }
   target(h) { const e = this.enemiesIn(h); return e.length ? U.minBy(e, x => (x.hp + x.shield) / x.maxHp) : null; }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
   teamBuffs(t) {
@@ -372,7 +372,7 @@ class Game {
     this.addGold(h, gold);
     this.gainXp(h, Math.round(amt * 0.12));
     this.ui.projectileTo(h, { kind: 'wave', ev: h.ev }, '#ff5468');
-    this.ui.float(h, `+${gold}💰 (${cs} миньонов)`, '#ffc93c', true);
+    this.ui.float(h, `+${gold}💰`, '#ffc93c', true);
   }
 
   hitNpc(h, ev, amt) {
@@ -508,6 +508,7 @@ class Game {
   shieldHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
     tgt.shield = Math.min(tgt.maxHp * 0.7, tgt.shield + amt);
+    src.shielded = (src.shielded || 0) + amt;
     if (amt > 30) sfx('shield');
     if (src !== tgt) this.ui.projectile(src, tgt, '#4ea8ff');
     this.ui.float(tgt, `🛡${Math.round(amt)}`, '#4ea8ff');
@@ -541,10 +542,11 @@ class Game {
 
   vision(h, v, c) {
     const tm = this.teams[h.team];
-    tm.pressure += v * 3.2;
+    h.vis = (h.vis || 0) + v;
+    tm.pressure += v * 2.2;
     const lane = h.ev.lane || h.lane;
     if (lane && this.lanes[lane]) this.lanes[lane].ward[h.team] += v * 0.55;
-    if (h.role === 'jng') { h.gank += v * 7 * c.gankMul; tm.river += v * 0.5; }
+    if (h.role === 'jng') { h.gank += v * 12 * c.gankMul; tm.river += v * 0.5; }
     if (h.role === 'sup' || h.role === 'mid') tm.river += v * 0.45;
     this.ui.burstTo(h, 'vision', '#b86bff');
   }
@@ -553,14 +555,18 @@ class Game {
     if (tgt.dead > 0) return;
     tgt.hp = 0; tgt.shield = 0;
     tgt.dead = 2 + Math.floor(tgt.lvl / 6) + (this.minute >= 28 ? 1 : 0);
+    const victimStreak = tgt.streak;
     tgt.d++; tgt.streak = 0; tgt.stunned = 0;
     const ev = tgt.ev;
-    if (ev) { ev.kills = ev.kills || { blue: 0, red: 0 }; ev.kills[this.enemyOf(tgt.team)]++; }
+    if (ev && src && src.team !== tgt.team) { ev.kills = ev.kills || { blue: 0, red: 0 }; ev.kills[src.team]++; }
     if (!src || src.team === tgt.team) { this.ui.log(`☠ ${this.tag(tgt)} погибает.`); this.ui.killFeed(null, tgt); return; }
     src.k++; src.streak++;
     const tm = this.teams[src.team];
     tm.kills++;
-    let bounty = 300 + Math.min(300, Math.max(0, tgt.streak) * 50);
+    // награда: серия жертвы и «камбэк» отстающей команды
+    const goldDiff = U.sum(this.teams[tgt.team].heroes, x => x.totalGold) - U.sum(tm.heroes, x => x.totalGold);
+    let bounty = 250 + Math.min(350, Math.max(0, victimStreak - 1) * 70) + (goldDiff > 1200 ? 150 : 0);
+    if (victimStreak >= 3) this.ui.log(`💥 ${this.tag(src)} прерывает серию ${this.tag(tgt)}!`, src.team);
     if (!this.firstBlood) { this.firstBlood = true; bounty += 100; this.ui.banner('ПЕРВАЯ КРОВЬ', `${src.name} убивает ${tgt.name}`, src.team); }
     this.addGold(src, bounty); this.gainXp(src, 100 + tgt.lvl * 12);
     const assists = (ev && ev.sides ? ev.sides[src.team] : []).filter(x => x !== src && x.alive);
@@ -622,7 +628,7 @@ class Game {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
       const next = BUILDS[h.role][h.buildIdx];
-      const rich = next && h.gold >= ITEMS[next].cost + 250 && hpR < 0.75 && U.chance(0.35);
+      const rich = (next ? h.gold >= ITEMS[next].cost : h.gold >= 900) && hpR < 0.92;
       if (hpR < 0.3 || h.mana < 20 && hpR < 0.6 || rich) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
@@ -694,17 +700,19 @@ class Game {
 
   tryObjective(npc, threshold, roles) {
     const isBaron = npc.kind === 'baron';
-    for (const t of U.shuffle(['blue', 'red'])) {
+    if (this.minute < npc.retryAt) return;
+    const order = ['blue', 'red'].sort((a, b) => this.teams[b].pressure - this.teams[a].pressure);
+    for (const t of order) {
       const tm = this.teams[t];
       if (tm.pressure < threshold) continue;
       const crew = roles.map(r => this.hero(t, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.4);
       if (crew.length < (isBaron ? 3 : 2)) continue;
       const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 3, dtype: npc.type });
       crew.forEach(h => this.join(ev, h));
-      tm.pressure -= threshold * 0.6;
+      tm.pressure -= threshold * 0.7;
       const et = this.enemyOf(t);
       const etm = this.teams[et];
-      const contest = U.clamp(0.25 + etm.river * 0.045 + etm.pressure / 400 + (isBaron ? 0.25 : 0), 0, 0.92);
+      const contest = U.clamp(0.3 + (etm.river - tm.river) * 0.07 + (etm.pressure - tm.pressure * 0.5) / 300 + (isBaron ? 0.15 : 0), 0.08, 0.9);
       const spotted = U.chance(contest);
       if (spotted) {
         const defs = roles.map(r => this.hero(et, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.35);
@@ -761,6 +769,7 @@ class Game {
   }
 
   endPersist(ev) {
+    if ((ev.type === 'dragon' || ev.type === 'baron') && ev.npc && ev.npc.alive) { ev.npc.retryAt = this.minute + 2; this.ui.log(`${ev.type === 'baron' ? '👾' : '🐉'} Попытка взять ${ev.type === 'baron' ? 'Барона' : 'Дракона'} сорвалась — команды отступают.`, 'sys'); }
     const t = ev.att;
     if (!t) return;
     const ka = ev.kills[t] || 0, kd = ev.kills[this.enemyOf(t)] || 0;
@@ -826,7 +835,7 @@ class Game {
       const diff = (lane.farm.blue - lane.farm.red) / 180;
       lane.push = U.clamp(lane.push * 0.8 + diff + (this.teams.blue.baron > 0 ? 0.35 : 0) - (this.teams.red.baron > 0 ? 0.35 : 0), -1, 1);
       lane.farm.blue = lane.farm.red = 0;
-      for (const t of ['blue', 'red']) lane.ward[t] *= 0.78;
+      for (const t of ['blue', 'red']) lane.ward[t] *= 0.65;
       for (const [t, sgn] of [['red', 1], ['blue', -1]]) {
         if (lane.push * sgn >= 0.7) {
           const st = this.structureFor(t, l);
@@ -851,8 +860,7 @@ class Game {
         h.mana = Math.min(h.maxMana, h.mana + 6 + tb.mana);
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
-        if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += 20;
-        if (h.ev.type === 'lane' || h.ev.type === 'jungle') this.teams[h.team].pressure += 2;
+        if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += 8;
       } else {
         h.dead--;
         if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
@@ -860,6 +868,7 @@ class Game {
       for (const k of ['q', 'r']) if (h.cd[k] > 0) h.cd[k]--;
       h.board.decayFog();
       if (h.stunned > 1) h.stunned = 1;
+      if (h.ev && (h.ev.type === 'recall' || h.ev.type === 'dead')) h.stunned = 0;
     }
     for (const ev of this.persist) { ev.left--; ev.rounds++; if (ev.left <= 0) this.endPersist(ev); }
     this.persist = this.persist.filter(e => e.left > 0 && !e.done);
@@ -868,19 +877,19 @@ class Game {
       if (tm.momentum > 0) tm.momentum--;
       if (tm.baron > 0) { tm.baron--; if (!tm.baron) this.ui.log(`Длань Барона у команды ${tm.name} рассеялась.`, t); }
       tm.river *= 0.85;
-      tm.pressure += 4;
+      tm.pressure = Math.min(220, tm.pressure);
     }
     this.minute++;
     for (const npc of [this.dragon, this.baron]) {
       if (!npc.alive && this.minute >= npc.spawnAt) {
         npc.alive = true;
         if (npc.kind === 'dragon') {
-          npc.max = npc.hp = Math.round(800 + this.minute * 80);
+          npc.max = npc.hp = Math.round(700 + this.minute * 70);
           npc.atk = 35 + this.minute * 4;
           if (this.teams.blue.soul || this.teams.red.soul) { npc.spawnAt = 999; npc.alive = false; continue; }
           this.ui.log(`🐉 Появился <b>${npc.type.name}</b>!`, 'sys');
         } else {
-          npc.max = npc.hp = Math.round(2400 + this.minute * 110);
+          npc.max = npc.hp = Math.round(1800 + this.minute * 80);
           npc.atk = 70 + this.minute * 6;
           this.ui.log(`👾 В логове пробудился <b>Барон</b>!`, 'sys');
           sfx('roar');
@@ -903,11 +912,16 @@ class Game {
       h.buildIdx++;
       bought.push(id);
     }
+    // полный комплект — лишнее золото идёт на эликсиры силы
+    while (h.items.length >= 6 || h.buildIdx >= BUILDS[h.role].length) {
+      if (h.gold < 600) break;
+      h.gold -= 600; h.elix = (h.elix || 0) + 1; bought.push('elixir');
+    }
     if (bought.length) {
       h.recalc();
       h.hp = h.maxHp;
       this.ui.shop(h, bought);
-      this.ui.log(`🛒 ${this.tag(h)} покупает: ${bought.map(i => ITEMS[i].icon + ' ' + ITEMS[i].name).join(', ')}.`);
+      this.ui.log(`🛒 ${this.tag(h)} покупает: ${bought.map(i => i === 'elixir' ? '🧪 Эликсир силы' : ITEMS[i].icon + ' ' + ITEMS[i].name).join(', ')}.`);
     }
   }
 

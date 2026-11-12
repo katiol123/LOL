@@ -155,7 +155,9 @@ const BoardView = {
       else ctx.fillRect(x0 + bm.i * cell + cell / 2 - th / 2, y0, th, size);
       ctx.shadowBlur = 0;
     }
+    if (b.flashFx > 0) { ctx.fillStyle = `rgba(255,240,210,${b.flashFx * 0.35})`; ctx.fillRect(x0, y0, size, size); }
     for (const rg of b.rings) {
+      if (rg.t < 0) continue;
       ctx.strokeStyle = rg.color; ctx.globalAlpha = 1 - rg.t;
       ctx.lineWidth = Math.max(1, cell * 0.12 * (1 - rg.t));
       ctx.beginPath(); ctx.arc(x0 + rg.x * cell + cell / 2, y0 + rg.y * cell + cell / 2, cell * rg.max * rg.t + 2, 0, Math.PI * 2); ctx.stroke();
@@ -173,6 +175,7 @@ const BoardView = {
     ctx.strokeStyle = `rgba(${tc},${0.35 + (opts.active ? 0.5 + Math.sin(time * 5) * 0.15 : 0)})`;
     ctx.lineWidth = opts.active ? Math.max(2, size * 0.012) : 1;
     roundRect(ctx, x0 + 0.5, y0 + 0.5, size - 1, size - 1, cell * 0.25); ctx.stroke();
+    if (opts.fade) { ctx.fillStyle = 'rgba(5,8,15,0.42)'; roundRect(ctx, x0, y0, size, size, cell * 0.25); ctx.fill(); }
     if (opts.dim) { ctx.fillStyle = 'rgba(5,8,15,0.6)'; roundRect(ctx, x0, y0, size, size, cell * 0.25); ctx.fill(); }
     ctx.restore();
   },

@@ -255,8 +255,9 @@ class Board {
       const r = kr(a.k), c = kc(a.k);
       if (a.sp === 'h') this.beams.push({ dir: 'h', i: r, t: 0, color: GEM_COLORS[this.dying.find(d => d.r === r && d.c === c)?.g.t] || '#fff' });
       else if (a.sp === 'v') this.beams.push({ dir: 'v', i: c, t: 0, color: GEM_COLORS[this.dying.find(d => d.r === r && d.c === c)?.g.t] || '#fff' });
-      else if (a.sp === 'bomb') this.rings.push({ x: c, y: r, t: 0, max: 2.2, color: '#ffb347' });
-      else if (a.sp === 'prism') this.rings.push({ x: c, y: r, t: 0, max: 6, color: '#ffffff' });
+      else if (a.sp === 'bomb') { this.rings.push({ x: c, y: r, t: 0, max: 2.6, color: '#ffb347' }, { x: c, y: r, t: -0.15, max: 1.6, color: '#fff3c4' }); this.burst(c, r, '#ffb347', 18); this.flashFx = 0.7; }
+      else if (a.sp === 'prism') { this.rings.push({ x: c, y: r, t: 0, max: 7, color: '#ffffff' }); this.flashFx = 1; }
+      if (a.sp === 'h' || a.sp === 'v') this.flashFx = Math.max(this.flashFx || 0, 0.35);
     }
     for (const cr of st.creates) {
       const r = kr(cr.k), c = kc(cr.k);
@@ -300,7 +301,7 @@ class Board {
     if (keys.length) sfx(t === T_STONE ? 'stone' : t === T_PRISM ? 'prism' : 'swap');
     return keys;
   }
-  freeze(keys) { if (keys.length) sfx('ice'); for (const k of keys) { const g = this.at(k); if (g) { g.ice = 1; g.flash = 1; this.burst(kc(k), kr(k), '#bdf3ff', 4); } } return keys; }
+  freeze(keys) { if (keys.length) sfx('ice'); for (const k of keys) { const g = this.at(k); if (g) { g.ice = 3; g.flash = 1; this.burst(kc(k), kr(k), '#bdf3ff', 4); } } return keys; }
   fogify(keys) { if (keys.length) sfx('fog'); for (const k of keys) { const g = this.at(k); if (g) { g.fog = 3; g.flash = 0.6; } } return keys; }
   cleanse(toT) {
     const changed = [];
@@ -329,7 +330,7 @@ class Board {
     }
   }
   hasAnyMatch() { return findGroups(this.types(false)).length > 0; }
-  decayFog() { this.forEach(g => { if (g && g.fog) g.fog--; }); }
+  decayFog() { this.forEach(g => { if (!g) return; if (g.fog) g.fog--; if (g.ice) { g.ice--; if (!g.ice) g.flash = 0.6; } }); }
 
   /* --- Визуальные эффекты (координаты в клетках) --- */
   burst(x, y, color, n) {
@@ -359,9 +360,11 @@ class Board {
     for (const p of this.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 9 * dt; p.life -= p.decay * dt; }
     this.parts = this.parts.filter(p => p.life > 0);
     this.rings = this.rings.filter(r => (r.t += dt * 2.5) < 1);
+    if (this.shake < 0.5 && this.flashFx > 0.6) this.shake = 0.6;
     this.beams = this.beams.filter(b => (b.t += dt * 2.5) < 1);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 3);
     if (this.glow > 0) this.glow = Math.max(0, this.glow - dt * 1.5);
+    if (this.flashFx > 0) this.flashFx = Math.max(0, this.flashFx - dt * 2.5);
   }
   settled() {
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {

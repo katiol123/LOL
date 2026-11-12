@@ -8,7 +8,7 @@ const later = (ms, fn) => setTimeout(fn, ms / Math.max(0.5, Clock.speed || 1));
 
 /* ---------- Эффекты на весь экран (снаряды, искры) ---------- */
 const FX = {
-  cv: null, ctx: null, list: [], parts: [],
+  cv: null, ctx: null, list: [], parts: [], rings: [],
   init() {
     this.cv = $('#fx'); this.ctx = this.cv.getContext('2d');
     const rs = () => { const d = DPR(); this.cv.width = innerWidth * d; this.cv.height = innerHeight * d; this.cv.style.width = innerWidth + 'px'; this.cv.style.height = innerHeight + 'px'; };
@@ -21,7 +21,7 @@ const FX = {
     const bend = (Math.random() - 0.5) * Math.min(220, len * 0.5);
     const ctrl = [(p0[0] + p1[0]) / 2 - dy / len * bend, (p0[1] + p1[1]) / 2 + dx / len * bend - len * 0.12];
     if (this.list.length > 60) this.list.shift();
-    this.list.push({ p0, p1, ctrl, t: 0, dur: big ? 0.5 : 0.42, color, big, onHit });
+    this.list.push({ p0, p1, ctrl, t: 0, dur: big ? 0.55 : 0.45, color, big, onHit, trail: [] });
   },
   burst(x, y, color, n, spd = 180) {
     for (let i = 0; i < n; i++) {
@@ -34,13 +34,17 @@ const FX = {
     for (const p of this.list) {
       p.t += dt / p.dur;
       const q = this.at(p, Math.min(1, p.t));
+      p.trail.push(q); if (p.trail.length > (p.big ? 16 : 11)) p.trail.shift();
       for (let i = 0; i < (p.big ? 3 : 1); i++) this.parts.push({ x: q[0] + U.rand(-3, 3), y: q[1] + U.rand(-3, 3), vx: U.rand(-20, 20), vy: U.rand(-20, 20), life: 0.7, decay: 2.8, color: p.color, size: p.big ? U.rand(2, 5) : U.rand(1.5, 3) });
-      if (p.t >= 1 && !p.hit) { p.hit = true; this.burst(p.p1[0], p.p1[1], p.color, p.big ? 26 : 10, p.big ? 240 : 140); if (p.onHit) p.onHit(); }
+      if (p.t >= 1 && !p.hit) { p.hit = true; this.burst(p.p1[0], p.p1[1], p.color, p.big ? 30 : 14, p.big ? 260 : 160); this.ring(p.p1[0], p.p1[1], p.color, p.big ? 46 : 26); if (p.onHit) p.onHit(); }
     }
     this.list = this.list.filter(p => !p.hit);
     for (const p of this.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; p.life -= p.decay * dt; }
     this.parts = this.parts.filter(p => p.life > 0);
+    for (const r of this.rings) r.t += dt * 2.6;
+    this.rings = this.rings.filter(r => r.t < 1);
   },
+  ring(x, y, color, max = 60) { this.rings.push({ x, y, color, max, t: 0 }); if (this.rings.length > 40) this.rings.shift(); },
   at(p, t) {
     const u = 1 - t;
     return [u * u * p.p0[0] + 2 * u * t * p.ctrl[0] + t * t * p.p1[0], u * u * p.p0[1] + 2 * u * t * p.ctrl[1] + t * t * p.p1[1]];
@@ -51,10 +55,24 @@ const FX = {
     c.clearRect(0, 0, innerWidth, innerHeight);
     c.globalCompositeOperation = 'lighter';
     for (const p of this.parts) { c.globalAlpha = Math.max(0, p.life); c.fillStyle = p.color; c.beginPath(); c.arc(p.x, p.y, p.size, 0, Math.PI * 2); c.fill(); }
+    for (const r of this.rings) {
+      c.globalAlpha = 1 - r.t; c.strokeStyle = r.color; c.lineWidth = 3 * (1 - r.t) + 1;
+      c.beginPath(); c.arc(r.x, r.y, 6 + r.max * r.t, 0, Math.PI * 2); c.stroke();
+    }
+    c.globalAlpha = 1;
+    c.lineCap = 'round';
+    for (const p of this.list) {
+      const tr = p.trail;
+      for (let i = 1; i < tr.length; i++) {
+        const k = i / tr.length;
+        c.globalAlpha = k * 0.8; c.strokeStyle = p.color; c.lineWidth = (p.big ? 9 : 5) * k;
+        c.beginPath(); c.moveTo(tr[i - 1][0], tr[i - 1][1]); c.lineTo(tr[i][0], tr[i][1]); c.stroke();
+      }
+    }
     c.globalAlpha = 1;
     for (const p of this.list) {
       const q = this.at(p, Math.min(1, p.t));
-      const r = p.big ? 10 : 6;
+      const r = p.big ? 12 : 8;
       const g = c.createRadialGradient(q[0], q[1], 0, q[0], q[1], r * 2.2);
       g.addColorStop(0, '#fff'); g.addColorStop(0.35, p.color); g.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = g; c.beginPath(); c.arc(q[0], q[1], r * 2.2, 0, Math.PI * 2); c.fill();
@@ -66,10 +84,10 @@ const FX = {
 /* ---------- Интерфейс матча ---------- */
 const UI = {
   game: null, cards: new Map(), view: null, turnCount: 0,
-  lastEp: 0, lastTc: 0, epKey: '', bannerQ: [],
+  lastEp: 0, lastTc: 0, epKey: '', bannerQ: [], stack: {}, advHist: [],
 
   init(game) {
-    this.game = game; this.cards.clear(); this.view = null; this.turnCount = 0;
+    this.game = game; this.cards.clear(); this.view = null; this.turnCount = 0; this.advHist = [0]; this.stack = {};
     $('#col-blue').innerHTML = ''; $('#col-red').innerHTML = '';
     $('#log').innerHTML = ''; $('#killfeed').innerHTML = '';
     for (const h of game.heroes) this.buildCard(h);
@@ -86,7 +104,7 @@ const UI = {
       <div class="hc-info">
         <div class="hc-top">
           <div class="portrait">${h.def.emoji}<span class="lvl">1</span></div>
-          <div class="hc-name"><b>${h.name}</b><small>${ROLES[h.role].short} · ${h.def.title}</small></div>
+          <div class="hc-name"><b>${h.name}</b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${ROLES[h.role].name}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>
@@ -122,6 +140,7 @@ const UI = {
       r.mini.style.width = r.mini.style.height = s + 'px';
       r.mini.width = r.mini.height = Math.round(s * d);
     }
+    const f0 = $('#feature'); f0.style.width = f0.style.height = '10px';
     const box = $('#feature-box');
     const fs = Math.max(200, Math.min(box.clientWidth, box.clientHeight) - 4);
     const f = $('#feature');
@@ -132,6 +151,7 @@ const UI = {
     mp.style.width = mp.style.height = ms + 'px';
     mp.width = mp.height = Math.round(ms * d);
     Minimap.bg = null;
+    const adv = $('#adv'); if (adv) { adv.width = Math.round((adv.clientWidth || 200) * d); adv.height = Math.round((adv.clientHeight || 150) * d); }
   },
 
   /* ---------- Покадровая отрисовка ---------- */
@@ -139,14 +159,17 @@ const UI = {
     const G = this.game;
     if (!G) return;
     const d = DPR();
+    const aev = G.active && G.active.ev;
     for (const h of G.heroes) {
       h.board.update(dt);
+      const inEv = !!(aev && aev.sides && (aev.sides.blue.includes(h) || aev.sides.red.includes(h)));
       const r = this.cards.get(h.id);
       const ctx = r.mini.getContext('2d');
       ctx.setTransform(d, 0, 0, d, 0, 0);
       const s = r.mini.width / d;
       ctx.clearRect(0, 0, s, s);
-      BoardView.draw(ctx, h.board, 0, 0, s, time, { active: G.active === h, dim: !h.alive });
+      BoardView.draw(ctx, h.board, 0, 0, s, time, { active: G.active === h, dim: !h.alive, fade: !!aev && !inEv && h.alive });
+      if (r.prev.inEv !== inEv) { r.prev.inEv = inEv; r.c.classList.toggle('inev', inEv && G.active !== h); }
       this.updateCard(h, r);
     }
     // главное поле
@@ -162,15 +185,21 @@ const UI = {
     // HUD
     for (const t of ['blue', 'red']) {
       const tm = G.teams[t];
-      this.setText(`#hk-${t}`, tm.kills);
       this.setText(`#hg-${t}`, (U.sum(tm.heroes, h => h.totalGold) / 1000).toFixed(1) + 'k');
       this.setText(`#ht-${t}`, LANES.reduce((s, l) => s + tm.towers[l].filter(x => x > 0).length, 0));
       this.setText(`#hd-${t}`, tm.dragons.map(id => DRAGONS.find(x => x.id === id).icon).join('') + (tm.baron ? '👾' : ''));
     }
+    for (const t of ['blue', 'red']) {
+      const e = $('#score-' + t), v = String(G.teams[t].kills);
+      if (e.textContent !== v) { e.textContent = v; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
+    }
+    const gd = U.sum(G.teams.blue.heroes, h => h.totalGold) - U.sum(G.teams.red.heroes, h => h.totalGold);
+    const gt = Math.abs(gd) < 150 ? 'золото равно' : `${gd > 0 ? 'Синие' : 'Красные'} +${(Math.abs(gd) / 1000).toFixed(1)}k золота`;
+    const ge = $('#gdiff'); if (ge.textContent !== gt) { ge.textContent = gt; ge.style.color = Math.abs(gd) < 150 ? '' : gd > 0 ? '#7cc4ff' : '#ff8c95'; }
     this.setText('#clock', U.fmtTime(G.minute - 1 + Math.min(0.98, this.turnCount / 10)));
     const now = performance.now();
     if (now - this.lastEp > 220) { this.lastEp = now; this.renderEvent(); this.renderSkills(); }
-    if (now - this.lastTc > 450) { this.lastTc = now; this.renderTactics(); }
+    if (now - this.lastTc > 450) { this.lastTc = now; this.renderTactics(); this.drawAdv(); }
   },
   setText(sel, v) { const e = typeof sel === 'string' ? $(sel) : sel; v = String(v); if (e && e.textContent !== v) e.textContent = v; },
 
@@ -221,8 +250,9 @@ const UI = {
     head.innerHTML = `<div class="portrait" style="--hc:${h.def.color};border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${h.def.emoji}</div>
       <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>${ROLES[h.role].name} · ${h.def.title} · ур. ${h.lvl}</small></div>
       <div class="fh-ev"><small style="color:var(--muted)">Поле героя</small><br><b>${h.team === 'blue' ? 'Синие' : 'Красные'}</b></div>`;
-    head.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 300 });
-    $('#feature').animate([{ opacity: 0.4, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'ease-out' });
+    head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
+    $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
+    this.skKey = '';
   },
 
   renderSkills() {
@@ -273,21 +303,20 @@ const UI = {
       <div class="ep-sides"><div class="ep-side blue">${sideHtml('blue')}</div><div class="ep-vs">VS</div><div class="ep-side red">${sideHtml('red')}</div></div>
       ${npc}
       ${hint ? `<div class="ep-hint">${hint}</div>` : ''}`;
-    if (!sameEv) $('#event-panel').animate([{ opacity: 0, transform: 'translateX(10px)' }, { opacity: 1, transform: 'none' }], { duration: 300 });
+    if (!sameEv) $('#event-panel').animate([{ transform: 'translateX(8px)', filter: 'brightness(1.4)' }, { transform: 'none', filter: 'none' }], { duration: 260 });
   },
 
   renderTactics() {
     const G = this.game;
     const tb = G.teams.blue, tr = G.teams.red;
-    const dual = (a, b, max) => `<div class="dual"><div class="bar b"><i class="fill" style="width:${U.clamp(a / max * 100, 0, 100)}%"></i><span>${Math.round(a)}</span></div><div class="bar r"><i class="fill" style="width:${U.clamp(b / max * 100, 0, 100)}%"></i><span>${Math.round(b)}</span></div></div>`;
+    const dual = (a, b, max) => `<div class="dual"><span class="n b">${Math.round(a)}</span><div class="bar b"><i class="fill" style="width:${U.clamp(a / max * 100, 0, 100)}%"></i></div><div class="bar r"><i class="fill" style="width:${U.clamp(b / max * 100, 0, 100)}%"></i></div><span class="n r">${Math.round(b)}</span></div>`;
     const dr = G.dragon, br = G.baron;
     const drTxt = dr.alive ? `<b style="color:${dr.type.color}">${dr.type.icon} ${dr.type.name}</b> жив` : dr.spawnAt > 200 ? 'душа забрана' : `${dr.type.icon} появится в ${String(dr.spawnAt).padStart(2, '0')}:00`;
     const brTxt = br.alive ? '<b style="color:#b46bff">👾 Барон</b> жив' : `👾 появится в ${br.spawnAt}:00`;
     const jb = G.hero('blue', 'jng'), jr = G.hero('red', 'jng');
     let html = `<div class="panel-title" style="padding:2px 0 4px">Тактический планшет</div>
-      <div class="tc-sub"><span>${drTxt}</span></div>
+      <div class="tc-head"><span>${drTxt}</span><span>${brTxt}</span></div>
       <div class="tc-row"><span title="Давление на эпиков: копится от ◉ и от фарма. При 100 команда идёт на Дракона, при 150 — на Барона.">Давление</span>${dual(tb.pressure, tr.pressure, 150)}</div>
-      <div class="tc-sub"><span>${brTxt}</span></div>
       <div class="tc-row"><span title="Обзор реки: шанс заметить чужую попытку взять эпика и оспорить её.">Река</span>${dual(tb.river * 10, tr.river * 10, 100)}</div>
       <div class="tc-row"><span title="Шкала ганга лесников. При 100% — ганг.">Ганг</span>${dual(jb.gank, jr.gank, 100)}</div>`;
     for (const l of LANES) {
@@ -321,7 +350,7 @@ const UI = {
   floatAt(p, text, color, cls = '') {
     if (!p) return;
     const f = el('div', 'floater ' + cls, text);
-    f.style.left = p[0] + U.rand(-14, 14) + 'px'; f.style.top = p[1] + U.rand(-6, 6) + 'px'; f.style.color = color;
+    f.style.left = p[0] + U.rand(-8, 8) + 'px'; f.style.top = p[1] + 'px'; f.style.color = color;
     f.style.animationDuration = (1.2 / Math.max(0.6, Math.min(3, Clock.speed))) + 's';
     $('#floaters').appendChild(f);
     f.addEventListener('animationend', () => f.remove());
@@ -335,7 +364,14 @@ const UI = {
     while (lg.children.length > 80) lg.lastChild.remove();
   },
   roundStart(G) { this.turnCount = 0; this.epKey = ''; },
-  roundEnd(G) {},
+  roundEnd(G) {
+    const gd = U.sum(G.teams.blue.heroes, h => h.totalGold) - U.sum(G.teams.red.heroes, h => h.totalGold);
+    this.advHist.push(gd);
+  },
+  drawAdv() {
+    const cv = $('#adv'); if (!cv || !cv.width || !cv.offsetParent) return;
+    App.drawGoldGraph(cv, this.advHist, this.game);
+  },
   focus(h) {
     for (const [, r] of this.cards) r.c.classList.remove('active');
     if (!h) return;
@@ -344,16 +380,22 @@ const UI = {
     if (this.view !== h) { this.view = h; this.renderHead(h); }
     this.renderEvent();
   },
+  floatSlot(h) {
+    const c = this.cards.get(h.id); if (!c) return null;
+    const r = c.mini.getBoundingClientRect();
+    const now = performance.now();
+    const st = this.stack[h.id] || (this.stack[h.id] = { n: 0, t: 0 });
+    st.n = now - st.t < 450 / Math.max(1, Clock.speed) ? (st.n + 1) % 5 : 0; st.t = now;
+    return [r.left + r.width / 2, r.top + r.height * 0.3 + st.n * 17];
+  },
   float(h, text, color, small) {
-    const p = this.heroDst(h); if (!p) return;
-    this.floatAt([p[0] + 40, p[1] - 4], text, color, small ? 'small' : '');
+    this.floatAt(this.floatSlot(h), text, color, small ? 'small' : '');
   },
   damage(t, n, shieldOnly) {
     later(330, () => {
-      const p = this.heroDst(t);
-      this.floatAt([p[0] + 30, p[1]], `-${n}`, shieldOnly ? '#cfe3ff' : '#ff6b6b', n > 250 ? 'big' : '');
+      this.floatAt(this.floatSlot(t), `-${n}`, shieldOnly ? '#cfe3ff' : '#ff6b6b', n > 250 ? 'big dmg' : 'dmg');
       sfx(n > 250 ? 'bigHit' : 'hit');
-      const c = this.cards.get(t.id).c; c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit');
+      const c = this.cards.get(t.id).c; c.classList.remove('hit', 'flash'); void c.offsetWidth; c.classList.add('hit', 'flash');
     });
   },
   projectile(src, tgt, color, big) { FX.shot(this.heroSrc(src), this.heroDst(tgt), color, big); },
@@ -381,6 +423,8 @@ const UI = {
     if (h !== this.view) return;
     const c = $('#combo');
     c.textContent = `КОМБО ×${n}`;
+    c.style.setProperty('--cs', (1 + Math.min(6, n) * 0.14).toFixed(2));
+    c.style.color = ['#fff', '#fff', '#ffe066', '#ffb347', '#ff7a45', '#ff4d8a', '#d36bff'][Math.min(6, n)];
     c.classList.remove('show'); void c.offsetWidth; c.classList.add('show');
   },
   cast(h, s, key) {
@@ -390,7 +434,8 @@ const UI = {
     sk.classList.remove('casting'); void sk.offsetWidth; sk.classList.add('casting');
     const fb = $('#feature').getBoundingClientRect();
     const wrap = $('#cast-banner');
-    wrap.style.left = fb.left + fb.width / 2 + 'px'; wrap.style.top = fb.top + fb.height * 0.5 + 'px';
+    wrap.style.left = fb.left + fb.width / 2 + 'px'; wrap.style.top = fb.top + Math.min(60, fb.height * 0.14) + 'px';
+    wrap.innerHTML = '';
     const b = el('div', 'cast', `<div class="ci">${s.icon}</div><div><b>${s.name}</b><small>${h.def.emoji} ${h.name}${key === 'r' ? ' · УЛЬТА' : ''}</small></div>`);
     b.style.setProperty('--cc', h.def.color);
     b.style.animationDuration = (1.1 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
@@ -400,7 +445,8 @@ const UI = {
   banner(title, sub, team, small) {
     const col = team === 'blue' ? '#3fa7ff' : team === 'red' ? '#ff4d5e' : '#c8aa6e';
     sfx(small ? 'whoosh' : 'banner');
-    const b = el('div', 'banner' + (small ? ' small' : ''), `<h2>${title}</h2><p>${sub || ''}</p>`);
+    if (!small) { const v = $('#vignette'); v.className = team === 'blue' || team === 'red' ? team : ''; void v.offsetWidth; v.classList.add('on'); v.style.animationDuration = (1.8 / Math.max(0.7, Math.min(3, Clock.speed))) + 's'; }
+    const b = el('div', 'banner' + (small ? ' small' : ' major'), `<h2>${title}</h2><p>${sub || ''}</p>`);
     b.style.setProperty('--bc', col);
     b.style.animationDuration = (2.4 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
     const bs = $('#banners');
@@ -414,7 +460,7 @@ const UI = {
     const kf = $('#killfeed'); kf.appendChild(e);
     if (kf.children.length > 4) kf.firstChild.remove();
     setTimeout(() => e.remove(), 4600);
-    const p = this.heroDst(tgt); FX.burst(p[0], p[1], '#ff3344', 40, 260);
+    const p = this.heroDst(tgt); FX.burst(p[0], p[1], '#ff3344', 60, 320); FX.ring(p[0], p[1], '#ff3344');
   },
   levelUp(h) {
     const r = this.cards.get(h.id);
@@ -423,7 +469,7 @@ const UI = {
     this.float(h, `Уровень ${h.lvl}!`, '#ffe066');
     const p = this.heroDst(h); if (p) FX.burst(p[0], p[1], '#ffe066', 16, 120);
   },
-  shop(h, items) { sfx('coin'); this.float(h, '🛒 ' + items.map(i => ITEMS[i].icon).join(''), '#ffd76b'); },
+  shop(h, items) { sfx('coin'); this.float(h, '🛒 ' + items.map(i => i === 'elixir' ? '🧪' : ITEMS[i].icon).join(''), '#ffd76b'); },
   boardHit(h, color) {
     const r = this.cards.get(h.id);
     const b = r.mini.getBoundingClientRect();
@@ -465,12 +511,15 @@ const Draft = {
       for (let i = 0; i < 5; i++) { const s = el('div', 'pick-slot', `<div class="pp">?</div><div class="pn"><b>—</b><small>ожидание</small></div>`); col.appendChild(s); slots[t].push(s); }
     }
     const order = ['blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red'];
+    $('#draft-order').innerHTML = order.map(t => `<div class="po ${t}"></div>`).join('');
+    const po = [...document.querySelectorAll('#draft-order .po')];
     const picks = { blue: [], red: [] };
     const taken = new Set();
     for (let i = 0; i < order.length; i++) {
       const t = order[i];
       const slot = slots[t][picks[t].length];
       slot.classList.add('picking');
+      po.forEach((x, j) => { x.classList.toggle('cur', j === i); x.classList.toggle('done', j < i); });
       $('#draft-phase').textContent = `${t === 'blue' ? 'Синие' : 'Красные'} выбирают`;
       $('#draft-phase').style.color = t === 'blue' ? 'var(--blue)' : 'var(--red)';
       const need = ROLE_ORDER.filter(r => !picks[t].some(p => p.role === r));

@@ -46,6 +46,7 @@ const ITEMS = {
   censer: { name: 'Кадило Света', icon: '🕯', cost: 1100, sp: 28, healPow: 0.3 },
   ward: { name: 'Око Стража', icon: '👁', cost: 600, hp: 120, visPow: 0.5 },
 };
+const ELIXIR = { atk: 4, hp: 70, sp: 9, arm: 3 };
 const BUILDS = {
   top: ['sword', 'ruby', 'cleaver', 'vest', 'bastion', 'titan', 'reaper', 'thirst'],
   jng: ['sword', 'vest', 'thirst', 'ruby', 'cleaver', 'bastion', 'reaper', 'titan'],
@@ -70,7 +71,7 @@ const HEROES = [
   /* ======== ВЕРХНЯЯ ЛИНИЯ ======== */
   {
     id: 'granitor', name: 'Гранитор', title: 'Каменный Колосс', role: 'top', emoji: '🗿', color: '#9c8466',
-    mod: { hp: 1.12, arm: 1.25, atk: 0.9 },
+    mod: { hp: 1.12, arm: 1.25, atk: 1.0 },
     lore: 'Ожившая скала с перевала, что принимает удары за всю команду.',
     passive: { name: 'Гранитная кожа', desc: 'Щиты от 🛡 на 60% сильнее.', effects(G, h, c) { c.m.def *= 1.6; } },
     q: {
@@ -83,8 +84,10 @@ const HEROES = [
     },
     r: {
       name: 'Несокрушимость', icon: '🏔', cost: 100, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Все ⚔ на своём поле становятся 🛡. Все союзники в событии получают мощный щит.',
+      desc: 'Обрушивает скалу на цель (урон растёт от числа ⚔ на поле), затем все ⚔ становятся 🛡, а союзники в событии получают мощный щит.',
       async cast(G, h) {
+        const n = h.board.count(T_ATK);
+        await G.skillDamage(h, G.target(h), G.sp(h, 60, 1.0) + n * h.power * 1.2, 'phys', '#b79c7a');
         await G.selfBoard(h, b => b.convert(b.keysOf(T_ATK), T_DEF));
         for (const a of G.alliesIn(h)) G.shieldHero(h, a, G.sp(h, 140, 1.4));
       },
@@ -92,41 +95,41 @@ const HEROES = [
   },
   {
     id: 'veila', name: 'Вейла', title: 'Клинок Ветра', role: 'top', emoji: '🌪', color: '#5fd3c6',
-    mod: { atk: 1.15, hp: 0.95 },
+    mod: { atk: 1.0, hp: 0.95 },
     lore: 'Странствующая мечница, чьи удары подхватывает горный ветер.',
     passive: {
       name: 'Танец стали', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
       effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) c.after.push(() => G.selfBoardQuiet(h, b => b.pick(g => b.plain(g), 1).map(k => (b.convert([k], b.at(k).t, U.pick(['h', 'v'])), k)))); },
     },
     q: {
-      name: 'Вихрь', icon: '🌀', cost: 45, cd: 2, need: 'none',
-      desc: 'Подрывает крест (ряд + столбец) через клетку, рядом с которой больше всего ⚔.',
+      name: 'Вихрь', icon: '🌀', cost: 60, cd: 3, need: 'none',
+      desc: 'Подрывает ряд или столбец своего поля, где больше всего ⚔.',
       async cast(G, h) {
         const b = h.board;
-        const k = U.maxBy([...Array(N * N).keys()], k => rowKeys(kr(k)).concat(colKeys(kc(k))).filter(x => b.at(x) && b.at(x).t === T_ATK).length);
-        await G.blast(h, [...new Set([...rowKeys(kr(k)), ...colKeys(kc(k))])]);
+        const lines = [...Array(N).keys()].flatMap(i => [rowKeys(i), colKeys(i)]);
+        await G.blast(h, U.maxBy(lines, l => l.filter(x => b.at(x) && b.at(x).t === T_ATK).length));
       },
     },
     r: {
       name: 'Буря клинков', icon: '⚔', cost: 110, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Превращает 8 камней своего поля в ⚔, затем наносит цели урон за каждый ⚔ на поле.',
+      desc: 'Превращает 5 камней своего поля в ⚔, затем наносит цели урон за каждый ⚔ на поле.',
       async cast(G, h, t) {
-        await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 8), T_ATK));
+        await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 5), T_ATK));
         const n = h.board.count(T_ATK);
-        await G.skillDamage(h, t, G.sp(h, 20, 0.15) * n + h.power * 2, 'phys', '#5fd3c6');
+        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 2, 'phys', '#5fd3c6');
         await G.settle(h, true);
       },
     },
   },
   {
     id: 'morven', name: 'Морвен', title: 'Кровавый Шип', role: 'top', emoji: '🩸', color: '#c2304a',
-    mod: { hp: 1.05 },
+    mod: { hp: 1.15, atk: 1.08 },
     lore: 'Рыцарь проклятого сада, питающийся чужой жизнью.',
-    passive: { name: 'Жажда крови', desc: '25% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.25; } },
+    passive: { name: 'Жажда крови', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
       name: 'Шипастые лозы', icon: '🌹', cost: 50, cd: 2, need: 'enemy',
       desc: 'Все ✚ на поле врага превращаются в булыжники — враг теряет лечение.',
-      ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_HEAL) >= 4; },
+      ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_HEAL) >= 3; },
       async cast(G, h, t) { await G.enemyBoard(h, t, b => b.convert(b.keysOf(T_HEAL).filter(k => !b.at(k).sp), T_STONE), '#c2304a'); },
     },
     r: {
@@ -136,7 +139,7 @@ const HEROES = [
         const keys = h.board.keysOf(T_HEAL);
         const n = keys.length;
         await G.selfBoardRemove(h, keys);
-        await G.skillDamage(h, t, n * G.sp(h, 30, 0.3), 'phys', '#ff3355');
+        await G.skillDamage(h, t, n * G.sp(h, 40, 0.35), 'phys', '#ff3355');
         G.healHero(h, h, n * (12 + h.lvl * 4));
       },
     },
@@ -259,7 +262,7 @@ const HEROES = [
   },
   {
     id: 'nox', name: 'Нокс', title: 'Вестник Пустоты', role: 'mid', emoji: '🌀', color: '#7a3cff',
-    mod: { sp: 1.1, hp: 0.95 },
+    mod: { sp: 1.15, hp: 1.05 },
     lore: 'Существо из-за грани, пожирающее чужую магию.',
     passive: {
       name: 'Пожиратель', desc: 'Каждое совпадение ◆ крадёт 6 маны у цели.',
@@ -267,9 +270,12 @@ const HEROES = [
     },
     q: {
       name: 'Разлом', icon: '🕳', cost: 50, cd: 2, need: 'enemy',
-      desc: 'Все ◆ на поле цели обращаются в булыжники; Нокс крадёт по 4 маны за каждый.',
+      desc: 'Наносит урон и даёт Ноксу щит; все ◆ на поле цели обращаются в булыжники; Нокс крадёт по 4 маны за каждый.',
+      ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_MANA) >= 3; },
       async cast(G, h, t) {
         const n = t.board.keysOf(T_MANA).length;
+        await G.skillDamage(h, t, G.sp(h, 40, 0.5), 'magic', '#a070ff');
+        G.shieldHero(h, h, G.sp(h, 50, 0.5));
         await G.enemyBoard(h, t, b => b.convert(b.keysOf(T_MANA).filter(k => !b.at(k).sp), T_STONE), '#7a3cff');
         const s = Math.min(t.mana, n * 4); t.mana -= s; G.addMana(h, s);
       },
@@ -280,7 +286,7 @@ const HEROES = [
       async cast(G, h, t) {
         const ks = []; for (let y = 2; y <= 4; y++) for (let x = 2; x <= 4; x++) ks.push(y * N + x);
         await G.enemyBoard(h, t, b => b.convert(ks, T_STONE), '#7a3cff');
-        await G.skillDamage(h, t, G.sp(h, 160, 1.1), 'magic', '#a070ff');
+        await G.skillDamage(h, t, G.sp(h, 190, 1.2), 'magic', '#a070ff');
       },
     },
   },
@@ -288,22 +294,22 @@ const HEROES = [
     id: 'selena', name: 'Селена', title: 'Звёздная Провидица', role: 'mid', emoji: '✨', color: '#ffd86b',
     mod: { sp: 1.05 },
     lore: 'Читает судьбы по звёздам и направляет союзников.',
-    passive: { name: 'Звёздный взор', desc: '◉ также дают ману (+5 за камень).', effects(G, h, c) { c.manaFlat += c.counts[T_VIS] * 5; } },
+    passive: { name: 'Звёздный взор', desc: '◉ также дают ману (+3 за камень).', effects(G, h, c) { c.manaFlat += c.counts[T_VIS] * 3; } },
     q: {
-      name: 'Звездопад', icon: '🌠', cost: 45, cd: 2, need: 'none',
-      desc: 'Превращает 4 случайных камня своего поля в линейные бомбы.',
-      async cast(G, h) { await G.selfBoard(h, b => { const ks = b.pick(g => b.plain(g), 4); ks.forEach(k => b.convert([k], b.at(k).t, U.pick(['h', 'v']))); return ks; }); },
+      name: 'Звездопад', icon: '🌠', cost: 50, cd: 3, need: 'none',
+      desc: 'Превращает 3 случайных камня своего поля в линейные бомбы.',
+      async cast(G, h) { await G.selfBoard(h, b => { const ks = b.pick(g => b.plain(g), 3); ks.forEach(k => b.convert([k], b.at(k).t, U.pick(['h', 'v']))); return ks; }); },
     },
     r: {
       name: 'Созвездие', icon: '💫', cost: 100, cd: 5, lvl: 6, need: 'none',
-      desc: 'Развеивает туман на полях всех союзников и дарит каждому союзнику в событии Призму.',
+      desc: 'Развеивает туман на полях всех союзников и дарит Призму себе и одному союзнику в событии.',
       ai: (G, h) => G.alliesIn(h).length >= 2 || G.enemiesIn(h).length > 0,
       async cast(G, h) {
         for (const a of G.allTeam(h)) {
           const fog = a.board.keys(g => g.fog);
           if (fog.length) await G.allyBoard(h, a, b => { fog.forEach(k => { b.at(k).fog = 0; b.at(k).flash = 1; }); return fog; }, '#ffd86b', true);
         }
-        for (const a of G.alliesIn(h)) await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g), 1), T_PRISM, 'prism'), '#fff3b0');
+        for (const a of G.alliesIn(h).slice(0, 2)) await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g), 1), T_PRISM, 'prism'), '#fff3b0');
       },
     },
   },
@@ -334,33 +340,34 @@ const HEROES = [
     mod: { atk: 1.05 },
     lore: 'Лучница солнечного ордена, чьи стрелы рассекают тьму.',
     passive: {
-      name: 'Ритм', desc: 'Каждое третье совпадение ⚔ наносит двойной урон.',
-      effects(G, h, c) { if (c.counts[T_ATK] > 0) { h.mem.rhythm = (h.mem.rhythm || 0) + 1; if (h.mem.rhythm % 3 === 0) { c.m.atk *= 2; c.label = 'РИТМ ×2'; } } },
+      name: 'Ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.4 урона.',
+      effects(G, h, c) { if (c.counts[T_ATK] > 0 && c.info.cascade === 0) { h.mem.rhythm = (h.mem.rhythm || 0) + 1; if (h.mem.rhythm % 3 === 0) { c.m.atk *= 1.4; c.label = 'РИТМ ×1.4'; } } },
     },
     q: {
-      name: 'Рассветный выстрел', icon: '☀', cost: 45, cd: 2, need: 'enemy',
-      desc: 'Все ● золота на своём поле становятся ⚔.',
+      name: 'Рассветный выстрел', icon: '☀', cost: 60, cd: 3, need: 'none',
+      desc: 'До 3 ● золота на своём поле становятся ⚔.',
       ai: (G, h) => h.board.count(T_GOLD) >= 5,
-      async cast(G, h) { await G.selfBoard(h, b => b.convert(b.keysOf(T_GOLD).filter(k => !b.at(k).sp), T_ATK)); },
+      async cast(G, h) { await G.selfBoard(h, b => b.convert(U.shuffle(b.keysOf(T_GOLD).filter(k => !b.at(k).sp)).slice(0, 3), T_ATK)); },
     },
     r: {
       name: 'Залп рассвета', icon: '🌅', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Урон всем врагам в событии, а каждый союзник в событии получает бомбу ⚔ на поле.',
       async cast(G, h) {
-        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 60, 0.5) + h.power * 3, 'phys', '#ffb4c4');
+        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 50, 0.4) + h.power * 2.2, 'phys', '#ffb4c4');
         for (const a of G.alliesIn(h)) await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g), 1), T_ATK, 'bomb'), '#ffb4c4');
       },
     },
   },
   {
     id: 'korvin', name: 'Корвин', title: 'Механист', role: 'adc', emoji: '⚙', color: '#9aa7b8',
-    mod: { atk: 1.0 },
+    mod: { atk: 1.12, hp: 1.05 },
     lore: 'Изобретатель, сражающийся армией самодельных устройств.',
-    passive: { name: 'Инженерия', desc: '● золото приносит на 35% больше.', effects(G, h, c) { c.m.gold *= 1.35; } },
+    passive: { name: 'Инженерия', desc: '● золото приносит на 35% больше, а ⚔ бьют на 10% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.1; } },
     q: {
       name: 'Капкан', icon: '🪤', cost: 45, cd: 2, need: 'enemy',
-      desc: 'Сковывает 4 камня на поле цели и ставит линейную бомбу на своё поле.',
+      desc: 'Бьёт цель капканом, сковывает 4 камня на её поле и ставит линейную бомбу на своё поле.',
       async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 40, 0.4) + h.power * 1.5, 'phys', '#cfd8e3');
         await G.enemyBoard(h, t, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 4)), '#cfd8e3');
         await G.selfBoard(h, b => { const ks = b.pick(g => b.plain(g), 1); ks.forEach(k => b.convert([k], b.at(k).t, 'h')); return ks; });
       },
@@ -370,7 +377,7 @@ const HEROES = [
       desc: 'Урон всем врагам в событии и по 4 булыжника на поле каждого из них.',
       async cast(G, h) {
         for (const e of G.enemiesIn(h)) {
-          await G.skillDamage(h, e, G.sp(h, 70, 0.6) + h.power * 2.5, 'phys', '#ffaa33');
+          await G.skillDamage(h, e, G.sp(h, 80, 0.7) + h.power * 3.5, 'phys', '#ffaa33');
           await G.enemyBoard(h, e, b => b.convert(b.pick(g => b.plain(g), 4), T_STONE), '#9aa7b8');
         }
       },
@@ -385,17 +392,18 @@ const HEROES = [
     passive: { name: 'Милосердие', desc: '✚ также лечат самого раненого союзника в событии на 60%.', effects(G, h, c) { c.healAlly += 0.6; } },
     q: {
       name: 'Благословение', icon: '🙏', cost: 40, cd: 1, need: 'none',
-      desc: 'Превращает 5 камней на поле самого раненого союзника в событии в ✚.',
+      desc: 'Сразу лечит самого раненого союзника в событии и превращает 5 камней на его поле в ✚.',
       ai: (G, h) => G.alliesIn(h).some(a => a.hp / a.maxHp < 0.75),
       async cast(G, h) {
         const a = U.minBy(G.alliesIn(h), x => x.hp / x.maxHp);
+        G.healHero(h, a, G.sp(h, 60, 0.6));
         await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_HEAL, 5), T_HEAL), '#fff0a8');
       },
     },
     r: {
       name: 'Небесный свет', icon: '☀', cost: 110, cd: 5, lvl: 6, need: 'none',
       desc: 'Лечит всех союзников на карте и очищает их поля от булыжников, льда и тумана.',
-      ai: (G, h) => U.sum(G.allTeam(h), a => 1 - a.hp / a.maxHp) > 1.1,
+      ai: (G, h) => U.sum(G.allTeam(h), a => 1 - a.hp / a.maxHp) > 0.7,
       async cast(G, h) {
         for (const a of G.allTeam(h)) {
           G.healHero(h, a, G.sp(h, 120, 1.2));
@@ -410,8 +418,9 @@ const HEROES = [
     lore: 'Тюремщик из подземных бастионов, чей крюк достаёт любого.',
     passive: { name: 'Защитник', desc: '🛡 также дают щит самому раненому союзнику в событии (60%).', effects(G, h, c) { c.shieldAlly += 0.6; } },
     q: {
-      name: 'Крюк', icon: '🪝', cost: 45, cd: 2, need: 'enemy',
+      name: 'Крюк', icon: '🪝', cost: 50, cd: 3, need: 'enemy',
       desc: 'Выдёргивает 4 ⚔ с поля цели (там остаются булыжники) и переносит их на своё поле.',
+      ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_ATK) >= 3; },
       async cast(G, h, t) {
         const ks = t.board.pick(g => g.t === T_ATK && !g.sp, 4);
         await G.enemyBoard(h, t, b => b.convert(ks, T_STONE), '#6f8fa8');
@@ -420,10 +429,10 @@ const HEROES = [
     },
     r: {
       name: 'Цепи судьбы', icon: '⛓', cost: 110, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Оглушает до 2 врагов в событии и сковывает по 6 клеток их полей.',
+      desc: 'Оглушает главную цель и сковывает по 6 клеток на полях двух врагов в событии.',
       async cast(G, h) {
-        for (const e of G.enemiesIn(h).slice(0, 2)) {
-          G.stun(h, e);
+        for (const [i, e] of G.enemiesIn(h).slice(0, 2).entries()) {
+          if (i === 0) G.stun(h, e);
           await G.enemyBoard(h, e, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 6)), '#9fb6c9');
         }
       },

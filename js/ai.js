@@ -31,7 +31,6 @@ const AI = {
     if ((G.dragon.alive || G.baron.alive) && !enemies) w[T_VIS] += 0.4;
     // пассивки
     const id = h.def.id;
-    if (id === 'korvin') w[T_GOLD] += 0.4;
     if (id === 'selena' || id === 'nia') w[T_VIS] += 0.4;
     if (id === 'morven' && h.lvl >= 6) w[T_HEAL] += 0.5;
     if (id === 'granitor') w[T_DEF] += 0.5;
@@ -83,7 +82,8 @@ const AI = {
       // экономия маны на ульту
       if (key === 'q' && h.lvl >= 6 && h.cd.r <= 1 && h.mana - s.cost < h.def.r.cost && G.enemiesIn(h).length) continue;
       // ульты — в основном в драках, ганге, у объектов
-      if (key === 'r' && s.need !== 'global' && !G.enemiesIn(h).length && !['dragon', 'baron'].includes(h.ev.type)) continue;
+      if (key === 'r' && s.need === 'enemy' && !G.enemiesIn(h).length && !['dragon', 'baron'].includes(h.ev.type)) continue;
+      if (key === 'r' && s.need === 'none' && !s.ai && !G.enemiesIn(h).length) continue;
       if (after && U.chance(0.4)) continue;
       return key;
     }
