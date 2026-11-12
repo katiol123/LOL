@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лига Кристаллов — MOBA «три в ряд»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Титульный экран -->
+  <section id="screen-title" class="screen active">
+    <div class="title-bg"></div>
+    <div class="title-wrap">
+      <div class="logo">
+        <div class="logo-crest">◆</div>
+        <h1>Лига Кристаллов</h1>
+        <p class="subtitle">5 × 5 · MOBA в формате «три в ряд»</p>
+      </div>
+      <div class="title-grid">
+        <div class="panel">
+          <h3>Шесть камней — шесть эффектов</h3>
+          <div id="gem-legend"></div>
+        </div>
+        <div class="panel">
+          <h3>Как устроен матч</h3>
+          <ul class="howto">
+            <li><b>10 героев</b> — у каждого своё поле 7×7. Каждая минута — по ходу у каждого героя.</li>
+            <li><b>События</b> назначаются режиссёром: фарм линии, фарм леса, ганг, осада, битва за Дракона и Барона, возврат на базу.</li>
+            <li><b>Косвенное влияние</b>: ◉ Обзор копит давление на эпиков, заряжает ганг лесника и раскрывает вражеские ганги; ⚔ на линии толкает волну к башне.</li>
+            <li><b>Умения</b> меняют поля: туман, лёд, булыжники, бомбы, призмы, перемешивание — на своём поле, у союзников и у врагов.</li>
+            <li><b>Совпадения</b>: 4 в ряд — линейная бомба, L/T — бомба 3×3, 5 в ряд — Призма + доп. ход. Каскады усиливают эффект.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="title-actions">
+        <button class="btn primary big" id="btn-start">⚔ Начать матч: ИИ против ИИ</button>
+        <button class="btn" id="btn-codex">📜 Герои (16)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Драфт -->
+  <section id="screen-draft" class="screen">
+    <div class="draft-head">
+      <div class="draft-team blue">Синие</div>
+      <div class="draft-status"><div id="draft-phase">Выбор героев</div><div id="draft-sub"></div></div>
+      <div class="draft-team red">Красные</div>
+    </div>
+    <div class="draft-body">
+      <div class="draft-picks" id="picks-blue"></div>
+      <div class="draft-center">
+        <div id="draft-pool"></div>
+        <div id="draft-detail" class="panel"></div>
+      </div>
+      <div class="draft-picks red" id="picks-red"></div>
+    </div>
+  </section>
+
+  <!-- Экран VS -->
+  <section id="screen-vs" class="screen">
+    <div class="vs-row blue" id="vs-blue"></div>
+    <div class="vs-mid"><span>VS</span><small>Ущелье Кристаллов</small></div>
+    <div class="vs-row red" id="vs-red"></div>
+  </section>
+
+  <!-- Матч -->
+  <section id="screen-game" class="screen">
+    <header id="hud">
+      <div class="hud-team blue">
+        <div class="hud-name">Синие</div>
+        <div class="hud-stats"><span class="hk" id="hk-blue">0</span><span id="hg-blue" class="hg">0</span><span id="ht-blue" class="ht"></span><span id="hd-blue" class="hdr"></span></div>
+      </div>
+      <div class="hud-center">
+        <div class="clock" id="clock">01:00</div>
+        <div class="speed">
+          <button data-speed="0" title="Пауза">❚❚</button>
+          <button data-speed="1" class="on">1×</button>
+          <button data-speed="2">2×</button>
+          <button data-speed="4">4×</button>
+          <button data-speed="10">10×</button>
+        </div>
+      </div>
+      <div class="hud-team red">
+        <div class="hud-name">Красные</div>
+        <div class="hud-stats"><span class="hdr" id="hd-red"></span><span id="ht-red" class="ht"></span><span id="hg-red" class="hg">0</span><span class="hk" id="hk-red">0</span></div>
+      </div>
+    </header>
+    <div id="killfeed"></div>
+    <div id="game-grid">
+      <aside id="col-blue" class="team-col"></aside>
+      <main id="center">
+        <div id="stage">
+          <div id="feature-wrap">
+            <div id="feature-head"></div>
+            <div id="feature-box"><canvas id="feature"></canvas><div id="combo"></div></div>
+            <div id="feature-skills"></div>
+          </div>
+          <div id="event-panel" class="panel"></div>
+        </div>
+        <div id="bottom">
+          <div class="panel map-panel"><div class="panel-title">Карта</div><canvas id="minimap"></canvas></div>
+          <div class="panel" id="tactics"></div>
+          <div class="panel log-panel"><div class="panel-title">Хроника матча</div><div id="log"></div></div>
+        </div>
+      </main>
+      <aside id="col-red" class="team-col"></aside>
+    </div>
+  </section>
+
+  <!-- Итоги -->
+  <section id="screen-end" class="screen">
+    <div class="end-wrap">
+      <h1 id="end-title">Победа</h1>
+      <p id="end-sub"></p>
+      <div id="end-table"></div>
+      <div class="title-actions">
+        <button class="btn primary big" id="btn-again">⚔ Новый матч</button>
+        <button class="btn" id="btn-menu">В меню</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="codex" class="modal"><div class="modal-box panel"><button class="close" id="codex-close">✕</button><h2>Герои Лиги Кристаллов</h2><div id="codex-list"></div></div></div>
+</div>
+
+<canvas id="fx"></canvas>
+<div id="floaters"></div>
+<div id="banners"></div>
+<div id="cast-banner"></div>
+<div id="fade"></div>
+
+<script src="js/util.js"></script>
+<script src="js/board.js"></script>
+<script src="js/data.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
