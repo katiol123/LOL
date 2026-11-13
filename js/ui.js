@@ -248,7 +248,7 @@ const UI = {
     const head = $('#feature-head');
     head.style.setProperty('--hc', h.def.color);
     head.innerHTML = `<div class="portrait" style="--hc:${h.def.color};border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${h.def.emoji}</div>
-      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>${h.team === 'blue' ? 'Синие' : 'Красные'} · ${ROLES[h.role].name} · ${h.def.title} · ур. ${h.lvl}</small></div>`;
+      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>ур. ${h.lvl} · ${h.team === 'blue' ? 'Синие' : 'Красные'} · ${ROLES[h.role].name} · ${h.def.title}</small></div>`;
     head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
     $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
     this.skKey = '';

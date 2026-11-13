@@ -160,7 +160,7 @@ const App = {
     const max = Math.max(1500, ...hist.map(Math.abs));
     c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1; c.setLineDash([4, 4]);
     c.beginPath(); c.moveTo(pad, mid); c.lineTo(W - pad, mid); c.stroke(); c.setLineDash([]);
-    c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '9px Inter, sans-serif'; c.textAlign = 'right'; c.fillText('0', W - pad, mid - 3); c.textAlign = 'left';
+    c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '9px Inter, sans-serif'; c.fillText('0', pad + 2, mid - 3);
     if (hist.length > 1) { c.fillStyle = 'rgba(255,255,255,.35)'; for (let m = 5; m < hist.length; m += 5) { const xx = pad + (W - pad * 2) * m / (hist.length - 1); c.fillRect(xx, mid - 3, 1, 6); c.fillText(m + 'м', xx + 2, mid + 12); } }
     if (hist.length < 2) { c.fillStyle = '#8c93a8'; c.font = '11px Inter, sans-serif'; c.fillText('График появится после первой минуты', pad + 4, mid - 6); return; }
     const x = i => pad + (W - pad * 2) * i / (hist.length - 1);
@@ -180,9 +180,8 @@ const App = {
     c.fillText('Синие', pad + 2, pad + 10);
     c.fillStyle = '#ff8c95'; c.fillText('Красные', pad + 2, H - pad - 2);
     const last = hist[hist.length - 1];
-    c.fillStyle = last >= 0 ? '#7cc4ff' : '#ff8c95'; c.textAlign = 'right';
-    c.fillText(`${last >= 0 ? '+' : '−'}${(Math.abs(last) / 1000).toFixed(1)}k`, W - pad - 2, last >= 0 ? pad + 10 : H - pad - 2);
-    c.textAlign = 'left';
+    if (big) { c.fillStyle = last >= 0 ? '#7cc4ff' : '#ff8c95'; c.textAlign = 'right'; c.fillText(`${last >= 0 ? '+' : '−'}${(Math.abs(last) / 1000).toFixed(1)}k`, W - pad - 2, last >= 0 ? H - pad - 2 : pad + 10); c.textAlign = 'left'; }
+    else { const t = document.querySelector('.adv-panel .panel-title'); if (t) t.innerHTML = `Преимущество по золоту <span style="float:right;color:${last >= 0 ? '#7cc4ff' : '#ff8c95'}">${last >= 0 ? 'Синие +' : 'Красные +'}${(Math.abs(last) / 1000).toFixed(1)}k</span>`; }
   },
 
   /* Медленно плывущие кристаллы на титульном экране */
