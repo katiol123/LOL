@@ -492,6 +492,165 @@ const HEROES = [
       },
     },
   },
+  {
+    id: 'shieldbearer', name: 'Кассиан', title: 'Щитоносец', role: 'top', emoji: '🔰', color: '#8a7a5a', img: 'img/heroes/shieldbearer',
+    mod: { hp: 1.15, arm: 1.2, atk: 0.95 },
+    lore: 'Ветеран фаланги с ростовым щитом и копьём. Встаёт между врагом и товарищами — и не отступает.',
+    passive: { name: 'Фаланга', desc: 'Принимает на себя 25% урона, который получают союзники в его событии.', phalanx: 0.25 },
+    q: {
+      name: 'Вызов', icon: '📯', cost: 45, cd: 3, need: 'enemy',
+      desc: 'Провоцирует всех врагов в событии: до конца следующей минуты они бьют только Кассиана. Сам получает щит.',
+      ai: (G, h) => G.enemiesIn(h).length >= 1 && G.alliesIn(h).length >= 2 && h.hp / h.maxHp > 0.45,
+      async cast(G, h) {
+        G.taunt(h, G.enemiesIn(h), 1);
+        G.shieldHero(h, h, G.sp(h, 60, 0.6));
+        await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_DEF, 3), T_DEF));
+      },
+    },
+    r: {
+      name: 'Стена щитов', icon: '🧱', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Союзники в событии на 2 минуты получают зеркальный щит: первое вражеское умение, меняющее их поле, отражается на поле заклинателя.',
+      ai: (G, h) => G.alliesIn(h).length >= 2,
+      async cast(G, h) {
+        for (const a of G.alliesIn(h)) { a.reflect = 3; G.ui.float(a, '🔰 ЗЕРКАЛО', '#ffe9a8'); G.shieldHero(h, a, G.sp(h, 30, 0.3)); }
+        await G.selfBoardQuiet(h, b => { b.glow = 1; });
+      },
+    },
+  },
+  {
+    id: 'spidertinker', name: 'Винтик', title: 'Механический паук', role: 'jng', emoji: '🕷', color: '#b87333', img: 'img/heroes/spidertinker',
+    mod: { atk: 1.05 },
+    lore: 'Гном-изобретатель верхом на заводном пауке. Из каждого убитого монстра выковыривает детали для брони.',
+    passive: { name: 'Металлолом', desc: 'За каждого убитого монстра или эпика: +4 брони и +3 атаки до конца матча.', scrap: true },
+    q: {
+      name: 'Паучьи мины', icon: '💣', cost: 45, cd: 2, need: 'enemy',
+      desc: 'Прячет 3 мины под камнями на поле цели. Когда такой камень уничтожают, мина взрывается: урон владельцу поля и −15 маны.',
+      async cast(G, h, t) { await G.enemyBoard(h, t, b => b.mine(b.pick(g => b.plain(g) && !g.mine, 3), h.id), '#ff7a45'); },
+    },
+    r: {
+      name: 'Перегрузка', icon: '⚙', cost: 110, cd: 5, lvl: 6, need: 'none',
+      desc: 'Поворачивает своё поле на 90° (до 3 раз, пока не появятся совпадения) и разряжает его с бонусом к каскадам.',
+      ai: (G, h) => G.enemiesIn(h).length > 0 || (h.ev && h.ev.type === 'jungle'),
+      async cast(G, h) {
+        const b = h.board;
+        for (let i = 0; i < 3; i++) { b.rotate90(); b.glow = 1; await wait(350); if (b.hasAnyMatch()) break; }
+        if (b.hasAnyMatch()) await G.resolve(h, { cascadeStart: 1 });
+        else if (!b.hasMoves()) b.shuffleGems();
+      },
+    },
+  },
+  {
+    id: 'necromancer', name: 'Валдрек', title: 'Некромант', role: 'mid', emoji: '💀', color: '#5a3d6b', img: 'img/heroes/necromancer',
+    mod: { sp: 1.18, hp: 1.05 },
+    lore: 'Повелитель костей и гнили. Каждая смерть поблизости делает его сильнее, а павших союзников он умеет поднимать.',
+    passive: { name: 'Жатва душ', desc: 'Каждая смерть героя в его событии даёт душу: +8 силы умений до конца матча (до 20 душ).', souls: true },
+    q: {
+      name: 'Порча', icon: '🦠', cost: 50, cd: 2, need: 'enemy',
+      desc: 'Бьёт цель и гноит 4 камня на её поле. Гнилые камни не дают эффекта при сборе, а каждую минуту гниль переходит на соседние камни (до 10 на поле).',
+      async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 65, 0.8), 'magic', '#7bd36b');
+        await G.enemyBoard(h, t, b => b.rot(b.pick(g => b.plain(g) && !g.rot, 4)), '#7bd36b');
+      },
+    },
+    r: {
+      name: 'Восстание', icon: '⚰', cost: 120, cd: 6, lvl: 6, need: 'none',
+      desc: 'Немедленно поднимает павшего союзника (45% здоровья, на базе). Если павших нет — гноит по 4 камня у всех врагов в событии.',
+      ai: (G, h) => G.teams[h.team].heroes.some(x => !x.alive && x.dead >= 2) || G.enemiesIn(h).length >= 2,
+      async cast(G, h) {
+        const dead = G.teams[h.team].heroes.filter(x => !x.alive);
+        if (dead.length) { G.revive(h, U.maxBy(dead, x => x.dead * 10 + x.lvl)); return; }
+        for (const e of G.enemiesIn(h)) await G.enemyBoard(h, e, b => b.rot(b.pick(g => b.plain(g) && !g.rot, 4)), '#7bd36b');
+      },
+    },
+  },
+  {
+    id: 'seawitch', name: 'Ундина', title: 'Морская ведьма', role: 'sup', emoji: '🐙', color: '#3a7bd5', img: 'img/heroes/seawitch',
+    mod: { sp: 1.05, hp: 1.05 },
+    lore: 'Хозяйка глубин с щупальцами вместо ног. Её водовороты путают камни, а объятия лишают голоса.',
+    passive: { name: 'Солёные глубины', desc: 'Враги в её событии получают на 20% больше урона от ⚔.', vuln: 0.2 },
+    q: {
+      name: 'Водоворот', icon: '🌀', cost: 45, cd: 2, need: 'enemy',
+      desc: 'Бьёт цель волной и закручивает кольцо из 8 клеток на её поле так, чтобы сломать ходы; особые камни в кольце смываются.',
+      async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 45, 0.5), 'magic', '#5ec8ff');
+        const sc = t.board.keys(g => g.sp && g.t !== T_PRISM).map(k => [kr(k), kc(k)]).filter(([r, c]) => r > 0 && c > 0 && r < N - 1 && c < N - 1);
+        const [r0, c0] = sc.length ? U.pick(sc) : [1 + U.ri(N - 2), 1 + U.ri(N - 2)];
+        await G.enemyBoard(h, t, b => b.worstOf([2, 3, 5, 6].map(n => (bb, dry) => bb.ringRotate(r0, c0, n, dry))), '#5ec8ff');
+      },
+    },
+    r: {
+      name: 'Объятия глубин', icon: '🐙', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'До 3 врагов в событии получают урон, немеют на 2 минуты (не могут применять умения) и теряют 25% маны.',
+      async cast(G, h) {
+        for (const e of G.enemiesIn(h).slice(0, 3)) {
+          G.ui.projectile(h, e, '#3a7bd5', true); await wait(300);
+          if (G.dodges(h, e)) { G.ui.float(e, 'УВЕРНУЛСЯ', '#fff'); continue; }
+          G.silence(h, e, 2); e.mana *= 0.75;
+          await G.skillDamage(h, e, G.sp(h, 60, 0.5), 'magic', '#3a7bd5');
+        }
+      },
+    },
+  },
+  {
+    id: 'crabpirate', name: 'Клешнир', title: 'Пират-краб', role: 'adc', emoji: '🦀', color: '#d2462e', img: 'img/heroes/crabpirate',
+    mod: { atk: 1.12, hp: 1.1, arm: 1.1 },
+    lore: 'Капитан-краб с пушкой на клешне. Палит бортовыми залпами, бросает якорь и забирает добычу у павших.',
+    passive: { name: 'Абордаж', desc: 'Убийство или помощь отбирает у жертвы 25% её золота. Крабий панцирь: больше здоровья и брони, чем у других стрелков.', plunder: 0.25 },
+    q: {
+      name: 'Бортовой залп', icon: '💥', cost: 45, cd: 2, need: 'enemy',
+      desc: 'Бьёт цель и сдвигает 3 ряда её поля по кругу так, чтобы сломать ей ходы; затем «перезаряжается» — сдвигает один свой ряд в самое выгодное положение.',
+      async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 40, 0.3) + h.power * 1.8, 'phys', '#d2462e');
+        // из 6 случайных залпов выбирается тот, что сильнее всего ломает ходы цели
+        const cands = Array.from({ length: 6 }, () => { const rows = U.shuffle([0, 1, 2, 3, 4, 5, 6]).slice(0, 3), sh = rows.map(() => U.pick([1, 2, -1, -2])); return (b, dry) => rows.forEach((r, i) => b.shiftRow(r, sh[i], dry)); });
+        await G.enemyBoard(h, t, b => b.worstOf(cands), '#d2462e');
+        // перезарядка: свой ряд сдвигается так, чтобы собрать как можно больше ⚔
+        const own = [];
+        for (let r = 0; r < N; r++) for (const n of [1, 2, 3, -1, -2, -3]) own.push((b, dry) => b.shiftRow(r, n, dry));
+        if (h.alive) await G.selfBoard(h, b => b.bestOf(own));
+      },
+    },
+    r: {
+      name: 'Якорь', icon: '⚓', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Бросает якорь в цель: 2 минуты она не может покинуть событие или уйти на базу и получает на 20% больше урона.',
+      async cast(G, h, t) {
+        G.ui.projectile(h, t, '#c8d2e0', true); await wait(350);
+        G.anchor(h, t, 2);
+        await G.skillDamage(h, t, G.sp(h, 60, 0.5) + h.power * 2.8, 'phys', '#c8d2e0');
+      },
+    },
+  },
+  {
+    id: 'bonebard', name: 'Ноктюрн', title: 'Скелет-бард', role: 'sup', emoji: '🎻', color: '#7d6aa8', img: 'img/heroes/bonebard',
+    mod: { hp: 0.95, sp: 1.05 },
+    lore: 'Бард, которого не остановила даже смерть. Его скрипка поднимает дух живых — и задаёт им ритм.',
+    passive: { name: 'Похоронный марш', desc: 'Каждые 3 совпадения союзников в его событии — куплет (до 3): +5% к эффектам камней союзников за куплет. Вне боя куплеты затихают.', march: true },
+    q: {
+      name: 'Баллада вдохновения', icon: '🎵', cost: 50, cd: 3, need: 'none',
+      desc: 'Союзник в событии (не сам бард) немедленно делает дополнительный ход.',
+      ai: (G, h) => G.alliesIn(h).length >= 2 && G.enemiesIn(h).length > 0,
+      async cast(G, h) {
+        const al = G.alliesIn(h).filter(a => a !== h);
+        if (!al.length) return;
+        const a = U.maxBy(al, x => x.power + x.sp * 0.5);
+        G.ui.projectile(h, a, '#e0c3ff', true); await wait(300);
+        await G.bonusMove(a);
+      },
+    },
+    r: {
+      name: 'Реквием', icon: '🎼', cost: 120, cd: 7, lvl: 6, need: 'none',
+      desc: 'Сбрасывает перезарядку умений союзников в событии и даёт каждому по 30 маны.',
+      ai: (G, h) => G.alliesIn(h).filter(a => a !== h && (a.cd.q > 0 || a.cd.r > 0)).length >= 1,
+      async cast(G, h) {
+        for (const a of G.alliesIn(h)) {
+          if (a !== h) { a.cd.q = 0; a.cd.r = 0; }
+          G.addMana(a, 30);
+          if (a !== h) G.ui.projectile(h, a, '#e0c3ff');
+        }
+        G.ui.log(`🎼 ${G.tag(h)} играет Реквием — умения союзников снова готовы!`, h.team);
+      },
+    },
+  },
 ];
 
 
@@ -516,6 +675,12 @@ const HERO_FIT = {
   paladin: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['heal', 'utility'] },
   ogre: { fit: { top: 2, jng: 1, mid: 0, adc: 0, sup: 3 }, tags: ['tank', 'control'] },
   smuggler: { fit: { top: 0, jng: 1, mid: 1, adc: 0, sup: 3 }, tags: ['utility', 'vision'] },
+  shieldbearer: { fit: { top: 3, jng: 1, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  spidertinker: { fit: { top: 2, jng: 3, mid: 1, adc: 1, sup: 0 }, tags: ['burst', 'control'] },
+  necromancer: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['control', 'utility'] },
+  seawitch: { fit: { top: 0, jng: 1, mid: 2, adc: 0, sup: 3 }, tags: ['control', 'utility'] },
+  crabpirate: { fit: { top: 1, jng: 0, mid: 1, adc: 3, sup: 0 }, tags: ['dps', 'control'] },
+  bonebard: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['utility'] },
 };
 const FIT_NAMES = ['плохо', 'терпимо', 'хорошо', 'родная роль'];
 const TAG_NAMES = { tank: 'танк', heal: 'лекарь', control: 'контроль', burst: 'взрывной урон', dps: 'постоянный урон', utility: 'поддержка', vision: 'обзор', sustain: 'живучесть' };

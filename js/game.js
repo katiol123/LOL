@@ -30,6 +30,8 @@ class Hero {
     // бонус ко всем характеристикам: мастерство/4 + форма (пригодность героя к роли — только подсказка для ИИ, без штрафа)
     this.bonusAll = this.ms / 4 + playerFormBonus(this.pl);
     this.tilt = 0; this.sdmg = 0; this.obj = 0; this.shielded = 0; this.vis = 0;
+    // состояния от новых умений: провокация, немота, якорь, отражение, накопления
+    this.tauntBy = null; this.taunted = 0; this.silenced = 0; this.anchored = 0; this.reflect = 0; this.scrap = 0; this.souls = 0;
     this.lvl = 1; this.xp = 0;
     this.items = []; this.buildIdx = 0;
     this.gold = 500; this.totalGold = 500;
@@ -54,7 +56,8 @@ class Hero {
     this.power = (b.atk + L * b.atkG) * (m.atk || 1) + this.itemStat('atk');
     this.armor = (b.arm + L * b.armG) * (m.arm || 1) + this.itemStat('arm');
     this.maxMana = Math.round(b.mana + L * 8 + this.itemStat('mana'));
-    this.sp = (b.sp + L * b.spG) * (m.sp || 1) + this.itemStat('sp');
+    this.sp = (b.sp + L * b.spG) * (m.sp || 1) + this.itemStat('sp') + (this.souls || 0) * 8;
+    this.armor += (this.scrap || 0) * 4; this.power += (this.scrap || 0) * 3;
     this.lifesteal = this.itemStat('ls');
     if (this.hp != null) this.hp = Math.min(this.maxHp, Math.max(1, Math.round(this.maxHp * ratio)));
   }
@@ -108,6 +111,8 @@ class Game {
   target(h) {
     const e = this.enemiesIn(h);
     if (!e.length) return null;
+    // провокация: пока действует, враг бьёт только провокатора
+    if (h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy)) return h.tauntBy;
     if (e.length === 1) return e[0];
     const ev = h.ev;
     // Командное мышление: бить ту же цель, что и союзники (фокус)
@@ -202,7 +207,7 @@ class Game {
   canCast(h, key) {
     const s = h.def[key];
     if (!s || h.cd[key] > 0 || h.mana < s.cost || (s.lvl && h.lvl < s.lvl)) return false;
-    if (!h.alive || h.ev.type === 'recall') return false;
+    if (!h.alive || h.ev.type === 'recall' || h.silenced > 0) return false;
     if (s.need === 'enemy' && !this.target(h)) return false;
     if (s.need === 'global' && !this.allEnemies(h).length) return false;
     return true;
@@ -261,8 +266,16 @@ class Game {
       if (!st.clear.size) break;
       if (st.maxLen >= 5) bonus = true;
       const info = { cascade, atkRuns: st.atkRuns, bombs: st.acts.filter(a => a.sp === 'bomb').length, maxLen: st.maxLen, acts: st.acts.length };
+      // гнилые камни не дают эффекта; мины взрываются, когда их камень уходит с поля
+      const mines = [];
+      for (const k of st.clear) {
+        const g = b.at(k); if (!g) continue;
+        if (g.rot && g.t <= 5 && st.counts[g.t] > 0) st.counts[g.t]--;
+        if (g.mine) mines.push(g.mine);
+      }
       b.applyStep(st);
       this.stepSound(st, cascade);
+      for (const m of mines) this.mineBlast(h, m);
       if (st.acts.length) b.shake = Math.min(1, 0.3 + st.acts.length * 0.2);
       if (cascade >= 1 && effects) this.ui.combo(h, cascade + 1);
       await wait(230);
@@ -303,6 +316,13 @@ class Game {
     const c = { counts, info, m: { atk: 1, def: 1, heal: 1, mana: 1, gold: 1, vis: 1 }, after: [], lifesteal: h.lifesteal, gankMul: 1, bombDmg: 0, label: null, manaFlat: 0, healAlly: 0, shieldAlly: 0, visShield: 0 };
     const p = h.def.passive;
     if (p.effects) p.effects(this, h, c);
+    // «Похоронный марш» (Ноктюрн): совпадения союзников в его событии копят куплеты, каждый усиливает их камни
+    const bard = h.ev && h.ev.sides && h.ev.sides[h.team].find(x => x.alive && x.def.passive.march);
+    if (bard) {
+      bard.marchHits = (bard.marchHits || 0) + 1;
+      if (bard.marchHits >= 3 && (bard.verses || 0) < 3) { bard.marchHits = 0; bard.verses = (bard.verses || 0) + 1; this.ui.float(bard, `🎻 куплет ${bard.verses}`, '#e0c3ff'); }
+      for (const k in c.m) c.m[k] *= 1 + 0.05 * (bard.verses || 0);
+    }
     const buff = this.teamBuffs(h.team);
     // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
     const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech')) * (1 + 4 * h.itemStat('cascPow'));
@@ -477,6 +497,7 @@ class Game {
   npcKilled(h, ev) {
     const npc = ev.npc;
     const tm = this.teams[h.team];
+    if (h.def.passive.scrap) { h.scrap++; h.recalc(); this.ui.float(h, `⚙ металлолом ${h.scrap}`, '#d9a066'); }
     if (npc.kind === 'camp') {
       const gm = h.def.passive.campGold || 1;
       const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')));
@@ -529,7 +550,7 @@ class Game {
   }
 
   /* ---------------- Бой ---------------- */
-  dealDamage(src, tgt, amt, kind = 'phys') {
+  dealDamage(src, tgt, amt, kind = 'phys', noRedirect) {
     if (!tgt || !tgt.alive || amt <= 0) return 0;
     let arm = (tgt.armor + this.teamBuffs(tgt.team).arm) * (1 - Math.min(0.6, src ? src.itemStat('pen') : 0));
     if (kind === 'magic') arm *= 0.5;
@@ -539,6 +560,14 @@ class Game {
     // Карта: осведомлённость (позиционирование) снижает получаемый урон, особенно когда бой начал враг
     const ambushed = ev && ev.att && ev.att !== tgt.team && (ev.type === 'gank' || ev.type === 'dragon' || ev.type === 'baron' || ev.type === 'siege');
     d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.3, 1.7);
+    // уязвимость рядом с врагом, у которого она в пассивке (Ундина), и якорь (+20% урона)
+    if (kind === 'phys' && ev && ev.sides && ev.sides[tgt.enemyTeam].some(x => x.alive && x.def.passive.vuln)) d *= 1 + ev.sides[tgt.enemyTeam].find(x => x.alive && x.def.passive.vuln).def.passive.vuln;
+    if (tgt.anchored > 0) d *= 1.2;
+    // защитник (Кассиан) перехватывает часть урона, который получают союзники в его событии
+    if (!noRedirect && ev && ev.sides) {
+      const guard = ev.sides[tgt.team].find(x => x !== tgt && x.alive && x.def.passive.phalanx);
+      if (guard) { const part = d * guard.def.passive.phalanx; d -= part; this.takeRaw(src, guard, part); }
+    }
     const abs = Math.min(tgt.shield, d);
     tgt.shield -= abs; d -= abs;
     tgt.hp -= d;
@@ -555,6 +584,15 @@ class Game {
     const ok = U.chance(U.clamp(0.06 + 0.025 * (sd(tgt, 'rea') - sd(src, 'mech')) + tgt.itemStat('dodge'), 0, 0.55));
     if (ok) { this.ui.float(tgt, 'УВОРОТ!', '#9fe8ff'); tgt.dodged = (tgt.dodged || 0) + 1; }
     return ok;
+  }
+  /* Урон без брони и перехвата: уже посчитанное значение уходит в щит и здоровье */
+  takeRaw(src, tgt, d) {
+    if (!tgt.alive || d <= 0) return 0;
+    const abs = Math.min(tgt.shield, d); tgt.shield -= abs; tgt.hp -= d - abs;
+    if (src) src.dmg += d;
+    this.ui.damage(tgt, Math.round(d), abs >= d - 0.5);
+    if (tgt.hp <= 0) this.kill(src, tgt);
+    return d;
   }
   async skillDamage(src, tgt, amt, kind, color) {
     if (!tgt || !tgt.alive) return 0;
@@ -627,6 +665,8 @@ class Game {
 
   kill(src, tgt) {
     if (tgt.dead > 0) return;
+    // жатва душ (Валдрек): любая смерть рядом с некромантом усиливает его
+    if (tgt.ev && tgt.ev.sides) for (const x of [...tgt.ev.sides.blue, ...tgt.ev.sides.red]) if (x !== tgt && x.alive && x.def.passive.souls && x.souls < 20) { x.souls++; x.recalc(); this.ui.float(x, `💀 душа ${x.souls}`, '#7bff9e'); }
     tgt.hp = 0; tgt.shield = 0;
     tgt.dead = 2 + Math.floor(tgt.lvl / 6) + (this.minute >= 28 ? 1 : 0);
     const victimStreak = tgt.streak;
@@ -647,6 +687,9 @@ class Game {
     for (const a of assists) { a.a++; this.addGold(a, Math.round(120 * (sm(0.04, a, 'team')))); this.gainXp(a, 50 + tgt.lvl * 6); this.calmDown(a); }
     this.calmDown(src);
     this.tryTilt(tgt, assists.length ? 1 : 2, 'гибели');
+    // абордаж (Клешнир): убийца или помощник крадёт часть золота жертвы
+    const pirate = [src, ...assists].find(x => x.def.passive.plunder);
+    if (pirate) { const g = Math.round(tgt.gold * pirate.def.passive.plunder); if (g > 0) { tgt.gold -= g; this.addGold(pirate, g); this.ui.float(pirate, `🏴‍☠️ +${g}💰`, '#ffc93c'); } }
     // мультикиллы за раунд
     src.mem.roundKills = (src.mem.roundKillsRound === this.round ? src.mem.roundKills : 0) + 1;
     src.mem.roundKillsRound = this.round;
@@ -728,7 +771,7 @@ class Game {
       // откликнувшиеся «позже» прибывают на минуту позже
       for (const x of ev.late || []) if (x.alive && !x.ev && x.hp / x.maxHp > 0.25 && !ev.sides[x.team].includes(x)) ev.sides[x.team].push(x);
       ev.late = [];
-      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && x.hp / x.maxHp > 0.12);
+      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && (x.hp / x.maxHp > 0.12 || x.anchored > 0));
       // сигнал «Отступаем», если команда в событии явно проигрывает
       for (const t of ['blue', 'red']) {
         const own = ev.sides[t], foe = ev.sides[this.enemyOf(t)];
@@ -760,7 +803,7 @@ class Game {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
       const rich = h.gold >= AI.shopTarget(this, h) && (hpR < 0.92 || U.chance(0.5));
-      if (hpR < 0.3 - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich) {
+      if (h.anchored <= 0 && (hpR < 0.3 - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich)) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
     }
@@ -1066,6 +1109,9 @@ class Game {
       }
       if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 2) this.calmDown(h);
       for (const k of ['q', 'r']) if (h.cd[k] > 0) h.cd[k]--;
+      for (const k of ['taunted', 'silenced', 'anchored', 'reflect']) if (h[k] > 0) h[k]--;
+      if (h.verses > 0 && (!h.ev || !h.ev.sides || h.ev.type === 'recall')) h.verses--;
+      if (h.board.spreadRot()) this.ui.boardHit(h, '#7bd36b');
       h.board.decayFog();
       if (h.stunned > 1) h.stunned = 1;
       if (h.ev && (h.ev.type === 'recall' || h.ev.type === 'dead')) h.stunned = 0;
@@ -1121,6 +1167,37 @@ class Game {
   }
 
   /* ---------------- Операции с полями для умений ---------------- */
+  mineBlast(owner, srcId) {
+    const src = this.heroes.find(x => x.id === srcId);
+    if (!owner.alive) return;
+    const dmg = src ? this.sp(src, 35, 0.45) : 60;
+    this.ui.float(owner, '💥 МИНА!', '#ff7a45');
+    this.ui.boardHit(owner, '#ff7a45'); owner.board.shake = 1;
+    owner.mana = Math.max(0, owner.mana - 15);
+    this.dealDamage(src && src.alive ? src : null, owner, dmg, 'magic');
+  }
+  taunt(src, foes, rounds = 1) { for (const e of foes) { e.taunted = rounds + 1; e.tauntBy = src; this.ui.float(e, '😠 ПРОВОКАЦИЯ', '#ffb36b'); } }
+  silence(src, tgt, rounds) { tgt.silenced = rounds + 1; this.ui.float(tgt, '🤐 НЕМОТА', '#9fd3ff'); }
+  anchor(src, tgt, rounds) { tgt.anchored = rounds + 1; this.ui.float(tgt, '⚓ ЯКОРЬ', '#c8d2e0'); }
+  /* Немедленный дополнительный ход союзника (Ноктюрн) */
+  async bonusMove(h) {
+    if (!h.alive || this.over) return;
+    const prev = this.active;
+    this.active = h; this.ui.focus(h); await wait(300);
+    this.ui.float(h, '🎻 ДОП. ХОД', '#e0c3ff');
+    const mv = await this.chooseMove(h);
+    if (mv) await this.doSwap(h, mv);
+    this.active = prev; if (prev) this.ui.focus(prev);
+  }
+  /* Воскрешение павшего союзника (Валдрек) */
+  revive(src, ally) {
+    if (ally.alive) return;
+    ally.dead = 0; ally.hp = Math.round(ally.maxHp * 0.45); ally.mana = ally.maxMana * 0.5; ally.shield = 0; ally.tilt = 0;
+    this.atBase(ally, true);
+    this.ui.float(ally, '💀 ВОССТАЛ!', '#7bff9e');
+    this.ui.log(`💀 ${this.tag(src)} поднимает павшего ${this.tag(ally)} — он снова в бою!`, src.team);
+  }
+
   async selfBoard(h, fn) {
     fn(h.board);
     h.board.glow = 1;
@@ -1142,6 +1219,14 @@ class Game {
   }
   async enemyBoard(src, tgt, fn, color) {
     if (!tgt || !tgt.alive) return;
+    // «Стена щитов»: умение, меняющее поле, отражается обратно на поле заклинателя
+    if (tgt.reflect > 0 && src && src.team !== tgt.team) {
+      tgt.reflect = 0;
+      this.ui.projectile(tgt, src, '#ffe9a8', true); await wait(380);
+      this.ui.log(`🔰 ${this.tag(tgt)} отражает умение ${this.tag(src)} — оно бьёт по полю самого заклинателя!`, tgt.team);
+      this.ui.float(tgt, 'ОТРАЖЕНО!', '#ffe9a8');
+      fn(src.board); src.board.shake = 0.8; await wait(450); await this.settle(src, false); return;
+    }
     this.ui.projectile(src, tgt, color || '#fff', true);
     await wait(380);
     if (this.dodges(src, tgt)) { this.ui.log(`${this.tag(tgt)} успевает среагировать — умение ${this.tag(src)} не задевает его поле (Реакция).`); return; }

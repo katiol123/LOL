@@ -358,6 +358,73 @@ class Board {
       this.forEach(g => { if (g) g.t = g.t > 5 && g.t !== T_PRISM ? this.rnd() : g.t; });
     }
   }
+  /* Гниль (Валдрек): гнилые камни не дают эффекта и раз в минуту заражают соседа */
+  rot(keys) { if (keys.length) sfx('fog'); for (const k of keys) { const g = this.at(k); if (g) { g.rot = 4; g.flash = 1; this.burst(kc(k), kr(k), '#7bd36b', 5); } } return keys; }
+  spreadRot() {
+    const rotten = this.keys(g => g.rot > 0);
+    if (!rotten.length) return false;
+    for (const k of rotten) { const g = this.at(k); g.rot--; }
+    for (let s = 0; s < 2 && this.keys(g => g.rot > 0).length < 10; s++) {
+      const k = U.pick(rotten), r = kr(k), c = kc(k);
+      const nb = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < N && b < N && this.g[a][b] && !this.g[a][b].rot && this.g[a][b].t <= 5);
+      if (nb.length) { const [a, b] = U.pick(nb); this.g[a][b].rot = 3; this.g[a][b].flash = 0.8; this.burst(b, a, '#7bd36b', 4); }
+    }
+    return true;
+  }
+  /* Мины (Винтик): спрятаны под обычными камнями, взрываются при их уничтожении */
+  mine(keys, srcId) { for (const k of keys) { const g = this.at(k); if (g) g.mine = srcId; } return keys; }
+  /* Поворот всего поля на 90° по часовой (Винтик) */
+  rotate90() {
+    const old = this.g.map(r => r.slice());
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) this.g[r][c] = old[N - 1 - c][r];
+    sfx('swap');
+  }
+  /* Кольцо из 8 клеток вокруг центра сдвигается по кругу; особые камни в нём смываются (Ундина) */
+  ringRotate(r0, c0, steps, dry) {
+    const ring = [[-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1]].map(([a, b]) => [r0 + a, c0 + b]);
+    const gems = ring.map(([r, c]) => this.g[r][c]);
+    ring.forEach(([r, c], i) => {
+      const g = gems[(i - steps + 80) % 8];
+      this.g[r][c] = g;
+      if (!dry && g && g.sp && g.t !== T_PRISM) { g.sp = null; g.flash = 1; }
+    });
+    if (dry) return;
+    this.rings.push({ x: c0, y: r0, t: 0, max: 2.2, color: '#5ec8ff' });
+    sfx('swap');
+  }
+  /* Из нескольких вариантов перестановки выбрать самый вредный для владельца:
+     без готовых совпадений (не дарить каскады и особые камни) и с наименьшим числом ходов */
+  worstOf(cands) {
+    const snap = this.g.map(r => r.slice());
+    let best = null, bv = Infinity;
+    for (const fn of cands) {
+      fn(this, true);
+      const v = (this.hasAnyMatch() ? 100 : 0) + this.listMoves(false).length + (this.hasMoves() ? 0 : 1000);
+      for (let r = 0; r < N; r++) this.g[r] = snap[r].slice();
+      if (v < bv) { bv = v; best = fn; }
+    }
+    if (best) best(this, false);
+  }
+  /* Лучший для владельца вариант: больше всего ⚔ и камней в первом шаге разрешения */
+  bestOf(cands) {
+    const snap = this.g.map(r => r.slice());
+    let best = null, bv = -1;
+    for (const fn of cands) {
+      fn(this, true);
+      const st = this.step();
+      const v = st.clear.size + 2 * (st.counts[T_ATK] || 0);
+      for (let r = 0; r < N; r++) this.g[r] = snap[r].slice();
+      if (v > bv) { bv = v; best = fn; }
+    }
+    if (best) best(this, false);
+    return bv;
+  }
+  /* Циклический сдвиг строки (Клешнир) */
+  shiftRow(r, n, dry) {
+    const row = this.g[r].slice();
+    for (let c = 0; c < N; c++) this.g[r][c] = row[(c - n + N * 4) % N];
+    if (!dry) this.beams.push({ dir: 'h', i: r, t: 0, color: '#d2462e' });
+  }
   hasAnyMatch() { return findGroups(this.types(false)).length > 0; }
   decayFog() { this.forEach(g => { if (!g) return; if (g.fog) g.fog--; if (g.ice) { g.ice--; if (!g.ice) g.flash = 0.6; } }); }
 

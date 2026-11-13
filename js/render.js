@@ -239,6 +239,20 @@ const BoardView = {
       ctx.beginPath(); ctx.moveTo(px - gs * 0.3, py - gs * 0.4); ctx.lineTo(px - gs * 0.1, py - gs * 0.1); ctx.lineTo(px + gs * 0.25, py - gs * 0.25); ctx.stroke();
       ctx.restore();
     }
+    if (g.rot) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(60,110,40,0.55)';
+      roundRect(ctx, px - gs * 0.46, py - gs * 0.46, gs * 0.92, gs * 0.92, gs * 0.18); ctx.fill();
+      ctx.fillStyle = 'rgba(150,230,110,0.9)';
+      for (let i = 0; i < 3; i++) { const a = time * 1.5 + i * 2.1 + g.id; ctx.beginPath(); ctx.arc(px + Math.cos(a) * gs * 0.22, py + Math.sin(a * 1.3) * gs * 0.22, gs * 0.06, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    }
+    if (g.mine) {
+      ctx.save();
+      ctx.fillStyle = `rgba(255,90,50,${0.5 + Math.sin(time * 5 + g.id) * 0.35})`;
+      ctx.beginPath(); ctx.arc(px + gs * 0.3, py + gs * 0.3, gs * 0.09, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     if (g.fog) {
       ctx.save();
       const wob = Math.sin(time * 2 + g.id) * gs * 0.05;

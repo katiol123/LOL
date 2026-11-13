@@ -24,7 +24,7 @@ function load(extra) {
   `, ctx);
   // константы верхнего уровня не видны снаружи контекста — пробрасываем нужные имена
   vm.runInContext(`Object.assign(globalThis, { U, Clock, ROLE_IMPACT, HEROES, ROLE_ORDER, STAT_KEYS, STAT_SCALE, AI, Game, computeRatings, ratingMetrics, ratingRaw,
-    RATING_METRICS, neutralPlayer, makePlayer, effStat, masteryOf, playerOvr,
+    RATING_METRICS, neutralPlayer, NOOP_UI, makePlayer, effStat, masteryOf, playerOvr,
     createLeague: typeof createLeague !== 'undefined' ? createLeague : null, rosterOf: typeof rosterOf !== 'undefined' ? rosterOf : null,
     simFixture: typeof simFixture !== 'undefined' ? simFixture : null, leagueTable: typeof leagueTable !== 'undefined' ? leagueTable : null,
     clubById: typeof clubById !== 'undefined' ? clubById : null });`, ctx);
