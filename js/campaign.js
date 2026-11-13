@@ -218,10 +218,11 @@ const Campaign = {
       return `<div class="res ${mine ? 'mine' : ''}"><span>${h.emblem} ${h.tag}</span><b>${x.score[0]} : ${x.score[1]}</b><span>${a.tag} ${a.emblem}</span></div>`;
     }).join('') : '');
     // таблица
-    $('#hub-table').innerHTML = `<div class="panel-title">Турнирная таблица</div><table class="ltable"><tr><th>#</th><th>Клуб</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Игры</th><th>О</th><th>Форма</th></tr>${table.map((r, i) => {
+    $('#hub-table').innerHTML = `<div class="panel-title">Турнирная таблица</div><table class="ltable"><tr><th>#</th><th></th><th>Клуб</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Игры</th><th>О</th><th>Форма</th></tr>${table.map((r, i) => {
       const c = clubById(L, r.id);
-      return `<tr class="${c.id === club.id ? 'mine' : ''} ${i < 3 ? 'top3' : ''}" data-club="${c.id}"><td>${i + 1}</td><td>${c.emblem} ${c.name}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gw}:${r.gl}</td><td><b>${r.pts}</b></td><td>${r.last.slice(-5).map(x => `<i class="fm ${x}">${{ W: 'В', D: 'Н', L: 'П' }[x]}</i>`).join('')}</td></tr>`;
+      return `<tr class="${c.id === club.id ? 'mine' : ''} ${i < 3 ? 'top3' : ''}" data-club="${c.id}"><td>${i + 1}</td><td class="mv"></td><td>${c.emblem} ${c.name}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gw}:${r.gl}</td><td><b class="pts" data-pts="${r.pts}">${r.pts}</b></td><td>${r.last.slice(-5).map(x => `<i class="fm ${x}">${{ W: 'В', D: 'Н', L: 'П' }[x]}</i>`).join('')}</td></tr>`;
     }).join('')}</table>`;
+    if (this.prevTable) { const prev = this.prevTable; this.prevTable = null; setTimeout(() => this.animateTable(prev), 650); }
     $('#hub-table').querySelectorAll('tr[data-club]').forEach(tr => tr.onclick = () => { $('#profile-body').innerHTML = this.clubDetailHTML(clubById(L, tr.dataset.club), false); this.bindRows($('#profile-body')); $('#profile').classList.add('open'); });
     // лучшие игроки
     const tops = Object.values(L.players).filter(p => p.season.games >= 2).sort((a, b) => b.season.ratingSum / b.season.games - a.season.ratingSum / a.season.games).slice(0, 8);
@@ -229,9 +230,51 @@ const Campaign = {
     this.bindRows($('#screen-hub'));
   },
 
+  /* Анимация пересортировки таблицы после тура (FLIP): строки стартуют с прежних мест и едут на новые,
+     очки досчитываются, у сменивших место — стрелка ▲/▼ с числом позиций */
+  animateTable(prev) {
+    const rows = [...document.querySelectorAll('#hub-table tr[data-club]')];
+    if (!rows.length) return;
+    const oldIdx = Object.fromEntries(prev.map((r, i) => [r.id, i]));
+    const oldPts = Object.fromEntries(prev.map(r => [r.id, r.pts]));
+    const hgt = rows[0].getBoundingClientRect().height;
+    rows.forEach((tr, i) => {
+      const id = tr.dataset.club, from = oldIdx[id];
+      if (from == null) return;
+      tr.style.transition = 'none';
+      tr.style.transform = `translateY(${(from - i) * hgt}px)`;
+      const b = tr.querySelector('.pts');
+      const p0 = oldPts[id], p1 = +b.dataset.pts;
+      b.textContent = p0;
+      tr._anim = { from, to: i, p0, p1, b };
+    });
+    void document.body.offsetWidth;
+    sfx('whoosh');
+    rows.forEach((tr, i) => {
+      const a = tr._anim; if (!a) return;
+      const delay = Math.abs(a.from - a.to) ? 60 + i * 25 : 0;
+      tr.style.transition = `transform 1.3s cubic-bezier(.2,.85,.25,1) ${delay}ms`;
+      tr.style.transform = '';
+      if (a.from !== a.to) tr.classList.add(a.to < a.from ? 'moved-up' : 'moved-down');
+      // досчёт очков
+      if (a.p1 !== a.p0) {
+        tr.classList.add('pts-up');
+        const t0 = performance.now() + delay, dur = 900;
+        const step = now => { const k = U.clamp((now - t0) / dur, 0, 1); a.b.textContent = Math.round(a.p0 + (a.p1 - a.p0) * k); if (k < 1) requestAnimationFrame(step); else a.b.classList.add('bump'); };
+        requestAnimationFrame(step);
+      }
+      // стрелка смены места
+      const mv = tr.querySelector('.mv');
+      const d = a.from - a.to;
+      if (d) setTimeout(() => { mv.innerHTML = `<span class="mvb ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`; }, 900 + delay);
+      setTimeout(() => tr.classList.remove('moved-up', 'moved-down', 'pts-up'), 2600 + delay);
+    });
+  },
+
   /* Тур: своя серия (смотреть или просчитать) + все остальные серии */
   async playTour(watch) {
     const L = this.L, club = this.myClub();
+    this.prevTable = leagueTable(L).map(r => ({ id: r.id, pts: r.pts }));
     const f = nextFixture(L, club.id);
     if (!f) return;
     if (watch) {

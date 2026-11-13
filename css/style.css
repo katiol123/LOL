@@ -727,3 +727,16 @@ html, body, #app { overflow: clip; }
 .share { position: relative; width: 260px; height: 12px; border-radius: 6px; }
 .share i { border-radius: 6px; opacity: .85; }
 .share b { position: absolute; left: 6px; top: -1px; font-size: 9.5px; color: #fff; text-shadow: 0 1px 2px #000; }
+
+/* ===== Анимация таблицы после тура ===== */
+.ltable tr[data-club] { position: relative; will-change: transform; }
+.ltable td.mv { width: 26px; padding: 0 2px; }
+.mvb { display: inline-block; font-size: 10px; font-weight: 800; padding: 0 4px; border-radius: 4px; animation: mvIn .5s ease; }
+.mvb.up { color: #5fe08a; background: rgba(95,224,138,.12); } .mvb.down { color: #ff7b7b; background: rgba(255,123,123,.12); }
+@keyframes mvIn { from { opacity: 0; transform: scale(.4); } }
+.ltable tr.moved-up td { animation: rowUp 2.4s ease; }
+.ltable tr.moved-down td { animation: rowDown 2.4s ease; }
+@keyframes rowUp { 0%, 60% { background: rgba(95,224,138,.18); } 100% { background: transparent; } }
+@keyframes rowDown { 0%, 60% { background: rgba(255,123,123,.14); } 100% { background: transparent; } }
+.ltable tr.pts-up .pts { color: #ffe066; }
+.ltable .pts.bump { display: inline-block; animation: bump .5s; }
