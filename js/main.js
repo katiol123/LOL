@@ -61,8 +61,10 @@ const App = {
     $('#btn-campaign').onclick = () => { if (loadLeague() && !confirm('Начать новую кампанию? Сохранённая будет заменена.')) return; Campaign.openCreate(); };
     $('#btn-continue').onclick = () => Campaign.continueSaved();
     $('#hub-menu').onclick = () => { this.show('screen-title'); this.refreshTitle(); };
-    $('#profile-close').onclick = () => $('#profile').classList.remove('open');
-    $('#profile').onclick = e => { if (e.target.id === 'profile') $('#profile').classList.remove('open'); };
+    // крестик / «← Назад» — к предыдущему окну; клик мимо окна или Esc — закрыть всё
+    $('#profile-close').onclick = () => Campaign.closeView();
+    $('#profile').onclick = e => { if (e.target.id === 'profile') Campaign.closeAll(); };
+    addEventListener('keydown', e => { if (e.key === 'Escape' && Campaign.isModalOpen()) Campaign.closeView(); });
     this.refreshTitle();
     document.querySelectorAll('.speed button[data-speed]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.speed));
     addEventListener('keydown', e => {

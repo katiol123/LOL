@@ -740,3 +740,7 @@ html, body, #app { overflow: clip; }
 @keyframes rowDown { 0%, 60% { background: rgba(255,123,123,.14); } 100% { background: transparent; } }
 .ltable tr.pts-up .pts { color: #ffe066; }
 .ltable .pts.bump { display: inline-block; animation: bump .5s; }
+
+/* окно профиля/клуба: кнопка «Назад» */
+.close.back { font-size: 13px; font-weight: 700; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 10px; color: var(--gold2); background: rgba(16,24,44,.9); top: 12px; right: 14px; }
+.close.back:hover { background: rgba(200,170,110,.15); }

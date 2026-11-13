@@ -151,15 +151,49 @@ const Campaign = {
       };
     }
   },
-  bindRows(root) { root.querySelectorAll('.prow[data-pid]').forEach(e => e.onclick = ev => { ev.stopPropagation(); this.showProfile(e.dataset.pid); }); },
+  bindRows(root) {
+    root.querySelectorAll('.prow[data-pid]').forEach(e => e.onclick = ev => { ev.stopPropagation(); this.showProfile(e.dataset.pid); });
+    root.querySelectorAll('[data-club-link]').forEach(e => e.onclick = ev => { ev.stopPropagation(); this.showClubModal(e.dataset.clubLink); });
+  },
 
   /* =================== Профиль =================== */
-  showProfile(pid) {
+  /* ---------- Окна с историей: крестик возвращает к предыдущему окну ---------- */
+  modal: [],
+  isModalOpen() { return $('#profile').classList.contains('open'); },
+  openView(view) {
+    if (!this.isModalOpen()) this.modal = [];
+    const top = this.modal[this.modal.length - 1];
+    if (!top || top.type !== view.type || top.id !== view.id) this.modal.push(view);
+    this.renderView();
+  },
+  renderView() {
+    const v = this.modal[this.modal.length - 1];
+    if (!v) { this.closeAll(); return; }
+    const body = $('#profile-body');
+    if (v.type === 'club') body.innerHTML = this.clubDetailHTML(clubById(this.L, v.id), false);
+    else body.innerHTML = this.playerHTML(v.id);
+    this.bindRows(body);
+    const prev = this.modal[this.modal.length - 2];
+    const btn = $('#profile-close');
+    if (prev) {
+      const name = prev.type === 'club' ? clubById(this.L, prev.id).name : (this.L.players[prev.id] || {}).nick;
+      btn.textContent = '← Назад'; btn.title = `Вернуться: ${name}`; btn.classList.add('back');
+    } else { btn.textContent = '✕'; btn.title = 'Закрыть'; btn.classList.remove('back'); }
+    $('#profile').classList.add('open');
+    body.parentElement.scrollTop = 0;
+    body.animate([{ opacity: 0, transform: 'translateX(12px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
+  },
+  closeView() { this.modal.pop(); if (this.modal.length) this.renderView(); else this.closeAll(); },
+  closeAll() { this.modal = []; $('#profile').classList.remove('open'); },
+  showClubModal(id) { this.openView({ type: 'club', id }); },
+
+  showProfile(pid) { if (this.L.players[pid] || (this.human && this.human.id === pid)) this.openView({ type: 'player', id: pid }); },
+  playerHTML(pid) {
     const L = this.L, p = L.players[pid] || (this.human && this.human.id === pid ? this.human : null);
-    if (!p) return;
+    if (!p) return '';
     const club = p.club && clubById(L, p.club);
     const s = p.season;
-    $('#profile-body').innerHTML = `<div class="prof">
+    return `<div class="prof">
       <div class="prof-l">${faceHTML(p, club ? clubColors(club) : null, 'big')}
         <h2>${U.esc(p.nick)}</h2><div class="muted">${U.esc(p.first)} ${U.esc(p.last)}${p.age ? ' · ' + p.age + ' лет' : ''}</div>
         <div>${ROLES[p.role].icon} ${ROLES[p.role].name}${club ? ` · ${club.emblem} ${club.name}` : ''}</div>
@@ -169,9 +203,9 @@ const Campaign = {
       </div>
       <div class="prof-r"><div class="cr-label">Характеристики</div>${statBars(p.stats)}
         <div class="cr-label">Мастерство на героях</div><div class="mlist">${masteryList(p, 10)}</div>
-        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.0+ (+1) и 9.5+ (+2). На герое с мастерством M все характеристики получают +M/4; с формой и мастерством характеристика может подняться выше 20 — до 30.</p>
+        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.0+ (+1) и 9.5+ (+2). На герое с мастерством M все характеристики получают +M/4, форма даёт от −5 до +5: в матче характеристика может подняться выше 20 — до 30.</p>
+        ${club ? `<button class="btn small" data-club-link="${club.id}">${club.emblem} Открыть клуб «${club.name}»</button>` : ''}
       </div></div>`;
-    $('#profile').classList.add('open');
   },
 
   /* =================== Центр лиги =================== */
@@ -223,7 +257,7 @@ const Campaign = {
       return `<tr class="${c.id === club.id ? 'mine' : ''} ${i < 3 ? 'top3' : ''}" data-club="${c.id}"><td>${i + 1}</td><td class="mv"></td><td>${c.emblem} ${c.name}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gw}:${r.gl}</td><td><b class="pts" data-pts="${r.pts}">${r.pts}</b></td><td>${r.last.slice(-5).map(x => `<i class="fm ${x}">${{ W: 'В', D: 'Н', L: 'П' }[x]}</i>`).join('')}</td></tr>`;
     }).join('')}</table>`;
     if (this.prevTable) { const prev = this.prevTable; this.prevTable = null; setTimeout(() => this.animateTable(prev), 650); }
-    $('#hub-table').querySelectorAll('tr[data-club]').forEach(tr => tr.onclick = () => { $('#profile-body').innerHTML = this.clubDetailHTML(clubById(L, tr.dataset.club), false); this.bindRows($('#profile-body')); $('#profile').classList.add('open'); });
+    $('#hub-table').querySelectorAll('tr[data-club]').forEach(tr => tr.onclick = () => this.showClubModal(tr.dataset.club));
     // лучшие игроки
     const tops = Object.values(L.players).filter(p => p.season.games >= 2).sort((a, b) => b.season.ratingSum / b.season.games - a.season.ratingSum / a.season.games).slice(0, 8);
     $('#hub-top').innerHTML = `<div class="panel-title">Лучшие игроки сезона</div>${tops.length ? tops.map(p => `<div class="top-row">${playerRow(L, p, { club: true })}<b class="avg" style="color:${ratingColor(p.season.ratingSum / p.season.games)}">${(p.season.ratingSum / p.season.games).toFixed(2)}</b></div>`).join('') : '<small class="muted">После двух сыгранных игр</small>'}`;
