@@ -702,3 +702,20 @@ html, body, #app { overflow: clip; }
 .prof-ovr { white-space: nowrap; font-size: 12px; }
 .hub-actions .btn { white-space: nowrap; }
 .end-wrap, .title-wrap { justify-content: safe center; }
+
+/* ===== Визуал, круг 2 по слою игроков ===== */
+#feature-head .fh-name b { font-family: var(--font); font-weight: 800; }
+.nw { white-space: nowrap; }
+#banners { left: 0; right: 0; }
+.sig-bubble { position: absolute; top: 4px; left: 50px; z-index: 5; padding: 4px 10px; border-radius: 12px 12px 12px 2px; background: #ffe066; color: #1a1406; font-weight: 800; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.5); pointer-events: none; white-space: nowrap; animation: sigpop 2.8s ease forwards; }
+.sig-bubble.help { background: #ffb347; } .sig-bubble.retreat { background: #ff7b7b; } .sig-bubble.push { background: #9fe8a0; }
+@keyframes sigpop { 0% { opacity: 0; transform: translateY(6px) scale(.7); } 10% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.sig-ans { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 6px; font-size: 10px; font-family: var(--font); vertical-align: middle; animation: sigpop 3s ease forwards; }
+.sig-ans.ok { background: #2e8a4e; color: #fff; } .sig-ans.late { background: #8a6d2e; color: #fff; } .sig-ans.no { background: #8a2e3a; color: #fff; }
+.hero-card .portrait.pface { box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 10px rgba(63,167,255,.55); border-width: 3px; }
+#col-red .hero-card .portrait.pface { box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 10px rgba(255,77,94,.55); }
+.share { display: block; width: 140px; height: 4px; background: rgba(255,255,255,.08); border-radius: 2px; margin-top: 3px; }
+.share i { display: block; height: 100%; background: linear-gradient(90deg, #ff8a5c, #ffd166); border-radius: 2px; }
+.et td { padding: 3px 4px; }
+.et .pt.pface-s, .et .pt.pface-s .face-wrap { width: 22px; height: 22px; }
+.end-wrap .title-actions { position: sticky; bottom: 0; padding: 10px 0; background: linear-gradient(transparent, rgba(5,6,12,.95) 35%); z-index: 3; width: 100%; justify-content: center; }

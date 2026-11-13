@@ -358,7 +358,7 @@ const UI = {
   floatAt(p, text, color, cls = '') {
     if (!p) return;
     const f = el('div', 'floater ' + cls, text);
-    f.style.left = p[0] + U.rand(-8, 8) + 'px'; f.style.top = p[1] + 'px'; f.style.color = color;
+    f.style.left = U.clamp(p[0] + U.rand(-8, 8), 60, innerWidth - 60) + 'px'; f.style.top = p[1] + 'px'; f.style.color = color;
     f.style.animationDuration = (1.2 / Math.max(0.6, Math.min(3, Clock.speed))) + 's';
     $('#floaters').appendChild(f);
     f.addEventListener('animationend', () => f.remove());
@@ -439,6 +439,8 @@ const UI = {
   combo(h, n) {
     if (h !== this.view) return;
     const c = $('#combo');
+    const fr = $('#feature').getBoundingClientRect(), wr = $('#feature-wrap').getBoundingClientRect();
+    c.style.top = (fr.top - wr.top + (this.featStrip || 0) + 6) + 'px'; c.style.right = (wr.right - fr.right + 6) + 'px';
     c.textContent = `КОМБО ×${n}`;
     c.style.setProperty('--cs', (1 + Math.min(6, n) * 0.14).toFixed(2));
     c.style.color = ['#fff', '#fff', '#ffe066', '#ffb347', '#ff7a45', '#ff4d8a', '#d36bff'][Math.min(6, n)];
@@ -460,6 +462,9 @@ const UI = {
     b.addEventListener('animationend', () => b.remove());
   },
   banner(title, sub, team, small) {
+    const bs0 = $('#banners');
+    if ($('#screen-game').classList.contains('active')) { const fr = $('#feature').getBoundingClientRect(); if (fr.width) { bs0.style.left = fr.left + 'px'; bs0.style.right = 'auto'; bs0.style.width = fr.width + 'px'; } }
+    else { bs0.style.left = '0'; bs0.style.right = '0'; bs0.style.width = 'auto'; }
     const col = team === 'blue' ? '#3fa7ff' : team === 'red' ? '#ff4d5e' : '#c8aa6e';
     sfx(small ? 'whoosh' : 'banner');
     if (!small) { const sg = $('#game-grid'); sg.classList.remove('quake'); void sg.offsetWidth; sg.classList.add('quake'); }
@@ -498,8 +503,18 @@ const UI = {
   signal(sig) {
     sfx('ping');
     Minimap.ping(sig.from, sig.type);
-    this.float(sig.from, this.game.signalLabel(sig), '#ffe066');
-    for (const a of sig.answers) this.float(a.h, a.accept ? (a.fast ? '✔ иду!' : '⏳ позже') : '✖ нет', a.accept ? '#9fe8a0' : '#ff9a9a', true);
+    const r = this.cards.get(sig.from.id);
+    if (r) {
+      const b = el('div', 'sig-bubble ' + sig.type, this.game.signalLabel(sig));
+      b.style.animationDuration = (2.8 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
+      r.c.appendChild(b); b.addEventListener('animationend', () => b.remove());
+    }
+    for (const a of sig.answers) {
+      const ra = this.cards.get(a.h.id); if (!ra) continue;
+      const m = el('span', 'sig-ans ' + (a.accept ? (a.fast ? 'ok' : 'late') : 'no'), a.accept ? (a.fast ? '✔ иду' : '⏳ позже') : '✖ нет');
+      m.style.animationDuration = (3 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
+      ra.c.querySelector('.hc-name b').appendChild(m); m.addEventListener('animationend', () => m.remove());
+    }
   },
   shop(h, items) { sfx('coin'); this.float(h, '🛒 ' + items.map(i => i === 'elixir' ? '🧪' : ITEMS[i].icon).join(''), '#ffd76b'); },
   boardHit(h, color) {

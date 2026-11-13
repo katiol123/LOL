@@ -132,7 +132,7 @@ class Game {
       this.ui.roundStart(this);
       await wait(500);
       // порядок ходов: чем выше Реакция, тем раньше герой ходит в минуте
-      const order = this.heroes.slice().sort((a, b) => (effStat(b, 'rea') * STAT_SCALE.rea + U.rand(4)) - (effStat(a, 'rea') * STAT_SCALE.rea + U.rand(4)));
+      const order = this.heroes.slice().sort((a, b) => (sd(b, 'rea') + U.rand(2.5)) - (sd(a, 'rea') + U.rand(2.5)));
       for (const h of order) {
         if (this.over) break;
         await this.heroTurn(h);
@@ -183,7 +183,8 @@ class Game {
   }
 
   async trySkills(h, after) {
-    const key = AI.chooseSkill(this, h, after);
+    // человек выберет умение сам (точка входа интерфейса), ИИ — по своим правилам
+    const key = h.ctrl !== 'ai' && this.ui.awaitHumanSkill ? await this.ui.awaitHumanSkill(h, after) : AI.chooseSkill(this, h, after);
     if (key) await this.castSkill(h, key);
   }
 
@@ -301,7 +302,7 @@ class Game {
       * (allies >= 2 ? sm(0.012, h, 'team') : 1);                              // слаженность с союзниками
     for (const k in c.m) c.m[k] *= gm;
     if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech'), 0.01, 0.6))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
-    c.m.mana *= sm(0.03, h, 'read');
+    c.m.mana *= sm(0.045, h, 'read');
     c.m.gold *= sm(0.02, h, 'farm');
     const healPow = 1 + this.itemsOf(h, 'healPow');
     const shieldPow = 1 + this.itemsOf(h, 'shieldPow');
@@ -655,7 +656,9 @@ class Game {
     return sig;
   }
   answer(sig, h) {
-    const r = (h.ctrl !== 'ai' && this.ui.askSignal) ? this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
+    // человек отвечает через интерфейс; если ответа ещё нет (null), он считается «позже» и прибывает на минуту позже
+    let r = (h.ctrl !== 'ai' && this.ui.askSignal) ? this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
+    if (!r) r = { accept: true, fast: false, pending: true };
     sig.answers.push(Object.assign({ h }, r));
     if (r.accept) h.answered = (h.answered || 0) + 1;
     return r;
@@ -664,7 +667,7 @@ class Game {
     return { obj: sig.data.kind === 'baron' ? '👾 Сбор на Барона!' : '🐉 Сбор на Дракона!', help: '⚡ Помогите!', push: `🎯 Давим ${String(sig.data.lane || '').toUpperCase()}!`, retreat: '⛔ Отступаем!' }[sig.type];
   }
   announce(sig) {
-    const a = sig.answers.map(x => `${this.tag(x.h)} ${x.accept ? (x.fast ? '✔' : '⏳') : '✖'}`).join(' ');
+    const a = sig.answers.map(x => `<span class="nw">${this.tag(x.h)} ${x.accept ? (x.fast ? '✔' : '⏳') : '✖'}</span>`).join(' ');
     this.ui.log(`📣 ${this.tag(sig.from)}: «${this.signalLabel(sig)}»${a ? ' — ' + a : ''}`, sig.team);
     this.ui.signal(sig);
   }

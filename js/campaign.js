@@ -2,7 +2,7 @@
 /* Интерфейс кампании: создание игрока, выбор клуба, центр лиги, профили, просчёт туров */
 
 const HEADLESS_UI = new Proxy({}, { get: (t, k) => (k === 'askSignal' ? undefined : () => {}) });
-const STAT_BUDGET = 80, STAT_MIN0 = 4, STAT_MAX0 = 16;
+const STAT_BUDGET = 80, STAT_MIN0 = 6, STAT_MAX0 = 16;
 const statCost = v => (v <= 14 ? v : 14 + (v - 14) * 2);
 const PRESETS = {
   'Сбалансированный': { rea: 10, mech: 10, read: 10, farm: 10, map: 10, agr: 10, calm: 10, team: 10 },
@@ -72,7 +72,7 @@ const Campaign = {
     const cs = this.cs;
     $('#cr-face-preview').innerHTML = faceHTML({ face: cs.face }, ['#1e5f9e', '#e8c66e'], 'big');
     // внешность
-    const sw = (key, pal) => `<div class="fc-row"><span>${{ skin: 'Кожа', hairColor: 'Волосы', eyeColor: 'Глаза', lip: 'Губы' }[key]}</span><div class="swatches">${pal.map((c, i) => `<i data-k="${key}" data-v="${i}" class="${cs.face[key] === i ? 'on' : ''}" style="background:${c}"></i>`).join('')}</div></div>`;
+    const sw = (key, pal) => `<div class="fc-row"><span>${{ skin: 'Кожа', hairColor: 'Волосы', eyeColor: 'Глаза', lip: 'Губы' }[key]}</span><div class="swatches" style="grid-template-columns:repeat(${pal.length > 8 ? Math.ceil(pal.length / 2) : pal.length}, 18px)">${pal.map((c, i) => `<i data-k="${key}" data-v="${i}" class="${cs.face[key] === i ? 'on' : ''}" style="background:${c}"></i>`).join('')}</div></div>`;
     const sel = (key, label, names) => `<div class="fc-row"><span>${label}</span><select data-k="${key}">${names.map((n, i) => `<option value="${i}" ${cs.face[key] === i ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
     $('#cr-face-controls').innerHTML = sw('skin', FACE_PAL.skin) + sel('hair', 'Причёска', HAIR_STYLES) + sw('hairColor', FACE_PAL.hair) + sw('eyeColor', FACE_PAL.eye)
       + sel('eyeType', 'Разрез глаз', ['круглые', 'узкие', 'миндалевидные', 'прищур']) + sel('nose', 'Нос', ['прямой', 'округлый', 'широкий']) + sel('mouth', 'Рот', ['улыбка', 'спокойный', 'ухмылка', 'смех'])
@@ -169,7 +169,7 @@ const Campaign = {
       </div>
       <div class="prof-r"><div class="cr-label">Характеристики</div>${statBars(p.stats)}
         <div class="cr-label">Мастерство на героях</div><div class="mlist">${masteryList(p, 10)}</div>
-        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.5+ (+1) и 9.5+ (+2). На герое с мастерством M все характеристики получают +M/4; с формой и мастерством характеристика может подняться выше 20 — до 30.</p>
+        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.0+ (+1) и 9.5+ (+2). На герое с мастерством M все характеристики получают +M/4; с формой и мастерством характеристика может подняться выше 20 — до 30.</p>
       </div></div>`;
     $('#profile').classList.add('open');
   },

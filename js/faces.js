@@ -42,7 +42,7 @@ function faceSVG(F, o = {}) {
   const cap = (lift = 0, fringe = 0.32) => `M${cx - rx - 1.5} ${cy - 1} C${cx - rx - 3} ${top - 7 - lift} ${cx + rx + 3} ${top - 7 - lift} ${cx + rx + 1.5} ${cy - 1} C${cx + rx * 0.75} ${top + ry * fringe} ${cx - rx * 0.75} ${top + ry * fringe} ${cx - rx - 1.5} ${cy - 1}Z`;
   const parts = [];
   // фон и форма клуба
-  parts.push(`<defs><clipPath id="${id}c"><circle cx="50" cy="50" r="50"/></clipPath><radialGradient id="${id}g" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="${shade(jersey, 1.25)}"/><stop offset="1" stop-color="${shade(jersey, 0.35)}"/></radialGradient></defs>`);
+  parts.push(`<defs><clipPath id="${id}c"><circle cx="50" cy="50" r="50"/></clipPath><radialGradient id="${id}g" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="${o.bg || '#3a4766'}"/><stop offset="1" stop-color="#0d1220"/></radialGradient></defs>`);
   parts.push(`<g clip-path="url(#${id}c)"><rect width="100" height="100" fill="url(#${id}g)"/>`);
   // волосы сзади (длинные, хвост, каре)
   if (F.hair === 5) parts.push(`<path d="M${cx - rx - 3} ${cy - 6} C${cx - rx - 6} ${cy + 20} ${cx - rx - 2} ${cy + 36} ${cx - rx + 4} ${cy + 40} L${cx + rx - 4} ${cy + 40} C${cx + rx + 2} ${cy + 36} ${cx + rx + 6} ${cy + 20} ${cx + rx + 3} ${cy - 6}Z" fill="${shade(hair, 0.85)}"/>`);

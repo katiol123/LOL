@@ -108,8 +108,11 @@ const BoardView = {
     ctx.fillStyle = 'rgba(8,12,24,0.7)';
     roundRect(ctx, x0, y0, size, h - 3, 6); ctx.fill();
     if (!count) {
-      ctx.fillStyle = 'rgba(140,147,168,0.8)'; ctx.font = `${Math.max(9, h * 0.32)}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('Следующие камни не видны (мало «Чтения игры»)', x0 + size / 2, y0 + (h - 3) / 2);
+      ctx.fillStyle = 'rgba(140,147,168,0.85)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const txt = '🧠 Следующие камни скрыты — мало «Чтения игры»';
+      let fsz = Math.max(8, h * 0.36); ctx.font = `${fsz}px Inter, sans-serif`;
+      while (ctx.measureText(txt).width > size - 12 && fsz > 7) { fsz -= 0.5; ctx.font = `${fsz}px Inter, sans-serif`; }
+      ctx.fillText(txt, x0 + size / 2, y0 + (h - 3) / 2);
       ctx.restore(); return;
     }
     const gs = Math.min(cell * 0.62, (h - 6) / count);
@@ -385,11 +388,13 @@ const Minimap = {
       for (let k = 0; k < 2; k++) {
         const tt = (p.t * 2 + k * 0.5) % 1;
         ctx.strokeStyle = col; ctx.globalAlpha = (1 - tt) * Math.max(0, 1 - p.t);
-        ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos[0] * s, pos[1] * s, s * (0.03 + tt * 0.08), 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(pos[0] * s, pos[1] * s, s * (0.04 + tt * 0.13), 0, Math.PI * 2); ctx.stroke();
       }
       ctx.globalAlpha = Math.max(0, 1 - p.t);
+      ctx.fillStyle = 'rgba(10,12,20,.85)'; ctx.beginPath(); ctx.arc(pos[0] * s, pos[1] * s - s * 0.085, s * 0.05, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = `${s * 0.06}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText({ obj: '❗', help: '⚡', push: '🎯', retreat: '⛔' }[p.type] || '❗', pos[0] * s, pos[1] * s - s * 0.07);
+      ctx.fillText({ obj: '❗', help: '⚡', push: '🎯', retreat: '⛔' }[p.type] || '❗', pos[0] * s, pos[1] * s - s * 0.083);
       ctx.globalAlpha = 1;
     }
     this.pings = this.pings.filter(p => p.t < 1);

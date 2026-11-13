@@ -160,7 +160,7 @@ const App = {
     $('#end-sub').textContent = sub;
     const all = G.heroes;
     const mvp = all.find(h => h.mvp);
-    const row = h => `<tr class="${h.pl && h.pl.human ? 'me' : ''}"><td class="${h === mvp ? 'mvp' : ''}"><span class="pt pface-s">${faceHTML(h.pl, UI.teamColors(h.team))}</span>${U.esc(h.nick)}${h.pl && h.pl.human ? ' <span class="you">ВЫ</span>' : ''}${h === mvp ? ' ★ MVP' : ''}<br><small class="muted">${h.def.emoji} ${h.name} · ${ROLES[h.role].short}${h.fit < 3 ? ' ' + fitStars(h.fit) : ''}</small></td>
+    const row = h => `<tr class="${h.pl && h.pl.human ? 'me' : ''}"><td class="${h === mvp ? 'mvp' : ''}"><span class="pt pface-s">${faceHTML(h.pl, UI.teamColors(h.team))}</span>${U.esc(h.nick)}${h.pl && h.pl.human ? ' <span class="you">ВЫ</span>' : ''}${h === mvp ? ' ★ MVP' : ''}<br><small class="muted">${h.def.emoji} ${h.name} · ${ROLES[h.role].short}${h.fit < 3 ? ' ' + fitStars(h.fit) : ''}</small><span class="share" title="Доля урона команды"><i style="width:${Math.round(h.dmg / Math.max(1, U.sum(G.teams[h.team].heroes, x => x.dmg)) * 100)}%"></i></span></td>
       <td><span class="rbadge" style="background:${ratingColor(h.rating)}">${h.rating.toFixed(1)}</span>${gains[h.pl.id] ? `<span class="gain" title="Мастерство на герое выросло за высокую оценку"> ✦+${gains[h.pl.id]}</span>` : ''}</td>
       <td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
     $('#end-table').innerHTML = ['blue', 'red'].map(t => `
