@@ -108,7 +108,7 @@ const UI = {
       <div class="hc-info">
         <div class="hc-top">
           <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${h.def.emoji}</span><span class="lvl">1</span></div>
-          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Герой не по профилю роли: ${FIT_NAMES[h.fit]}">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
+          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>

@@ -27,8 +27,8 @@ class Hero {
     this.pl = pl || neutralPlayer(this.role);
     this.fit = def.fit ? def.fit[this.role] : 3;
     this.ms = masteryOf(this.pl, def.id);
-    // бонус ко всем характеристикам: мастерство/4 + форма − штраф за непрофильного героя
-    this.bonusAll = this.ms / 4 + playerFormBonus(this.pl) - FIT_PENALTY[this.fit];
+    // бонус ко всем характеристикам: мастерство/4 + форма (пригодность героя к роли — только подсказка для ИИ, без штрафа)
+    this.bonusAll = this.ms / 4 + playerFormBonus(this.pl);
     this.tilt = 0; this.sdmg = 0; this.obj = 0; this.shielded = 0; this.vis = 0;
     this.lvl = 1; this.xp = 0;
     this.items = []; this.buildIdx = 0;

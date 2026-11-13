@@ -20,8 +20,6 @@ const MASTERY_MAX = 20;
    (tests/stat-equivalence.js), чтобы +1 к любой характеристике давал одинаковый прирост винрейта. */
 const STAT_SCALE = { rea: 0.3, mech: 0.95, read: 1.5, farm: 1.65, map: 5.5, agr: 2.8, calm: 1.25, team: 2.5 };
 
-/* Штраф за героя не по профилю роли (fit 3..0) — снижает все характеристики */
-const FIT_PENALTY = [4, 2.5, 1, 0];
 
 /* ---------- Модель игрока ---------- */
 let _pid = 1;
@@ -130,7 +128,7 @@ const masteryOf = (p, heroId) => (p && p.mastery[heroId]) || 0;
 const topMastery = (p, n = 3) => Object.entries(p.mastery).sort((a, b) => b[1] - a[1]).slice(0, n);
 
 /* ---------- Эффективная характеристика героя в матче ----------
-   база (≤20) + мастерство/4 + форма − штраф за непрофильного героя ± тильт; общий предел 30 */
+   база (≤20) + мастерство/4 + форма ± тильт; общий предел 30 */
 function effStat(h, key) {
   const p = h.pl;
   if (!p) return 10;
