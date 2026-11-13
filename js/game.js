@@ -2,14 +2,16 @@
 /* Ядро матча: герои, события, бой, цели, башни */
 
 const XP_NEED = l => 90 + 30 * l;
-const TOWER_HP = [1100, 1300, 1500];
-const NEXUS_HP = 2600;
+const TOWER_HP = [1100, 1600, 2000];
+const NEXUS_HP = 3400;
 const ATK_MUL = 2.6;
 const HERO_DMG = 1.45;
 /* Стоимость волны миньонов за минуту (на одну команду): сколько золота вообще можно снять с линии */
 const WAVE_GOLD = m => 90 + 5 * m;
 /* Запас здоровья волны за минуту: сколько урона по ней вообще толкает линию */
 const WAVE_HP = m => 170 + 14 * m;
+/* Опыт волны за минуту (на одну команду) */
+const WAVE_XP = m => 30 + 2 * m;
 /* Умения стрелков слабее: их сила — в ⚔ и предметах */
 const ADC_SKILL = 0.75;
 const LANES = ['top', 'mid', 'bot'];
@@ -152,8 +154,16 @@ class Game {
     if (hasPerk(x, 'cautious')) m -= 0.15;
     return m;
   }
-  /* Скорость фарма героя (характеристика героя, как здоровье и атака): дамагеры фармят медленнее — без поддержки им трудно камбекать */
-  farmRate(h) { return (h.def.mod && h.def.mod.farm) || 1; }
+  /* Давление на линии: перекачанный враг рядом мешает фармить — −12% за каждый уровень разницы (не ниже 40%).
+     Отставший по уровню (проиграл линию, нет поддержки) с трудом отыгрывается фармом. */
+  farmRate(h) {
+    const ev = h.ev;
+    if (!ev || !ev.sides || !['lane', 'siege'].includes(ev.type)) return 1;
+    const foes = ev.sides[h.enemyTeam].filter(x => x.alive);
+    if (!foes.length) return 1;
+    const gap = Math.max(...foes.map(x => x.lvl)) - h.lvl;
+    return gap > 0 ? Math.max(0.4, 1 - 0.12 * gap) : 1;
+  }
   /* Числовое значение пассивки с учётом патча */
   pv(h, key) { return (h.def.passive[key] || 0) * (1 + patchMod(h.def.id, 'p')); }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
@@ -481,7 +491,11 @@ class Game {
     const cs = Math.max(1, Math.round(amt / 45));
     h.cs += cs;
     this.addGold(h, gold);
-    this.gainXp(h, Math.round(amt * 0.12));
+    // опыт волны тоже конечен: команда на линии делит его между собой
+    if (!lane.waveXp || lane.waveXp.round !== this.round) lane.waveXp = { round: this.round, blue: 0, red: 0 };
+    const xp = Math.max(0, Math.min(Math.round(amt * 0.12), Math.round(WAVE_XP(this.minute) - lane.waveXp[h.team])));
+    lane.waveXp[h.team] += xp;
+    this.gainXp(h, xp);
     this.ui.projectileTo(h, { kind: 'wave', ev: h.ev }, '#ff5468');
     if (gold > 0) this.ui.float(h, `+${gold}💰`, '#ffc93c', true);
   }
@@ -557,7 +571,7 @@ class Game {
     if (h.def.passive.scrap) { h.scrap++; h.recalc(); this.ui.float(h, `⚙ металлолом ${h.scrap}`, '#d9a066'); }
     if (npc.kind === 'camp') {
       const gm = 1 + ((h.def.passive.campGold || 1) - 1) * (1 + patchMod(h.def.id, 'p'));
-      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')) * (hasPerk(h, 'farmer') ? 1.2 : 1) * this.farmRate(h));
+      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')) * (hasPerk(h, 'farmer') ? 1.2 : 1));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');

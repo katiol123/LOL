@@ -111,15 +111,15 @@ const HEROES = [
   /* ======== ВЕРХНЯЯ ЛИНИЯ ======== */
   {
     id: 'frostgolem', name: 'Иней', title: 'Хрустальный голем', role: 'top', emoji: '❄', color: '#8fd4ff', img: 'img/heroes/frostgolem',
-    mod: { hp: 0.95, arm: 1.02, atk: 0.9 },
+    mod: { hp: 1.05, arm: 1.12, atk: 0.95 },
     lore: 'Голем из вечного льда горных пиков: в его трещинах звенят кристаллы, о которые ломаются клинки.',
     passive: { name: 'Ледяной панцирь', desc: 'Щиты от 🛡 на 60% сильнее.', effects(G, h, c) { c.m.def *= 1.6; } },
     q: {
       name: 'Ледяной толчок', icon: '🧊', cost: 50, cd: 2, need: 'enemy',
-      desc: 'Подрывает два нижних ряда своего поля (камни срабатывают) и превращает 3 камня на поле врага в булыжники.',
+      desc: 'Подрывает нижний ряд своего поля (камни срабатывают) и превращает 3 камня на поле врага в булыжники.',
       async cast(G, h, t) {
         await G.enemyBoard(h, t, b => b.convert(b.pick(g => b.plain(g), 3), T_STONE), '#b79c7a');
-        await G.blast(h, [...rowKeys(N - 2), ...rowKeys(N - 1)]);
+        await G.blast(h, rowKeys(N - 1));
       },
     },
     r: {
@@ -127,7 +127,7 @@ const HEROES = [
       desc: 'Обрушивает на цель ледяную глыбу (урон растёт от числа ⚔ на поле), затем все ⚔ становятся 🛡, а союзники в событии получают мощный щит.',
       async cast(G, h) {
         const n = h.board.count(T_ATK);
-        await G.skillDamage(h, G.target(h), G.sp(h, 60, 1.0) + n * h.power * 1.2, 'phys', '#b79c7a');
+        await G.skillDamage(h, G.target(h), G.sp(h, 60, 1.0) + n * h.power * 0.9, 'phys', '#b79c7a');
         await G.selfBoard(h, b => b.convert(b.keysOf(T_ATK), T_DEF));
         for (const a of G.alliesIn(h)) G.shieldHero(h, a, G.sp(h, 140, 1.4));
       },
@@ -135,7 +135,7 @@ const HEROES = [
   },
   {
     id: 'runeknight', name: 'Торвальд', title: 'Рунный страж', role: 'top', emoji: '🛡', color: '#4a6fa5', img: 'img/heroes/runeknight',
-    mod: { atk: 1.0, hp: 0.9, arm: 0.94, farm: 0.7 },
+    mod: { atk: 1.0, hp: 0.9, arm: 0.94 },
     lore: 'Закованный в латы страж с рунным мечом: каждая руна на клинке — клятва, которую он не нарушил.',
     passive: {
       name: 'Рунная сталь', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
@@ -163,7 +163,7 @@ const HEROES = [
   },
   {
     id: 'berserk', name: 'Ульв', title: 'Ярый берсерк', role: 'top', emoji: '🪓', color: '#a0522d', img: 'img/heroes/berserk',
-    mod: { hp: 1.15, atk: 1.15, farm: 0.7 },
+    mod: { hp: 1.15, atk: 1.15 },
     lore: 'Северный воин с двумя топорами: чем глубже его раны, тем страшнее он в бою.',
     passive: { name: 'Упоение битвой', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
@@ -283,9 +283,9 @@ const HEROES = [
   },
   {
     id: 'monk', name: 'Сун', title: 'Мастер ки', role: 'mid', emoji: '👊', color: '#6b8f7a', img: 'img/heroes/monk',
-    mod: { sp: 1.0, hp: 0.95 },
+    mod: { sp: 1.05, hp: 1.0 },
     lore: 'Странствующий монах: его удары собирают внутреннюю силу и взрываются, как гром.',
-    passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 25, 0.25); } },
+    passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 16, 0.17); } },
     q: {
       name: 'Сгусток ки', icon: '🌀', cost: 50, cd: 3, need: 'none',
       desc: 'Создаёт 2 бомбы на своём поле.',
@@ -357,7 +357,7 @@ const HEROES = [
   /* ======== СТРЕЛКИ ======== */
   {
     id: 'dwarfhunter', name: 'Бранд', title: 'Гномий охотник', role: 'adc', emoji: '🎯', color: '#8b5a2b', img: 'img/heroes/dwarfhunter',
-    mod: { atk: 1.32, hp: 1.0, arm: 1.0, farm: 0.7 },
+    mod: { atk: 1.32, hp: 1.0, arm: 1.0 },
     lore: 'Гном-следопыт с тяжёлым арбалетом. Болт из него пробивает и щит, и стену.',
     passive: { name: 'Тяжёлый болт', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
     q: {
@@ -377,7 +377,7 @@ const HEROES = [
   },
   {
     id: 'elfarcher', name: 'Лиэн', title: 'Изумрудный лучник', role: 'adc', emoji: '🏹', color: '#3c8d3c', img: 'img/heroes/elfarcher',
-    mod: { atk: 1.14, farm: 0.7 },
+    mod: { atk: 1.14 },
     lore: 'Эльф-лучник в изумрудном плаще. Ветер и лес помогают его стрелам находить цель.',
     passive: {
       name: 'Лесной ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
@@ -400,7 +400,7 @@ const HEROES = [
   },
   {
     id: 'ratking', name: 'Шмыг', title: 'Крысиный проныра', role: 'adc', emoji: '🐀', color: '#6b5a3a', img: 'img/heroes/ratking',
-    mod: { atk: 1.18, hp: 1.15, arm: 1.15, farm: 0.7 },
+    mod: { atk: 1.18, hp: 1.15, arm: 1.15 },
     lore: 'Крыса-проныра с парой кинжалов. Обожает золото, ставит капканы и метает ножи из-за угла.',
     passive: { name: 'Нюх на золото', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
     q: {
@@ -601,7 +601,7 @@ const HEROES = [
   },
   {
     id: 'crabpirate', name: 'Клешнир', title: 'Пират-краб', role: 'adc', emoji: '🦀', color: '#d2462e', img: 'img/heroes/crabpirate',
-    mod: { atk: 1.12, hp: 1.1, arm: 1.1, farm: 0.7 },
+    mod: { atk: 1.12, hp: 1.1, arm: 1.1 },
     lore: 'Капитан-краб с пушкой на клешне. Палит бортовыми залпами, бросает якорь и забирает добычу у павших.',
     passive: { name: 'Абордаж', desc: 'Убийство или помощь отбирает у жертвы 25% её золота. Крабий панцирь: больше здоровья и брони, чем у других стрелков.', plunder: 0.25 },
     q: {
