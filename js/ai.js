@@ -330,8 +330,10 @@ const AI = {
     if (tags.includes('sustain')) { p.ls += 0.4; p.regen += 0.3; }
     // против кого играем: много физического урона у врагов — броня ценнее
     const foes = G.teams[h.enemyTeam].heroes;
-    const phys = U.sum(foes, f => (['adc', 'top', 'jng'].includes(f.def.main) ? 1 : 0) + ((f.def.mod || {}).atk > 1 ? 0.3 : 0)) / foes.length;
-    p.arm *= 0.6 + phys; p.thorns *= 0.6 + phys;
+    const phys = U.sum(foes, f => (['adc', 'top', 'jng'].includes(f.def.main) ? 1 : 0) + (f.def.tags.includes('dps') ? 0.4 : 0)) / foes.length;
+    // против почти чисто физического состава броня — главный ответ (как в LoL)
+    const over = Math.max(0, phys - 0.85);
+    p.arm *= (0.6 + phys) * (1 + 5 * over); p.thorns *= (0.6 + phys) * (1 + 4 * over);
     // стадия игры: доход ценен рано, осада и легендарные предметы — поздно
     p.goldPow *= Math.max(0, 1 - G.minute / 25);
     p.towerPow *= G.minute > 15 ? 1.3 : 0.6;

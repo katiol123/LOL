@@ -25,7 +25,7 @@ const BASE_STATS = {
   top: { hp: 640, hpG: 92, atk: 16, atkG: 2.4, arm: 28, armG: 3.2, mana: 100, sp: 25, spG: 5 },
   jng: { hp: 600, hpG: 86, atk: 17, atkG: 2.5, arm: 24, armG: 2.8, mana: 100, sp: 25, spG: 5 },
   mid: { hp: 520, hpG: 74, atk: 14, atkG: 2.0, arm: 18, armG: 2.2, mana: 140, sp: 40, spG: 8 },
-  adc: { hp: 510, hpG: 72, atk: 19, atkG: 3.0, arm: 17, armG: 2.2, mana: 100, sp: 20, spG: 4 },
+  adc: { hp: 435, hpG: 61, atk: 22, atkG: 3.6, arm: 13, armG: 1.6, mana: 100, sp: 20, spG: 4 },   // «стеклянная пушка»: прячется за передовой
   sup: { hp: 560, hpG: 80, atk: 12, atkG: 1.6, arm: 24, armG: 2.8, mana: 140, sp: 35, spG: 6 },
 };
 
