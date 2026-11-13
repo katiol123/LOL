@@ -367,7 +367,11 @@ const Minimap = {
       if (active) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 12; }
       ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.font = `${r * 1.15}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `${r * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // символ — белым с тёмной обводкой: иначе монохромные значки (❄ ⚙ ⛓) сливаются с заливкой
+      ctx.lineWidth = Math.max(2, r * 0.18); ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
+      ctx.strokeText(h.def.emoji, cur[0] * s, cur[1] * s + 1);
+      ctx.fillStyle = '#fff';
       ctx.fillText(h.def.emoji, cur[0] * s, cur[1] * s + 1);
       ctx.restore();
     });
