@@ -20,10 +20,16 @@ const EV_INFO = {
 };
 
 class Hero {
-  constructor(def, team, game) {
+  constructor(def, team, game, role, pl) {
     this.def = def; this.team = team; this.game = game;
     this.id = `${team}-${def.id}`;
-    this.role = def.role; this.name = def.name;
+    this.role = role || def.main || def.role; this.name = def.name;
+    this.pl = pl || neutralPlayer(this.role);
+    this.fit = def.fit ? def.fit[this.role] : 3;
+    this.ms = masteryOf(this.pl, def.id);
+    // бонус ко всем характеристикам: мастерство/4 + форма − штраф за непрофильного героя
+    this.bonusAll = this.ms / 4 + playerFormBonus(this.pl) - FIT_PENALTY[this.fit];
+    this.tilt = 0; this.sdmg = 0; this.obj = 0; this.shielded = 0; this.vis = 0;
     this.lvl = 1; this.xp = 0;
     this.items = []; this.buildIdx = 0;
     this.gold = 500; this.totalGold = 500;
@@ -38,10 +44,12 @@ class Hero {
   }
   get enemyTeam() { return this.team === 'blue' ? 'red' : 'blue'; }
   get lane() { return ROLE_LANE[this.role]; }
+  get build() { return BUILDS[this.def.main || this.def.role]; }
+  get nick() { return this.pl ? this.pl.nick : this.name; }
   get alive() { return this.dead <= 0; }
   itemStat(k) { return U.sum(this.items, it => ITEMS[it][k] || 0) + (this.elix || 0) * (ELIXIR[k] || 0); }
   recalc() {
-    const b = BASE_STATS[this.role], m = this.def.mod || {}, L = this.lvl - 1;
+    const b = BASE_STATS[this.def.main || this.def.role], m = this.def.mod || {}, L = this.lvl - 1;
     const ratio = this.maxHp ? this.hp / this.maxHp : 1;
     this.maxHp = Math.round((b.hp + L * b.hpG) * (m.hp || 1) + this.itemStat('hp'));
     this.power = (b.atk + L * b.atkG) * (m.atk || 1) + this.itemStat('atk');
@@ -63,13 +71,18 @@ function mkTeam(id) {
 }
 
 class Game {
-  constructor(blueDefs, redDefs, ui) {
+  /* lineup: массив из 5 { def, role, pl } (или просто 5 героев — тогда игроки «по 10») */
+  constructor(blueLineup, redLineup, ui, opts = {}) {
     this.ui = ui;
+    this.opts = opts;
+    this.signals = [];
     this.minute = 1; this.round = 0; this.over = false; this.winner = null;
     this.teams = { blue: mkTeam('blue'), red: mkTeam('red') };
     for (const t of ['blue', 'red']) {
-      const defs = t === 'blue' ? blueDefs : redDefs;
-      this.teams[t].heroes = ROLE_ORDER.map(r => new Hero(defs.find(d => d.role === r), t, this));
+      let lu = t === 'blue' ? blueLineup : redLineup;
+      if (lu[0] && lu[0].q) lu = lu.map(d => ({ def: d, role: d.main || d.role, pl: null }));
+      this.teams[t].heroes = ROLE_ORDER.map(r => { const x = lu.find(e => e.role === r); return new Hero(x.def, t, this, r, x.pl); });
+      if (opts.names && opts.names[t]) this.teams[t].name = opts.names[t];
     }
     this.heroes = [...this.teams.blue.heroes, ...this.teams.red.heroes];
     this.lanes = {};
@@ -118,12 +131,8 @@ class Game {
       this.assignEvents();
       this.ui.roundStart(this);
       await wait(500);
-      const order = [];
-      const flip = this.round % 2 === 0;
-      for (const r of ROLE_ORDER) {
-        const a = this.hero(flip ? 'red' : 'blue', r), b = this.hero(flip ? 'blue' : 'red', r);
-        order.push(a, b);
-      }
+      // порядок ходов: чем выше Реакция, тем раньше герой ходит в минуте
+      const order = this.heroes.slice().sort((a, b) => (effStat(b, 'rea') * STAT_SCALE.rea + U.rand(4)) - (effStat(a, 'rea') * STAT_SCALE.rea + U.rand(4)));
       for (const h of order) {
         if (this.over) break;
         await this.heroTurn(h);
@@ -283,7 +292,17 @@ class Game {
     const p = h.def.passive;
     if (p.effects) p.effects(this, h, c);
     const buff = this.teamBuffs(h.team);
-    const casc = 1 + 0.25 * info.cascade;
+    // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
+    const casc = 1 + 0.25 * info.cascade * (1 + 0.04 * sd(h, 'mech'));
+    const inFight = h.ev && h.ev.sides && this.enemiesIn(h).length > 0;
+    const allies = this.alliesIn(h).length;
+    const gm = (1 + 0.012 * sd(h, 'mech')) * this.pressureFactor(h)
+      * (inFight && this.persist.includes(h.ev) ? 1 + 0.012 * sd(h, 'calm') : 1)   // хладнокровие в затяжных боях
+      * (allies >= 2 ? 1 + 0.012 * sd(h, 'team') : 1);                              // слаженность с союзниками
+    for (const k in c.m) c.m[k] *= gm;
+    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.08 + 0.02 * sd(h, 'mech'), 0, 0.6))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
+    c.m.mana *= 1 + 0.03 * sd(h, 'read');
+    c.m.gold *= 1 + 0.02 * sd(h, 'farm');
     const healPow = 1 + this.itemsOf(h, 'healPow');
     const shieldPow = 1 + this.itemsOf(h, 'shieldPow');
     const visPow = 1 + this.itemsOf(h, 'visPow');
@@ -322,6 +341,12 @@ class Game {
     for (const fn of c.after) await fn();
   }
   itemsOf(h, k) { return h.itemStat(k); }
+  /* Под давлением (мало здоровья или команда отстаёт по золоту) эффекты слабеют; Хладнокровие это гасит */
+  pressureFactor(h) {
+    const behind = U.sum(this.teams[h.enemyTeam].heroes, x => x.totalGold) - U.sum(this.teams[h.team].heroes, x => x.totalGold) > 1500;
+    if (h.hp / h.maxHp >= 0.4 && !behind) return 1;
+    return 1 - U.clamp(0.16 - 0.02 * sd(h, 'calm'), -0.1, 0.35);
+  }
   weakestAlly(h, excludeSelf) {
     const list = this.alliesIn(h).filter(a => !excludeSelf || a !== h);
     return list.length ? U.minBy(list, a => a.hp / a.maxHp) : null;
@@ -335,20 +360,20 @@ class Game {
       if (amt <= 0 || !enemies.length) return 0;
       const t = this.target(h);
       this.ui.projectile(h, t, '#ff5468');
-      const d = this.dealDamage(h, t, amt, 'phys');
+      const d = this.dealDamage(h, t, amt * (1 + 0.03 * sd(h, 'agr')), 'phys');
       if (c.lifesteal > 0) this.healHero(h, h, d * c.lifesteal, true);
       return d;
     };
     const type = ev.type === 'siege' && h.team !== ev.att ? 'defend' : ev.type;
     switch (type) {
       case 'lane': {
-        const share = enemies.length ? 0.55 : 1;
+        const share = enemies.length ? U.clamp(0.55 - 0.015 * sd(h, 'agr'), 0.3, 0.75) : 1;
         this.farmWave(h, dmg * share);
         toHero(dmg * (1 - share));
         break;
       }
       case 'jungle': this.hitNpc(h, ev, dmg); break;
-      case 'gank': toHero(dmg * (h.team === ev.att ? 1.35 : 1)); break;
+      case 'gank': toHero(dmg * (h.team === ev.att ? 1.35 * (1 + 0.03 * sd(h, 'agr')) : 1)); break;
       case 'defend': toHero(dmg); break;
       case 'dragon': case 'baron': {
         if (enemies.length) { this.hitNpc(h, ev, dmg * 0.45); toHero(dmg * 0.55); }
@@ -365,8 +390,9 @@ class Game {
 
   farmWave(h, amt) {
     const lane = this.lanes[h.ev.lane];
-    lane.farm[h.team] += amt;
-    const gold = Math.round(amt * 0.32);
+    const fm = 1 + 0.05 * sd(h, 'farm');
+    lane.farm[h.team] += amt * (1 + 0.04 * sd(h, 'farm'));
+    const gold = Math.round(amt * 0.32 * fm);
     const cs = Math.max(1, Math.round(amt / 45));
     h.cs += cs;
     this.addGold(h, gold);
@@ -384,7 +410,24 @@ class Game {
     h.dmg += d;
     this.ui.projectileTo(h, { kind: 'npc', ev }, '#ff5468');
     this.ui.npcHit(ev, d);
-    if (npc.hp <= 0) this.npcKilled(h, ev);
+    if (npc.hp <= 0) {
+      let taker = h;
+      if (npc.kind === 'dragon' || npc.kind === 'baron') {
+        const foes = ev.sides[h.enemyTeam].filter(x => x.alive);
+        if (foes.length) {
+          const clutch = x => sd(x, 'rea') + 0.5 * sd(x, 'calm');
+          const best = U.maxBy(foes, clutch);
+          const own = Math.max(...this.alliesIn(h).map(clutch));
+          if (U.chance(U.clamp(0.12 + 0.03 * (clutch(best) - own), 0.02, 0.55))) {
+            taker = best;
+            this.ui.log(`🫳 ${this.tag(best)} перехватывает последний удар у ${this.tag(h)} — эпик украден! (Реакция)`, best.team);
+            this.ui.banner('КРАЖА!', `${best.nick} забирает последний удар`, best.team, true);
+            for (const x of this.alliesIn(h)) this.tryTilt(x, 1, 'украденного эпика');
+          }
+        }
+      }
+      this.npcKilled(taker, ev);
+    }
   }
 
   hitStructure(h, ev, amt) {
@@ -392,7 +435,7 @@ class Game {
     const tm = this.teams[st.team];
     const baron = this.teams[h.team].baron > 0 ? 1.8 : 1;
     const d = Math.round(amt * 0.9 * baron);
-    h.dmg += d;
+    h.dmg += d; h.sdmg += d;
     this.ui.projectileTo(h, { kind: 'structure', ev }, '#ffd166');
     this.ui.npcHit(ev, d);
     this.damageStructure(st.team, st.lane, st.idx, d, h);
@@ -415,6 +458,7 @@ class Game {
       sfx('tower');
       this.ui.banner('БАШНЯ РАЗРУШЕНА', `${other.name} разрушают ${lane.toUpperCase()} · ${['T1', 'T2', 'T3'][idx]}`, this.enemyOf(team));
       if (by) this.gainXp(by, 80);
+      for (const x of tm.heroes) if (x.lane === lane && x.alive) this.tryTilt(x, 1, 'потери башни');
     }
   }
 
@@ -423,7 +467,7 @@ class Game {
     const tm = this.teams[h.team];
     if (npc.kind === 'camp') {
       const gm = h.def.passive.campGold || 1;
-      const gold = Math.round(npc.gold * gm);
+      const gold = Math.round(npc.gold * gm * (1 + 0.05 * sd(h, 'farm')));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');
@@ -432,6 +476,7 @@ class Game {
       npc.alive = false; npc.hp = 0;
       const type = npc.type;
       tm.dragons.push(type.id);
+      for (const x of ev.sides[h.team]) if (x.alive) x.obj++;
       this.ui.log(`🐉 ${this.tag(h)} добивает: <b>${type.name}</b> достаётся команде ${tm.name}! (${type.buff})`, h.team);
       sfx('roar');
       this.ui.banner(`${type.icon} ${type.name.toUpperCase()}`, `${tm.name} получают: ${type.buff}`, h.team);
@@ -449,6 +494,7 @@ class Game {
     } else if (npc.kind === 'baron') {
       npc.alive = false; npc.hp = 0;
       tm.baron = 4;
+      for (const x of ev.sides[h.team]) if (x.alive) x.obj += 2;
       npc.spawnAt = this.minute + 7;
       for (const x of tm.heroes) { this.addGold(x, 300); this.gainXp(x, 150); }
       this.ui.log(`👾 ${this.tag(h)} добивает <b>Барона</b>! ${tm.name} усиливают осаду на 4 минуты, +300💰 каждому.`, h.team);
@@ -476,7 +522,11 @@ class Game {
     let arm = tgt.armor + this.teamBuffs(tgt.team).arm;
     if (kind === 'magic') arm *= 0.5;
     if (kind === 'true') arm = 0;
-    let d = amt * HERO_DMG * 100 / (100 + arm);
+    let d = amt * HERO_DMG * 100 / (100 + arm) * (1 + 0.008 * Math.max(0, sd(tgt, 'agr')));
+    const ev = tgt.ev;
+    // Карта: осведомлённость (позиционирование) снижает получаемый урон, особенно когда бой начал враг
+    const ambushed = ev && ev.att && ev.att !== tgt.team && (ev.type === 'gank' || ev.type === 'dragon' || ev.type === 'baron' || ev.type === 'siege');
+    d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.55, 1.35);
     const abs = Math.min(tgt.shield, d);
     tgt.shield -= abs; d -= abs;
     tgt.hp -= d;
@@ -486,15 +536,23 @@ class Game {
     return d + abs;
   }
 
+  dodges(src, tgt) {
+    if (!src || !tgt || src.team === tgt.team) return false;
+    const ok = U.chance(U.clamp(0.06 + 0.025 * (sd(tgt, 'rea') - sd(src, 'mech')), 0, 0.45));
+    if (ok) { this.ui.float(tgt, 'УВОРОТ!', '#9fe8ff'); tgt.dodged = (tgt.dodged || 0) + 1; }
+    return ok;
+  }
   async skillDamage(src, tgt, amt, kind, color) {
     if (!tgt || !tgt.alive) return 0;
     this.ui.projectile(src, tgt, color || '#fff', true);
     await wait(380);
+    if (this.dodges(src, tgt)) amt *= 0.5;
     return this.dealDamage(src, tgt, amt, kind);
   }
 
   healHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
+    if (src !== tgt) amt *= 1 + 0.05 * sd(src, 'team');
     const before = tgt.hp;
     tgt.hp = Math.min(tgt.maxHp, tgt.hp + amt);
     const d = tgt.hp - before;
@@ -507,6 +565,7 @@ class Game {
   }
   shieldHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
+    if (src !== tgt) amt *= 1 + 0.05 * sd(src, 'team');
     tgt.shield = Math.min(tgt.maxHp * 0.7, tgt.shield + amt);
     src.shielded = (src.shielded || 0) + amt;
     if (amt > 30) sfx('shield');
@@ -542,6 +601,7 @@ class Game {
 
   vision(h, v, c) {
     const tm = this.teams[h.team];
+    v *= 1 + 0.05 * sd(h, 'map');
     h.vis = (h.vis || 0) + v;
     tm.pressure += v * 2.2;
     const lane = h.ev.lane || h.lane;
@@ -559,7 +619,7 @@ class Game {
     tgt.d++; tgt.streak = 0; tgt.stunned = 0;
     const ev = tgt.ev;
     if (ev && src && src.team !== tgt.team) { ev.kills = ev.kills || { blue: 0, red: 0 }; ev.kills[src.team]++; }
-    if (!src || src.team === tgt.team) { this.ui.log(`☠ ${this.tag(tgt)} погибает.`); this.ui.killFeed(null, tgt); return; }
+    if (!src || src.team === tgt.team) { this.ui.log(`☠ ${this.tag(tgt)} погибает.`); this.ui.killFeed(null, tgt); this.tryTilt(tgt, 1, 'гибели'); return; }
     src.k++; src.streak++;
     const tm = this.teams[src.team];
     tm.kills++;
@@ -570,7 +630,9 @@ class Game {
     if (!this.firstBlood) { this.firstBlood = true; bounty += 100; this.ui.banner('ПЕРВАЯ КРОВЬ', `${src.name} убивает ${tgt.name}`, src.team); }
     this.addGold(src, bounty); this.gainXp(src, 100 + tgt.lvl * 12);
     const assists = (ev && ev.sides ? ev.sides[src.team] : []).filter(x => x !== src && x.alive);
-    for (const a of assists) { a.a++; this.addGold(a, 120); this.gainXp(a, 50 + tgt.lvl * 6); }
+    for (const a of assists) { a.a++; this.addGold(a, Math.round(120 * (1 + 0.04 * sd(a, 'team')))); this.gainXp(a, 50 + tgt.lvl * 6); this.calmDown(a); }
+    this.calmDown(src);
+    this.tryTilt(tgt, assists.length ? 1 : 2, 'гибели');
     // мультикиллы за раунд
     src.mem.roundKills = (src.mem.roundKillsRound === this.round ? src.mem.roundKills : 0) + 1;
     src.mem.roundKillsRound = this.round;
@@ -581,7 +643,42 @@ class Game {
     this.ui.log(`⚔ ${this.tag(src)} убивает ${this.tag(tgt)} (+${bounty}💰)${assists.length ? ', помощь: ' + assists.map(a => this.tag(a)).join(', ') : ''}.`, src.team);
   }
 
-  tag(h) { return `<span class="tag ${h.team}">${h.def.emoji} ${h.name}</span>`; }
+  tag(h) { return `<span class="tag ${h.team}">${h.def.emoji} ${h.nick}</span>`; }
+
+  /* ---------------- Сигналы (одинаковы для ИИ и человека) ---------------- */
+  signal(from, type, data = {}) {
+    if (!from || !from.alive || (from.mem.sigCd || 0) > this.round) return null;
+    from.mem.sigCd = this.round + 2;
+    const sig = { id: this.signals.length + 1, type, from, team: from.team, data, round: this.round, answers: [] };
+    this.signals.push(sig);
+    from.signals = (from.signals || 0) + 1;
+    return sig;
+  }
+  answer(sig, h) {
+    const r = (h.ctrl !== 'ai' && this.ui.askSignal) ? this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
+    sig.answers.push(Object.assign({ h }, r));
+    if (r.accept) h.answered = (h.answered || 0) + 1;
+    return r;
+  }
+  signalLabel(sig) {
+    return { obj: sig.data.kind === 'baron' ? '👾 Сбор на Барона!' : '🐉 Сбор на Дракона!', help: '⚡ Помогите!', push: `🎯 Давим ${String(sig.data.lane || '').toUpperCase()}!`, retreat: '⛔ Отступаем!' }[sig.type];
+  }
+  announce(sig) {
+    const a = sig.answers.map(x => `${this.tag(x.h)} ${x.accept ? (x.fast ? '✔' : '⏳') : '✖'}`).join(' ');
+    this.ui.log(`📣 ${this.tag(sig.from)}: «${this.signalLabel(sig)}»${a ? ' — ' + a : ''}`, sig.team);
+    this.ui.signal(sig);
+  }
+
+  /* ---------------- Тильт ---------------- */
+  tryTilt(h, amount, why) {
+    const chance = U.clamp(0.45 - 0.035 * sd(h, 'calm'), 0.05, 0.9);
+    if (!U.chance(chance)) return;
+    const before = h.tilt;
+    h.tilt = Math.min(3, h.tilt + amount);
+    h.mem.tiltAt = this.round;
+    if (h.tilt > before) { this.ui.tilt(h); this.ui.log(`😤 ${this.tag(h)} тильтует после ${why} (−${h.tilt} к Механике, Реакции и Чтению игры, +${h.tilt} к Агрессии).`); }
+  }
+  calmDown(h) { if (h.tilt > 0) { h.tilt--; h.mem.tiltAt = this.round; if (!h.tilt) this.ui.log(`😌 ${this.tag(h)} успокаивается.`); this.ui.tilt(h); } }
 
   finish(winner) {
     if (this.over) return;
@@ -610,7 +707,24 @@ class Game {
     const keep = [];
     for (const ev of this.persist) {
       if (ev.done || ev.left <= 0) continue;
+      // откликнувшиеся «позже» прибывают на минуту позже
+      for (const x of ev.late || []) if (x.alive && !x.ev && x.hp / x.maxHp > 0.25 && !ev.sides[x.team].includes(x)) ev.sides[x.team].push(x);
+      ev.late = [];
       for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && x.hp / x.maxHp > 0.12);
+      // сигнал «Отступаем», если команда в событии явно проигрывает
+      for (const t of ['blue', 'red']) {
+        const own = ev.sides[t], foe = ev.sides[this.enemyOf(t)];
+        if (!own.length || !foe.length) continue;
+        const avgHp = U.sum(own, x => x.hp / x.maxHp) / own.length;
+        if (own.length < foe.length - 1 || (avgHp < 0.35 && own.length <= foe.length)) {
+          const sig = this.signal(U.maxBy(own, x => sd(x, 'team') + U.rand(2)), 'retreat', { ev: ev.id });
+          if (!sig) continue;
+          const leave = [sig.from];
+          for (const x of own) if (x !== sig.from) { const r = this.answer(sig, x); if (r.accept && r.fast) leave.push(x); }
+          ev.sides[t] = own.filter(x => !leave.includes(x));
+          this.announce(sig);
+        }
+      }
       const att = ev.sides[ev.att], def = ev.sides[this.enemyOf(ev.att)];
       let ok = att.length > 0;
       if (ev.type === 'gank') ok = ok && def.length > 0;
@@ -627,9 +741,9 @@ class Game {
     for (const h of this.heroes) {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
-      const next = BUILDS[h.role][h.buildIdx];
+      const next = h.build[h.buildIdx];
       const rich = (next && h.items.length < 6 ? h.gold >= ITEMS[next].cost : h.gold >= 900) && (hpR < 0.92 || U.chance(0.5));
-      if (hpR < 0.3 || h.mana < 20 && hpR < 0.6 || rich) {
+      if (hpR < 0.3 - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
     }
@@ -650,7 +764,44 @@ class Game {
       this.ui.log(`🚩 ${tm.name} собираются в натиск на <b>${lane.toUpperCase()}</b>!`, t);
     }
 
+    // 4b. Сигнал «Давим линию»: соперники по линии мертвы, башня стоит
+    for (const t of ['blue', 'red']) {
+      for (const l of LANES) {
+        const mine = this.teams[t].heroes.filter(h => this.free(h) && h.lane === l);
+        const foes = this.teams[this.enemyOf(t)].heroes.filter(h => h.lane === l);
+        if (!mine.length || !foes.length || foes.some(f => f.alive)) continue;
+        const st = this.structureFor(this.enemyOf(t), l);
+        if (st.idx === 3 && !this.nexusOpen(this.enemyOf(t))) continue;
+        const sig = this.signal(mine[0], 'push', { lane: l });
+        if (!sig) continue;
+        const ev = this.mkEv('siege', { lane: l, att: t, structure: st, left: 2, late: [] });
+        mine.forEach(h => this.join(ev, h));
+        for (const x of this.teams[t].heroes) {
+          if (!this.free(x) || x.lane === l) continue;
+          const r = this.answer(sig, x);
+          if (r.accept) r.fast ? this.join(ev, x) : ev.late.push(x);
+        }
+        this.persist.push(ev);
+        this.announce(sig);
+        break;
+      }
+    }
+
     // 5. Эпические монстры
+    for (const [npc, thr] of [[this.dragon, 100], [this.baron, 150]]) {
+      if (!npc.alive || this.minute < npc.retryAt || this.persist.some(e => e.type === npc.kind)) continue;
+      for (const t of ['blue', 'red']) {
+        const tm = this.teams[t];
+        if (tm.pressure < thr * 0.75) continue;
+        const callers = ['jng', 'sup', 'mid'].map(r => this.hero(t, r)).filter(h => this.free(h));
+        if (!callers.length) continue;
+        const sig = this.signal(U.maxBy(callers, x => sd(x, 'map') + U.rand(2)), 'obj', { kind: npc.kind });
+        if (!sig) continue;
+        tm.pressure += 10 * (1 + 0.05 * sd(sig.from, 'team'));
+        for (const x of tm.heroes) if (x !== sig.from && this.free(x)) { const r = this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; }
+        this.announce(sig);
+      }
+    }
     if (!this.persist.some(e => e.type === 'dragon') && this.dragon.alive) this.tryObjective(this.dragon, 100, ['jng', 'adc', 'sup', 'mid']);
     if (!this.persist.some(e => e.type === 'baron') && this.baron.alive) this.tryObjective(this.baron, 150, ['jng', 'adc', 'sup', 'mid', 'top']);
 
@@ -705,14 +856,16 @@ class Game {
     for (const t of order) {
       const tm = this.teams[t];
       if (tm.pressure < threshold) continue;
-      const crew = roles.map(r => this.hero(t, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.4);
+      const called = x => x.mem.call && x.mem.call.kind === npc.kind && x.mem.call.round === this.round;
+      const crew = tm.heroes.filter(h => this.free(h) && h.hp / h.maxHp > 0.4 && (roles.includes(h.role) && !called(h) || called(h) && h.mem.call.fast));
       if (crew.length < (isBaron ? 3 : 2)) continue;
-      const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 4, dtype: npc.type });
+      const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 4, dtype: npc.type, late: tm.heroes.filter(h => this.free(h) && called(h) && !h.mem.call.fast) });
       crew.forEach(h => this.join(ev, h));
       tm.pressure -= threshold * 0.7;
       const et = this.enemyOf(t);
       const etm = this.teams[et];
-      const contest = U.clamp(0.3 + (etm.river - tm.river) * 0.07 + (etm.pressure - tm.pressure * 0.5) / 300 + (isBaron ? 0.15 : 0), 0.08, 0.9);
+      const mapE = U.sum(etm.heroes, x => sd(x, 'map')) / 5, teamA = U.sum(crew, x => sd(x, 'team')) / crew.length;
+      const contest = U.clamp(0.3 + (etm.river - tm.river) * 0.07 + (etm.pressure - tm.pressure * 0.5) / 300 + (isBaron ? 0.15 : 0) + 0.025 * (mapE - teamA), 0.05, 0.92);
       const spotted = U.chance(contest);
       if (spotted) {
         const defs = roles.map(r => this.hero(et, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.35);
@@ -747,7 +900,8 @@ class Game {
     this.join(ev, j);
     this.heroes.filter(h => h.team === j.team && this.free(h) && h.lane === best.l).forEach(h => this.join(ev, h));
     best.victims.forEach(h => this.join(ev, h));
-    const spotChance = U.clamp(lane.ward[et] * 0.13, 0, 0.85);
+    const bestMap = Math.max(...best.victims.map(v => sd(v, 'map')));
+    const spotChance = U.clamp(lane.ward[et] * 0.13 + 0.03 * (bestMap - sd(j, 'agr')), 0, 0.9);
     const spotted = U.chance(spotChance);
     let msg = `⚡ ${this.tag(j)} гангает <b>${best.l.toUpperCase()}</b>!`;
     if (spotted) {
@@ -755,8 +909,20 @@ class Game {
       for (const v of best.victims) this.shieldHero(v, v, v.maxHp * 0.25);
       msg += ` Варды ${this.teams[et].name.toLowerCase()} раскрыли ганг — жертвы успели подготовиться (щит).`;
     }
+    ev.late = [];
+    const help = this.signal(best.victims[0], 'help', { lane: best.l });
+    if (help) {
+      for (const x of this.teams[et].heroes) {
+        if (!this.free(x) || best.victims.includes(x)) continue;
+        // гангу на другой линии быстрее всего помогает свой лесник и мидер
+        if (!(x.role === 'jng' || x.role === 'mid' || x.lane === best.l)) continue;
+        const r = this.answer(help, x);
+        if (r.accept) { if (r.fast) { this.join(ev, x); msg += ` ${this.tag(x)} откликается на сигнал и прибегает на помощь!`; } else ev.late.push(x); }
+      }
+      this.announce(help);
+    }
     const ej = this.hero(et, 'jng');
-    if (this.free(ej) && U.chance(spotted ? 0.65 : 0.15 + ej.gank / 250)) {
+    if (this.free(ej) && !help && U.chance(spotted ? 0.65 : 0.15 + ej.gank / 250)) {
       this.join(ev, ej);
       ej.gank = Math.max(0, ej.gank - 40);
       msg += ` ${this.tag(ej)} прибегает с контр-гангом!`;
@@ -860,7 +1026,8 @@ class Game {
         h.mana = Math.min(h.maxMana, h.mana + 6 + tb.mana);
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
-        if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += 8;
+        if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
+        if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 3) this.calmDown(h);
       } else {
         h.dead--;
         if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
@@ -904,8 +1071,8 @@ class Game {
   atBase(h, respawn) {
     h.hp = h.maxHp; h.mana = h.maxMana;
     const bought = [];
-    while (h.buildIdx < BUILDS[h.role].length && h.items.length < 6) {
-      const id = BUILDS[h.role][h.buildIdx];
+    while (h.buildIdx < h.build.length && h.items.length < 6) {
+      const id = h.build[h.buildIdx];
       if (h.gold < ITEMS[id].cost) break;
       h.gold -= ITEMS[id].cost;
       h.items.push(id);
@@ -913,7 +1080,7 @@ class Game {
       bought.push(id);
     }
     // полный комплект — лишнее золото идёт на эликсиры силы
-    while (h.items.length >= 6 || h.buildIdx >= BUILDS[h.role].length) {
+    while (h.items.length >= 6 || h.buildIdx >= h.build.length) {
       if (h.gold < 600) break;
       h.gold -= 600; h.elix = (h.elix || 0) + 1; bought.push('elixir');
     }
@@ -949,6 +1116,7 @@ class Game {
     if (!tgt || !tgt.alive) return;
     this.ui.projectile(src, tgt, color || '#fff', true);
     await wait(380);
+    if (this.dodges(src, tgt)) { this.ui.log(`${this.tag(tgt)} успевает среагировать — умение ${this.tag(src)} не задевает его поле (Реакция).`); return; }
     this.ui.boardHit(tgt, color);
     fn(tgt.board);
     tgt.board.shake = 0.8;

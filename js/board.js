@@ -155,6 +155,8 @@ class Board {
     this.hint = null;
     this.shake = 0;
     this.glow = 0;
+    // очередь камней, которые упадут в каждый столбец (видна при высоком «Чтении игры»)
+    this.queue = Array.from({ length: N }, () => Array.from({ length: 6 }, () => this.rnd()));
     this.fill();
   }
   rnd() { return U.ri(6); }
@@ -207,7 +209,9 @@ class Board {
   hasMoves() { return this.listMoves(false).length > 0; }
 
   /* Оценка хода без изменения поля (для ИИ) */
-  simulate(mv, blind) {
+  simulate(mv, blind) { return this.firstStep(mv, blind).res; }
+
+  firstStep(mv, blind) {
     const T = this.types(blind), SP = this.sps(blind);
     const k1 = mv.r * N + mv.c, k2 = mv.r2 * N + mv.c2;
     if (mv.prism) {
@@ -224,11 +228,35 @@ class Board {
       // посчитать цвет, уничтоженный призмой
       const color = a === T_PRISM ? b : a;
       if (color >= 0 && color <= 5) res.counts[color] = Math.max(res.counts[color], 1);
-      return res;
+      return { res, T, SP };
     }
     [T[mv.r][mv.c], T[mv.r2][mv.c2]] = [T[mv.r2][mv.c2], T[mv.r][mv.c]];
     [SP[mv.r][mv.c], SP[mv.r2][mv.c2]] = [SP[mv.r2][mv.c2], SP[mv.r][mv.c]];
-    return analyzeStep(T, SP, [k1, k2], null);
+    return { res: analyzeStep(T, SP, [k1, k2], null), T, SP };
+  }
+
+  /* Ход с предсказанием каскадов: падение уже лежащих камней известно всем,
+     а новые камни — только первые `preview` из очереди каждого столбца. Остальные неизвестны (-1). */
+  simulateDeep(mv, blind, preview) {
+    const { res, T, SP } = this.firstStep(mv, blind);
+    const total = { counts: res.counts.slice(), stones: res.stones, creates: res.creates.slice(), acts: res.acts.slice(), depth: 0 };
+    const used = new Array(N).fill(0);
+    let last = res;
+    for (let d = 1; d <= 3; d++) {
+      for (const k of last.clear) { T[kr(k)][kc(k)] = -9; SP[kr(k)][kc(k)] = null; }
+      for (const cr of last.creates) { T[kr(cr.k)][kc(cr.k)] = cr.t; SP[kr(cr.k)][kc(cr.k)] = cr.sp; }
+      for (let c = 0; c < N; c++) {
+        let w = N - 1;
+        for (let r = N - 1; r >= 0; r--) if (T[r][c] !== -9) { T[w][c] = T[r][c]; SP[w][c] = SP[r][c]; w--; }
+        for (let r = w; r >= 0; r--) { T[r][c] = used[c] < preview ? this.queue[c][used[c]] : -1; SP[r][c] = null; used[c]++; }
+      }
+      last = analyzeStep(T, SP, null, null);
+      if (!last.clear.size) break;
+      const mul = 1 + 0.25 * d;
+      for (let t = 0; t < 6; t++) total.counts[t] += last.counts[t] * mul;
+      total.stones += last.stones; total.creates.push(...last.creates); total.acts.push(...last.acts); total.depth = d;
+    }
+    return total;
   }
 
   swap(r, c, r2, c2) {
@@ -281,7 +309,8 @@ class Board {
       }
       let k = 0;
       for (let r = write; r >= 0; r--) {
-        const g = newGem(this.rnd());
+        const g = newGem(this.queue[c].shift());
+        this.queue[c].push(this.rnd());
         g.x = c; g.y = -1 - k; k++;
         this.g[r][c] = g;
         maxFall = Math.max(maxFall, r - g.y);

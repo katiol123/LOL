@@ -463,3 +463,29 @@ const HEROES = [
   },
 ];
 
+
+/* ---------- Пригодность героев к ролям ----------
+   Герой подходит на любую роль; метки подсказывают ИИ, где он силён.
+   fit: 3 — родная роль, 2 — хорошо подходит, 1 — терпимо, 0 — плохо.
+   tags — роль в составе: tank, heal, control, burst, dps, utility, vision, sustain */
+const HERO_FIT = {
+  granitor: { fit: { top: 3, jng: 1, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  veila: { fit: { top: 3, jng: 2, mid: 2, adc: 1, sup: 0 }, tags: ['burst', 'dps'] },
+  morven: { fit: { top: 3, jng: 2, mid: 1, adc: 0, sup: 0 }, tags: ['sustain', 'dps'] },
+  xar: { fit: { top: 1, jng: 3, mid: 2, adc: 0, sup: 0 }, tags: ['burst', 'vision'] },
+  lira: { fit: { top: 1, jng: 3, mid: 1, adc: 0, sup: 2 }, tags: ['heal', 'control'] },
+  bronn: { fit: { top: 2, jng: 3, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  eira: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['control', 'burst'] },
+  piro: { fit: { top: 1, jng: 0, mid: 3, adc: 2, sup: 0 }, tags: ['burst'] },
+  nox: { fit: { top: 1, jng: 1, mid: 3, adc: 0, sup: 1 }, tags: ['control', 'burst'] },
+  selena: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['utility', 'vision'] },
+  rian: { fit: { top: 0, jng: 0, mid: 2, adc: 3, sup: 0 }, tags: ['dps'] },
+  mira: { fit: { top: 0, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps'] },
+  korvin: { fit: { top: 1, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps', 'control'] },
+  auriel: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['heal', 'utility'] },
+  garrok: { fit: { top: 2, jng: 1, mid: 0, adc: 0, sup: 3 }, tags: ['tank', 'control'] },
+  nia: { fit: { top: 0, jng: 1, mid: 1, adc: 0, sup: 3 }, tags: ['utility', 'vision'] },
+};
+const FIT_NAMES = ['плохо', 'терпимо', 'хорошо', 'родная роль'];
+const TAG_NAMES = { tank: 'танк', heal: 'лекарь', control: 'контроль', burst: 'взрывной урон', dps: 'постоянный урон', utility: 'поддержка', vision: 'обзор', sustain: 'живучесть' };
+for (const h of HEROES) { h.fit = HERO_FIT[h.id].fit; h.tags = HERO_FIT[h.id].tags; h.main = h.role; }
