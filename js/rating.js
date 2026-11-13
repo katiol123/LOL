@@ -29,7 +29,10 @@ function computeRatings(G) {
   for (const h of G.heroes) {
     let z = 0;
     if (norms && norms.P && norms.P[h.role]) { const [mu, sdv] = norms.P[h.role]; z = (ratingRaw(h, G.minute, norms) - mu) / (sdv || 1); }
-    const r = RATING_BASE + RATING_SPREAD * z + (h.team === G.winner ? RATING_WIN : -RATING_WIN);
+    let r = RATING_SPREAD * z + (h.team === G.winner ? RATING_WIN : -RATING_WIN);
+    // второй проход калибровки: одинаковые среднее и разброс оценок у всех ролей
+    if (norms && norms.k && norms.k[h.role]) r = r * norms.k[h.role] + (norms.off[h.role] || 0);
+    r += RATING_BASE;
     h.rating = Math.round(U.clamp(r, 3, 10) * 10) / 10;
   }
   const best = U.maxBy(G.heroes, h => h.rating);

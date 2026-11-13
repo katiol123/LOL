@@ -23,7 +23,7 @@ function load(extra) {
     function teamOf(stats, roles = ROLE_ORDER) { return roles.map(r => neutralPlayer(r, { stats: Object.assign(Object.fromEntries(STAT_KEYS.map(k => [k, 10])), stats) })); }
   `, ctx);
   // константы верхнего уровня не видны снаружи контекста — пробрасываем нужные имена
-  vm.runInContext(`Object.assign(globalThis, { U, Clock, HEROES, ROLE_ORDER, STAT_KEYS, STAT_SCALE, AI, Game, computeRatings, ratingMetrics, ratingRaw,
+  vm.runInContext(`Object.assign(globalThis, { U, Clock, ROLE_IMPACT, HEROES, ROLE_ORDER, STAT_KEYS, STAT_SCALE, AI, Game, computeRatings, ratingMetrics, ratingRaw,
     RATING_METRICS, neutralPlayer, makePlayer, effStat, masteryOf, playerOvr,
     createLeague: typeof createLeague !== 'undefined' ? createLeague : null, rosterOf: typeof rosterOf !== 'undefined' ? rosterOf : null,
     simFixture: typeof simFixture !== 'undefined' ? simFixture : null, leagueTable: typeof leagueTable !== 'undefined' ? leagueTable : null,

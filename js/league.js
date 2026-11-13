@@ -25,7 +25,7 @@ const LEAGUE_NAME = 'Высшая лига Ущелья';
 function createLeague(seed = Math.floor(Math.random() * 1e9)) {
   const rng = U.seeded(seed);
   // уровни клубов: от сильных к слабым, порядок случайный
-  const levels = [12.6, 12.1, 11.7, 11.3, 11, 10.7, 10.4, 10.1, 9.9, 9.6, 9.3, 9, 8.7, 8.3, 7.9, 7.5].sort(() => rng() - 0.5);
+  const levels = Array.from({ length: 16 }, (_, i) => 11.5 - i * 0.2).sort(() => rng() - 0.5);
   const L = { seed, name: LEAGUE_NAME, season: 1, tour: 0, clubs: [], players: {}, schedule: [], results: [], humanId: null, humanClub: null, version: 1 };
   const used = new Set();
   CLUB_DEFS.forEach((d, i) => {
@@ -107,7 +107,9 @@ function applyGame(L, fixture, game, homeSide) {
     p.ratings.push(h.rating); if (p.ratings.length > 12) p.ratings.shift();
     const s = p.season; s.games++; if (h.team === game.winner) s.wins++; s.k += h.k; s.d += h.d; s.a += h.a; s.ratingSum += h.rating; if (h.mvp) s.mvp++;
     const before = masteryOf(p, h.def.id);
-    let gain = h.rating >= 8.5 ? 2 : h.rating >= 7.5 ? 1 : 0;
+    let gain = h.rating >= 9.5 ? 2 : h.rating >= 8.5 ? 1 : 0;
+    // чем выше мастерство, тем труднее расти дальше: шанс роста 1 − M/24
+    if (gain && Math.random() > 1 - before / 24) gain = 0;
     if (gain) p.mastery[h.def.id] = Math.min(MASTERY_MAX, before + gain);
     rec.players.push({ id: p.id, hero: h.def.id, rating: h.rating, k: h.k, d: h.d, a: h.a, mvp: h.mvp, gain });
   }
@@ -143,7 +145,25 @@ function leagueTable(L) {
     }
     return pb - pa;
   };
-  return Object.values(rows).sort((x, y) => (y.pts - x.pts) || h2h(x.id, y.id) || ((y.gw - y.gl) - (x.gw - x.gl)) || (y.kd - x.kd));
+  // при равенстве очков — мини-таблица личных встреч внутри группы равных клубов
+  const all = Object.values(rows);
+  const groupPts = {};
+  for (const r of all) {
+    const group = all.filter(x => x.pts === r.pts).map(x => x.id);
+    let pts = 0;
+    for (const o of group) if (o !== r.id) pts += hp(r.id, o);
+    groupPts[r.id] = pts;
+  }
+  function hp(a, b) {
+    let p = 0;
+    for (const f of sorted) {
+      if (!((f.home === a && f.away === b) || (f.home === b && f.away === a))) continue;
+      const [sh, sa] = f.score; const sA = f.home === a ? sh : sa, sB = f.home === a ? sa : sh;
+      p += sA > sB ? 3 : sA === sB ? 1 : 0;
+    }
+    return p;
+  }
+  return all.sort((x, y) => (y.pts - x.pts) || (groupPts[y.id] - groupPts[x.id]) || ((y.gw - y.gl) - (x.gw - x.gl)) || (y.kd - x.kd) || x.id.localeCompare(y.id));
 }
 
 /* Игра одной серии без графики (для чужих матчей и быстрого просчёта) */

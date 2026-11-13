@@ -18,7 +18,7 @@ const MASTERY_MAX = 20;
 
 /* Сила эффекта каждой характеристики. Подбирается тестом равнозначности
    (tests/stat-equivalence.js), чтобы +1 к любой характеристике давал одинаковый прирост винрейта. */
-const STAT_SCALE = { rea: 0.3, mech: 0.78, read: 1.5, farm: 1.8, map: 4.5, agr: 2.3, calm: 1.4, team: 2.5 };
+const STAT_SCALE = { rea: 0.3, mech: 0.95, read: 1.5, farm: 1.65, map: 5.5, agr: 2.8, calm: 1.25, team: 2.5 };
 
 /* Штраф за героя не по профилю роли (fit 3..0) — снижает все характеристики */
 const FIT_PENALTY = [4, 2.5, 1, 0];
@@ -37,7 +37,7 @@ function makePlayer(o) {
 const playerOvr = p => U.sum(STAT_KEYS, k => p.stats[k]) / STAT_KEYS.length;
 /* Форма: средняя оценка за последние 5 матчей → бонус −2…+2 ко всем характеристикам */
 function playerFormAvg(p) { const r = p.ratings.slice(-5); return r.length ? U.sum(r) / r.length : 6.5; }
-function playerFormBonus(p) { return U.clamp((playerFormAvg(p) - 6.5) * 2, -2, 2); }
+function playerFormBonus(p) { return U.clamp((playerFormAvg(p) - 6.5) * 1.0, -1.5, 1.5); }
 function formArrow(p) { const b = playerFormBonus(p); return b >= 1.2 ? '⬆' : b >= 0.4 ? '↗' : b > -0.4 ? '➡' : b > -1.2 ? '↘' : '⬇'; }
 function formColor(p) { const b = playerFormBonus(p); return b >= 0.4 ? '#5fe08a' : b > -0.4 ? '#c8cbd6' : '#ff7b7b'; }
 function ratingColor(r) { return r >= 8 ? '#5fe08a' : r >= 7 ? '#a8e05f' : r >= 6 ? '#e0d25f' : r >= 5 ? '#e0a05f' : '#ff6b6b'; }
@@ -142,6 +142,11 @@ function effStat(h, key) {
   return U.clamp(v, 1, STAT_CAP_TOTAL);
 }
 /* Отклонение от нормы 10 с учётом силы эффекта характеристики */
-const sd = (h, key) => (effStat(h, key) - 10) * STAT_SCALE[key];
+/* Ролевой коэффициент: у ролей разный «рычаг» на исход (урон стрелка огромен, у саппорта мал),
+   поэтому отдача характеристик выравнивается по ролям одинаково для всех 8 характеристик. */
+const ROLE_IMPACT = { top: 1.1, jng: 0.8, mid: 1.2, adc: 0.35, sup: 1.5 };
+const sd = (h, key) => (effStat(h, key) - 10) * STAT_SCALE[key] * (ROLE_IMPACT[h.role] || 1);
+/* Множитель эффекта характеристики: 1 + k·отклонение, но никогда не отрицательный и не безграничный */
+const sm = (k, h, key) => U.clamp(1 + k * sd(h, key), 0.25, 3);
 /* Противостояние двух характеристик: 50% ± 3% за пункт разницы */
 const opposed = (a, b, base = 0.5, per = 0.03) => U.clamp(base + (a - b) * per, 0.03, 0.97);

@@ -293,16 +293,16 @@ class Game {
     if (p.effects) p.effects(this, h, c);
     const buff = this.teamBuffs(h.team);
     // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
-    const casc = 1 + 0.25 * info.cascade * (1 + 0.04 * sd(h, 'mech'));
+    const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech'));
     const inFight = h.ev && h.ev.sides && this.enemiesIn(h).length > 0;
     const allies = this.alliesIn(h).length;
-    const gm = (1 + 0.012 * sd(h, 'mech')) * this.pressureFactor(h)
-      * (inFight && this.persist.includes(h.ev) ? 1 + 0.012 * sd(h, 'calm') : 1)   // хладнокровие в затяжных боях
-      * (allies >= 2 ? 1 + 0.012 * sd(h, 'team') : 1);                              // слаженность с союзниками
+    const gm = (sm(0.012, h, 'mech')) * this.pressureFactor(h)
+      * (inFight && this.persist.includes(h.ev) ? sm(0.012, h, 'calm') : 1)   // хладнокровие в затяжных боях
+      * (allies >= 2 ? sm(0.012, h, 'team') : 1);                              // слаженность с союзниками
     for (const k in c.m) c.m[k] *= gm;
-    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.08 + 0.02 * sd(h, 'mech'), 0, 0.6))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
-    c.m.mana *= 1 + 0.03 * sd(h, 'read');
-    c.m.gold *= 1 + 0.02 * sd(h, 'farm');
+    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech'), 0.01, 0.6))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
+    c.m.mana *= sm(0.03, h, 'read');
+    c.m.gold *= sm(0.02, h, 'farm');
     const healPow = 1 + this.itemsOf(h, 'healPow');
     const shieldPow = 1 + this.itemsOf(h, 'shieldPow');
     const visPow = 1 + this.itemsOf(h, 'visPow');
@@ -360,7 +360,7 @@ class Game {
       if (amt <= 0 || !enemies.length) return 0;
       const t = this.target(h);
       this.ui.projectile(h, t, '#ff5468');
-      const d = this.dealDamage(h, t, amt * (1 + 0.03 * sd(h, 'agr')), 'phys');
+      const d = this.dealDamage(h, t, amt * (sm(0.03, h, 'agr')), 'phys');
       if (c.lifesteal > 0) this.healHero(h, h, d * c.lifesteal, true);
       return d;
     };
@@ -373,7 +373,7 @@ class Game {
         break;
       }
       case 'jungle': this.hitNpc(h, ev, dmg); break;
-      case 'gank': toHero(dmg * (h.team === ev.att ? 1.35 * (1 + 0.03 * sd(h, 'agr')) : 1)); break;
+      case 'gank': toHero(dmg * (h.team === ev.att ? 1.35 * (sm(0.03, h, 'agr')) : 1)); break;
       case 'defend': toHero(dmg); break;
       case 'dragon': case 'baron': {
         if (enemies.length) { this.hitNpc(h, ev, dmg * 0.45); toHero(dmg * 0.55); }
@@ -390,8 +390,8 @@ class Game {
 
   farmWave(h, amt) {
     const lane = this.lanes[h.ev.lane];
-    const fm = 1 + 0.05 * sd(h, 'farm');
-    lane.farm[h.team] += amt * (1 + 0.04 * sd(h, 'farm'));
+    const fm = sm(0.05, h, 'farm');
+    lane.farm[h.team] += amt * (sm(0.04, h, 'farm'));
     const gold = Math.round(amt * 0.32 * fm);
     const cs = Math.max(1, Math.round(amt / 45));
     h.cs += cs;
@@ -467,7 +467,7 @@ class Game {
     const tm = this.teams[h.team];
     if (npc.kind === 'camp') {
       const gm = h.def.passive.campGold || 1;
-      const gold = Math.round(npc.gold * gm * (1 + 0.05 * sd(h, 'farm')));
+      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');
@@ -526,7 +526,7 @@ class Game {
     const ev = tgt.ev;
     // Карта: осведомлённость (позиционирование) снижает получаемый урон, особенно когда бой начал враг
     const ambushed = ev && ev.att && ev.att !== tgt.team && (ev.type === 'gank' || ev.type === 'dragon' || ev.type === 'baron' || ev.type === 'siege');
-    d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.55, 1.35);
+    d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.3, 1.7);
     const abs = Math.min(tgt.shield, d);
     tgt.shield -= abs; d -= abs;
     tgt.hp -= d;
@@ -552,7 +552,7 @@ class Game {
 
   healHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
-    if (src !== tgt) amt *= 1 + 0.05 * sd(src, 'team');
+    if (src !== tgt) amt *= sm(0.08, src, 'team');
     const before = tgt.hp;
     tgt.hp = Math.min(tgt.maxHp, tgt.hp + amt);
     const d = tgt.hp - before;
@@ -565,7 +565,7 @@ class Game {
   }
   shieldHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
-    if (src !== tgt) amt *= 1 + 0.05 * sd(src, 'team');
+    if (src !== tgt) amt *= sm(0.08, src, 'team');
     tgt.shield = Math.min(tgt.maxHp * 0.7, tgt.shield + amt);
     src.shielded = (src.shielded || 0) + amt;
     if (amt > 30) sfx('shield');
@@ -601,7 +601,7 @@ class Game {
 
   vision(h, v, c) {
     const tm = this.teams[h.team];
-    v *= 1 + 0.05 * sd(h, 'map');
+    v *= sm(0.05, h, 'map');
     h.vis = (h.vis || 0) + v;
     tm.pressure += v * 2.2;
     const lane = h.ev.lane || h.lane;
@@ -630,7 +630,7 @@ class Game {
     if (!this.firstBlood) { this.firstBlood = true; bounty += 100; this.ui.banner('ПЕРВАЯ КРОВЬ', `${src.name} убивает ${tgt.name}`, src.team); }
     this.addGold(src, bounty); this.gainXp(src, 100 + tgt.lvl * 12);
     const assists = (ev && ev.sides ? ev.sides[src.team] : []).filter(x => x !== src && x.alive);
-    for (const a of assists) { a.a++; this.addGold(a, Math.round(120 * (1 + 0.04 * sd(a, 'team')))); this.gainXp(a, 50 + tgt.lvl * 6); this.calmDown(a); }
+    for (const a of assists) { a.a++; this.addGold(a, Math.round(120 * (sm(0.04, a, 'team')))); this.gainXp(a, 50 + tgt.lvl * 6); this.calmDown(a); }
     this.calmDown(src);
     this.tryTilt(tgt, assists.length ? 1 : 2, 'гибели');
     // мультикиллы за раунд
@@ -797,7 +797,7 @@ class Game {
         if (!callers.length) continue;
         const sig = this.signal(U.maxBy(callers, x => sd(x, 'map') + U.rand(2)), 'obj', { kind: npc.kind });
         if (!sig) continue;
-        tm.pressure += 10 * (1 + 0.05 * sd(sig.from, 'team'));
+        tm.pressure += 10 * (sm(0.05, sig.from, 'team'));
         for (const x of tm.heroes) if (x !== sig.from && this.free(x)) { const r = this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; }
         this.announce(sig);
       }
@@ -1027,11 +1027,11 @@ class Game {
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
         if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
-        if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 3) this.calmDown(h);
       } else {
         h.dead--;
         if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
       }
+      if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 2) this.calmDown(h);
       for (const k of ['q', 'r']) if (h.cd[k] > 0) h.cd[k]--;
       h.board.decayFog();
       if (h.stunned > 1) h.stunned = 1;
