@@ -694,7 +694,8 @@ class Game {
     if (!quiet) this.ui.float(h, `+${Math.round(amt)} маны`, '#3fe0f0');
     else this.ui.burstTo(h, 'mana', '#3fe0f0');
   }
-  addGold(h, amt) { h.gold += amt; h.totalGold += amt; }
+  // мёртвый герой (в таверне) не получает ни золота, ни опыта
+  addGold(h, amt) { if (!h.alive) return; h.gold += amt; h.totalGold += amt; }
   /* Амулет стойкости: шанс стряхнуть контроль */
   shrug(tgt) { const t = tgt.itemStat('tenacity'); if (t > 0 && U.chance(t)) { this.ui.float(tgt, 'СТОЙКОСТЬ', '#c9f'); return true; } return false; }
   stun(src, tgt) {
@@ -705,7 +706,7 @@ class Game {
   }
 
   gainXp(h, x) {
-    if (!h.alive && x < 50) return;
+    if (!h.alive) return;
     h.xp += x;
     while (h.lvl < 18 && h.xp >= XP_NEED(h.lvl)) {
       h.xp -= XP_NEED(h.lvl);
@@ -736,7 +737,7 @@ class Game {
     // жатва душ (Валдрек): любая смерть рядом с некромантом усиливает его
     if (tgt.ev && tgt.ev.sides) for (const x of [...tgt.ev.sides.blue, ...tgt.ev.sides.red]) if (x !== tgt && x.alive && x.def.passive.souls && x.souls < 20) { x.souls++; x.recalc(); this.ui.float(x, `💀 душа ${x.souls}`, '#7bff9e'); }
     tgt.hp = 0; tgt.shield = 0;
-    tgt.dead = 2 + Math.floor(tgt.lvl / 6) + (this.minute >= 28 ? 1 : 0);
+    tgt.dead = 3 + Math.floor(tgt.lvl / 6) + (this.minute >= 28 ? 1 : 0);
     const victimStreak = tgt.streak;
     tgt.d++; tgt.streak = 0; tgt.stunned = 0;
     const ev = tgt.ev;
@@ -747,12 +748,18 @@ class Game {
     tm.kills++;
     // награда: серия жертвы и «камбэк» отстающей команды
     const goldDiff = U.sum(this.teams[tgt.team].heroes, x => x.totalGold) - U.sum(tm.heroes, x => x.totalGold);
-    let bounty = 250 + Math.min(350, Math.max(0, victimStreak - 1) * 70) + (goldDiff > 1200 ? 200 : 0);
+    let bounty = 500 + Math.min(350, Math.max(0, victimStreak - 1) * 70) + (goldDiff > 1200 ? 200 : 0);
     if (victimStreak >= 3) this.ui.log(`💥 ${this.tag(src)} прерывает серию ${this.tag(tgt)}!`, src.team);
     if (!this.firstBlood) { this.firstBlood = true; bounty += 100; this.ui.banner('ПЕРВАЯ КРОВЬ', `${src.name} убивает ${tgt.name}`, src.team); }
-    this.addGold(src, bounty); this.gainXp(src, 100 + tgt.lvl * 12);
+    this.addGold(src, bounty); this.gainXp(src, 200 + tgt.lvl * 25);
     const assists = (ev && ev.sides ? ev.sides[src.team] : []).filter(x => x !== src && x.alive);
-    for (const a of assists) { a.a++; this.addGold(a, Math.round(120 * (sm(0.04, a, 'team')))); this.gainXp(a, 50 + tgt.lvl * 6); this.calmDown(a); }
+    for (const a of assists) { a.a++; this.addGold(a, Math.round(180 * (sm(0.04, a, 'team')))); this.gainXp(a, 80 + tgt.lvl * 10); this.calmDown(a); }
+    // команда получает долю: карта открывается, можно спокойно фармить и ставить обзор
+    for (const x of tm.heroes) if (x !== src && !assists.includes(x) && x.alive) { this.addGold(x, 80); this.gainXp(x, 20 + tgt.lvl * 4); }
+    // темп: за убийство команда копит импульс для натиска; смерть откатывает волну на линии погибшего
+    tm.killTempo = (tm.killTempo || 0) + 1;
+    if (tm.killTempo >= 2) { tm.momentum = Math.max(tm.momentum, 2); tm.killTempo = 0; }
+    if (this.lanes[tgt.lane]) { const L = this.lanes[tgt.lane]; L.push = U.clamp(L.push + (tgt.team === 'blue' ? -0.35 : 0.35), -1, 1); }
     this.calmDown(src);
     this.tryTilt(tgt, assists.length ? 1 : 2, 'гибели');
     // абордаж (Клешнир): убийца или помощник крадёт часть золота жертвы
@@ -1246,6 +1253,7 @@ class Game {
     for (const t of ['blue', 'red']) {
       const tm = this.teams[t];
       if (tm.momentum > 0) tm.momentum--;
+      if (tm.killTempo > 0 && this.round % 3 === 0) tm.killTempo--;
       if (tm.baron > 0) { tm.baron--; if (!tm.baron) this.ui.log(`Длань Барона у команды ${tm.name} рассеялась.`, t); }
       tm.river *= 0.85;
       tm.pressure = Math.min(220, tm.pressure);
