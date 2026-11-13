@@ -32,9 +32,9 @@ const AI = {
     if ((G.dragon.alive || G.baron.alive) && !enemies) w[T_VIS] += 0.4;
     // пассивки
     const id = h.def.id;
-    if (id === 'selena' || id === 'nia') w[T_VIS] += 0.4;
-    if (id === 'morven' && h.lvl >= 6) w[T_HEAL] += 0.5;
-    if (id === 'granitor') w[T_DEF] += 0.5;
+    if (id === 'windmage' || id === 'smuggler') w[T_VIS] += 0.4;
+    if (id === 'berserk' && h.lvl >= 6) w[T_HEAL] += 0.5;
+    if (id === 'frostgolem') w[T_DEF] += 0.5;
     // Тактика: насколько ИИ учитывает ситуацию (здоровье, ману, событие, роль); слабый тактик играет «по шаблону»
     const k = U.clamp((iqOf(h, 'tactic') - 2) / 12, 0, 1.25);
     const flat = [1.6, 0.8, 0.8, 0.8, 1.1, 0.8];

@@ -187,7 +187,7 @@ async function simFixture(L, fixture, ui) {
 }
 
 /* ---------- Сохранение ---------- */
-const SAVE_KEY = 'lk-campaign-v1';
+const SAVE_KEY = 'lk-campaign-v2';  // v2: новые герои
 function saveLeague(L) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(L)); return true; } catch (e) { return false; } }
 function loadLeague() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function clearLeague() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }

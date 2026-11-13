@@ -107,7 +107,7 @@ const UI = {
     c.innerHTML = `
       <div class="hc-info">
         <div class="hc-top">
-          <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${h.def.emoji}</span><span class="lvl">1</span></div>
+          <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${heroFace(h.def)}</span><span class="lvl">1</span></div>
           <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
@@ -256,7 +256,7 @@ const UI = {
     if (!h) return;
     const head = $('#feature-head');
     head.style.setProperty('--hc', h.def.color);
-    head.innerHTML = `<div class="portrait pface" style="border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}">${h.def.emoji}</span></div>
+    head.innerHTML = `<div class="portrait pface" style="border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}">${heroFace(h.def)}</span></div>
       <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${U.esc(h.nick)} · ${h.name}</b><small>ур. ${h.lvl} · ${ROLES[h.role].name}${h.ms ? ' · мастерство ' + h.ms : ''}${h.fit < 3 ? ' · не по профилю' : ''}</small></div>`;
     head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
     $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
@@ -280,7 +280,7 @@ const UI = {
     const ev = h.ev;
     const type = ev.type === 'siege' && ev.att !== h.team ? 'defend' : ev.type;
     const info = EV_INFO[type];
-    const sideHtml = t => (ev.sides ? ev.sides[t] : []).map(x => `<div class="mini-h ${x.alive ? '' : 'deadh'}"><span class="mp" style="--hc:${x.def.color}">${x.def.emoji}</span><span class="mb"><i style="width:${x.alive ? Math.round(x.hp / x.maxHp * 100) : 0}%"></i></span></div>`).join('') || '<small style="color:var(--muted)">—</small>';
+    const sideHtml = t => (ev.sides ? ev.sides[t] : []).map(x => `<div class="mini-h ${x.alive ? '' : 'deadh'}"><span class="mp" style="--hc:${x.def.color}">${heroFace(x.def)}</span><span class="mb"><i style="width:${x.alive ? Math.round(x.hp / x.maxHp * 100) : 0}%"></i></span></div>`).join('') || '<small style="color:var(--muted)">—</small>';
     let npc = '';
     if (ev.npc && (type === 'jungle' || type === 'dragon' || type === 'baron')) {
       const n = ev.npc;
@@ -528,6 +528,10 @@ const UI = {
 };
 
 /* ---------- Драфт ---------- */
+/* Картинки героев: портрет по лицу (для мелких круглых значков) и полный спрайт */
+const heroFace = (d, cls = '') => d.img ? `<img class="himg ${cls}" src="${d.img}_face.png" alt="${U.esc(d.name)}" draggable="false">` : d.emoji;
+const heroFull = (d, cls = '') => d.img ? `<img class="hfull ${cls}" src="${d.img}.png" alt="${U.esc(d.name)}" draggable="false">` : d.emoji;
+
 /* Лицо игрока в цветах клуба (или стороны) */
 function faceHTML(p, colors, cls = '') {
   if (!p || !p.face) return `<div class="face-wrap ${cls}"><div class="face-blank">?</div></div>`;
@@ -541,7 +545,7 @@ const Draft = {
     const fits = ROLE_ORDER.filter(r => d.fit[r] >= 1).sort((a, b) => d.fit[b] - d.fit[a]).map(r => `<span class="fit f${d.fit[r]}">${ROLES[r].short} ${fitStars(d.fit[r])}</span>`).join('');
     const ms = pl ? masteryOf(pl, d.id) : 0;
     return `<div class="hero-detail" style="--hc:${d.color}">
-      <div class="hd-portrait">${d.emoji}</div>
+      <div class="hd-portrait">${heroFull(d)}</div>
       <div>
         <h3>${d.name}</h3><div class="hd-title">${d.title} · ${d.tags.map(t => TAG_NAMES[t]).join(', ')}</div>
         <div class="hd-fits">${fits}${ms ? `<span class="fit ms">Мастерство ${pl.nick}: ${ms}</span>` : ''}</div>
@@ -560,7 +564,7 @@ const Draft = {
     const pool = $('#draft-pool'); pool.innerHTML = '';
     const cards = new Map();
     for (const d of ROLE_ORDER.flatMap(r => HEROES.filter(h => h.main === r))) {
-      const c = el('div', 'pool-card', `<div class="pe">${d.emoji}</div><div class="pn">${d.name}</div><div class="pr">${ROLE_ORDER.filter(r => d.fit[r] >= 2).map(r => ROLES[r].short).join(' · ')}</div>`);
+      const c = el('div', 'pool-card', `<div class="pe">${heroFull(d)}</div><div class="pn">${d.name}</div><div class="pr">${ROLE_ORDER.filter(r => d.fit[r] >= 2).map(r => ROLES[r].short).join(' · ')}</div>`);
       c.style.setProperty('--hc', d.color);
       c.addEventListener('click', () => { $('#draft-detail').innerHTML = this.heroCard(d); });
       pool.appendChild(c); cards.set(d.id, c);
@@ -603,7 +607,7 @@ const Draft = {
       picks[t].push(pick);
       slot.classList.remove('picking'); slot.classList.add('done');
       const pp = slot.querySelector('.pp');
-      pp.textContent = pick.def.emoji;
+      pp.innerHTML = heroFace(pick.def);
       pp.style.background = `radial-gradient(circle at 35% 30%, ${pick.def.color}, #0b0f1d 85%)`;
       const ms = masteryOf(pick.pl, pick.def.id), off = pick.def.fit[pick.role] < 3;
       slot.querySelector('.pn').innerHTML = `<b>${U.esc(pick.pl.nick)}</b><span class="ph">${pick.def.name}</span><small>${ROLES[pick.role].short} ${fitStars(pick.def.fit[pick.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why ${off ? 'off' : ''}" title="${U.esc(pick.reason)}">${off ? '⚠ не по профилю' : ms >= 15 ? '★ коронный герой' : ''}</em>`;

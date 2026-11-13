@@ -306,6 +306,15 @@ const MapGeo = {
   },
 };
 
+/* Портреты героев для холста (мини-карта): загружаются один раз */
+const _heroImgs = {};
+function heroFaceImage(def) {
+  if (!def.img || typeof Image === 'undefined') return null;
+  let im = _heroImgs[def.id];
+  if (!im) { im = _heroImgs[def.id] = new Image(); im.src = def.img + '_face.png'; }
+  return im.complete && im.naturalWidth ? im : null;
+}
+
 const Minimap = {
   pos: new Map(),
   pings: [],
@@ -408,19 +417,22 @@ const Minimap = {
       if (!h.alive) return;
       const r = s * 0.032;
       const active = G.active === h;
+      const rr = r * (active ? 1.3 : 1.1), x = cur[0] * s, y = cur[1] * s;
+      const img = heroFaceImage(h.def);
       ctx.save();
-      ctx.beginPath(); ctx.arc(cur[0] * s, cur[1] * s, r * (active ? 1.25 : 1), 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.fillStyle = h.def.color; ctx.fill();
+      if (img) { ctx.save(); ctx.clip(); ctx.drawImage(img, x - rr, y - rr, rr * 2, rr * 2); ctx.restore(); }
+      else {
+        // запасной вариант, пока картинка не загрузилась: значок героя белым с обводкой
+        ctx.font = `${r * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(2, r * 0.18); ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
+        ctx.strokeText(h.def.emoji, x, y + 1); ctx.fillStyle = '#fff'; ctx.fillText(h.def.emoji, x, y + 1);
+      }
+      ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.lineWidth = active ? 3 : 2; ctx.strokeStyle = h.team === 'blue' ? '#3fa7ff' : '#ff4d5e';
       if (active) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 12; }
       ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.font = `${r * 1.15}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      // символ — белым с тёмной обводкой: иначе монохромные значки (❄ ⚙ ⛓) сливаются с заливкой
-      ctx.lineWidth = Math.max(2, r * 0.18); ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineJoin = 'round';
-      ctx.strokeText(h.def.emoji, cur[0] * s, cur[1] * s + 1);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(h.def.emoji, cur[0] * s, cur[1] * s + 1);
       ctx.restore();
     });
   },

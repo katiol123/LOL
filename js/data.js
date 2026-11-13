@@ -101,12 +101,12 @@ const enemyNeeded = (G, h) => G.enemiesIn(h).length > 0;
 const HEROES = [
   /* ======== ВЕРХНЯЯ ЛИНИЯ ======== */
   {
-    id: 'granitor', name: 'Гранитор', title: 'Каменный Колосс', role: 'top', emoji: '🗿', color: '#9c8466',
+    id: 'frostgolem', name: 'Иней', title: 'Хрустальный голем', role: 'top', emoji: '❄', color: '#8fd4ff', img: 'img/heroes/frostgolem',
     mod: { hp: 1.12, arm: 1.25, atk: 1.0 },
-    lore: 'Ожившая скала с перевала, что принимает удары за всю команду.',
-    passive: { name: 'Гранитная кожа', desc: 'Щиты от 🛡 на 60% сильнее.', effects(G, h, c) { c.m.def *= 1.6; } },
+    lore: 'Голем из вечного льда горных пиков: в его трещинах звенят кристаллы, о которые ломаются клинки.',
+    passive: { name: 'Ледяной панцирь', desc: 'Щиты от 🛡 на 60% сильнее.', effects(G, h, c) { c.m.def *= 1.6; } },
     q: {
-      name: 'Сотрясение', icon: '💥', cost: 50, cd: 2, need: 'enemy',
+      name: 'Ледяной толчок', icon: '🧊', cost: 50, cd: 2, need: 'enemy',
       desc: 'Подрывает два нижних ряда своего поля (камни срабатывают) и превращает 3 камня на поле врага в булыжники.',
       async cast(G, h, t) {
         await G.enemyBoard(h, t, b => b.convert(b.pick(g => b.plain(g), 3), T_STONE), '#b79c7a');
@@ -114,8 +114,8 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Несокрушимость', icon: '🏔', cost: 100, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Обрушивает скалу на цель (урон растёт от числа ⚔ на поле), затем все ⚔ становятся 🛡, а союзники в событии получают мощный щит.',
+      name: 'Хрустальная крепость', icon: '💠', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Обрушивает на цель ледяную глыбу (урон растёт от числа ⚔ на поле), затем все ⚔ становятся 🛡, а союзники в событии получают мощный щит.',
       async cast(G, h) {
         const n = h.board.count(T_ATK);
         await G.skillDamage(h, G.target(h), G.sp(h, 60, 1.0) + n * h.power * 1.2, 'phys', '#b79c7a');
@@ -125,15 +125,15 @@ const HEROES = [
     },
   },
   {
-    id: 'veila', name: 'Вейла', title: 'Клинок Ветра', role: 'top', emoji: '🌪', color: '#5fd3c6',
+    id: 'runeknight', name: 'Торвальд', title: 'Рунный страж', role: 'top', emoji: '🛡', color: '#4a6fa5', img: 'img/heroes/runeknight',
     mod: { atk: 1.0, hp: 0.95 },
-    lore: 'Странствующая мечница, чьи удары подхватывает горный ветер.',
+    lore: 'Закованный в латы страж с рунным мечом: каждая руна на клинке — клятва, которую он не нарушил.',
     passive: {
-      name: 'Танец стали', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
+      name: 'Рунная сталь', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
       effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) c.after.push(() => G.selfBoardQuiet(h, b => b.pick(g => b.plain(g), 1).map(k => (b.convert([k], b.at(k).t, U.pick(['h', 'v'])), k)))); },
     },
     q: {
-      name: 'Вихрь', icon: '🌀', cost: 70, cd: 4, need: 'none',
+      name: 'Рунный разрез', icon: '🗡', cost: 70, cd: 4, need: 'none',
       desc: 'Подрывает ряд или столбец своего поля, где больше всего ⚔.',
       async cast(G, h) {
         const b = h.board;
@@ -142,7 +142,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Буря клинков', icon: '⚔', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Пламя рун', icon: '🔷', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Превращает 5 камней своего поля в ⚔, затем наносит цели урон за каждый ⚔ на поле.',
       async cast(G, h, t) {
         await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 5), T_ATK));
@@ -153,19 +153,19 @@ const HEROES = [
     },
   },
   {
-    id: 'morven', name: 'Морвен', title: 'Кровавый Шип', role: 'top', emoji: '🩸', color: '#c2304a',
+    id: 'berserk', name: 'Ульв', title: 'Ярый берсерк', role: 'top', emoji: '🪓', color: '#a0522d', img: 'img/heroes/berserk',
     mod: { hp: 1.15, atk: 1.15 },
-    lore: 'Рыцарь проклятого сада, питающийся чужой жизнью.',
-    passive: { name: 'Жажда крови', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
+    lore: 'Северный воин с двумя топорами: чем глубже его раны, тем страшнее он в бою.',
+    passive: { name: 'Упоение битвой', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
-      name: 'Шипастые лозы', icon: '🌹', cost: 50, cd: 2, need: 'enemy',
+      name: 'Рваные раны', icon: '🩸', cost: 50, cd: 2, need: 'enemy',
       desc: 'Все ✚ на поле врага превращаются в булыжники — враг теряет лечение.',
       ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_HEAL) >= 3; },
       async cast(G, h, t) { await G.enemyBoard(h, t, b => b.convert(b.keysOf(T_HEAL).filter(k => !b.at(k).sp), T_STONE), '#c2304a'); },
     },
     r: {
-      name: 'Кровавая жатва', icon: '🩸', cost: 100, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Поглощает все ✚ на своём поле: каждый наносит цели урон и лечит Морвена.',
+      name: 'Ярость берсерка', icon: '🪓', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Поглощает все ✚ на своём поле: каждый наносит цели урон и лечит Ульва.',
       ai: (G, h) => h.board.count(T_HEAL) >= 3,
       async cast(G, h, t) {
         const keys = h.board.keysOf(T_HEAL);
@@ -179,17 +179,17 @@ const HEROES = [
 
   /* ======== ЛЕС ======== */
   {
-    id: 'xar', name: 'Ксар', title: 'Теневой Охотник', role: 'jng', emoji: '🗡', color: '#6b4fa3',
+    id: 'wraith', name: 'Скорбь', title: 'Призрачный жнец', role: 'jng', emoji: '👻', color: '#4b4b63', img: 'img/heroes/wraith',
     mod: { atk: 1.1, hp: 0.92 },
-    lore: 'Убийца из сумеречных чащ. Его не видно, пока не стало слишком поздно.',
-    passive: { name: 'Охотничий инстинкт', desc: 'Шкала ганга заполняется от ◉ на 80% быстрее.', effects(G, h, c) { c.gankMul *= 1.8; } },
+    lore: 'Безликий жнец в рваном саване. Его ядовитый клинок светится там, где тень гуще всего.',
+    passive: { name: 'Шёпот теней', desc: 'Шкала ганга заполняется от ◉ на 80% быстрее.', effects(G, h, c) { c.gankMul *= 1.8; } },
     q: {
-      name: 'Дымовая завеса', icon: '🌫', cost: 40, cd: 2, need: 'enemy',
+      name: 'Саван тьмы', icon: '🌫', cost: 40, cd: 2, need: 'enemy',
       desc: 'Покрывает туманом 10 клеток поля цели: ИИ врага не видит камни под туманом.',
       async cast(G, h, t) { await G.enemyBoard(h, t, b => b.fogify(b.pick(g => !g.fog, 10)), '#8d7bb5'); },
     },
     r: {
-      name: 'Казнь из тени', icon: '☠', cost: 100, cd: 4, lvl: 6, need: 'enemy',
+      name: 'Ядовитая жатва', icon: '☠', cost: 100, cd: 4, lvl: 6, need: 'enemy',
       desc: 'Чистый урон: 120 + 45% недостающего здоровья цели. Убийство восстанавливает всю ману.',
       ai: (G, h) => { const t = G.target(h); return t && t.hp / t.maxHp < 0.55; },
       async cast(G, h, t) {
@@ -199,21 +199,21 @@ const HEROES = [
     },
   },
   {
-    id: 'lira', name: 'Лира', title: 'Хранительница Рощ', role: 'jng', emoji: '🌿', color: '#4caf50',
+    id: 'goblinrider', name: 'Шнырь', title: 'Гоблин-наездник', role: 'jng', emoji: '🐺', color: '#7c8c4a', img: 'img/heroes/goblinrider',
     mod: { hp: 1.0, sp: 1.2 },
-    lore: 'Дриада, которой подчиняются корни и лесные звери.',
+    lore: 'Хитрый гоблин верхом на огромном волке: метает копья, ставит сети и лечит зверя травами.',
     passive: {
-      name: 'Дары леса', desc: 'Лесные лагеря дают на 40% больше золота; ✚ лечат на 25% сильнее.',
+      name: 'Лесная добыча', desc: 'Лесные лагеря дают на 40% больше золота; ✚ лечат на 25% сильнее.',
       effects(G, h, c) { c.m.heal *= 1.25; }, campGold: 1.4,
     },
     q: {
-      name: 'Корни', icon: '🌱', cost: 45, cd: 2, need: 'enemy',
-      desc: 'Сковывает льдом-корнями 7 камней поля цели: их нельзя двигать.',
+      name: 'Ловчая сеть', icon: '🕸', cost: 45, cd: 2, need: 'enemy',
+      desc: 'Опутывает сетью 7 камней поля цели: их нельзя двигать.',
       async cast(G, h, t) { await G.enemyBoard(h, t, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 7)), '#7bd97f'); },
     },
     r: {
-      name: 'Цветение', icon: '🌸', cost: 110, cd: 5, lvl: 6, need: 'none',
-      desc: 'Булыжники, лёд и туман на полях союзников в событии расцветают в ✚. Лечит всех союзников в событии.',
+      name: 'Шаманское зелье', icon: '🧪', cost: 110, cd: 5, lvl: 6, need: 'none',
+      desc: 'Булыжники, лёд и туман на полях союзников в событии превращаются в ✚. Лечит всех союзников в событии.',
       ai: (G, h) => G.alliesIn(h).some(a => a.hp / a.maxHp < 0.6),
       async cast(G, h) {
         for (const a of G.alliesIn(h)) {
@@ -224,20 +224,20 @@ const HEROES = [
     },
   },
   {
-    id: 'bronn', name: 'Бронн', title: 'Громовой Кабан', role: 'jng', emoji: '🐗', color: '#d9902b',
+    id: 'werewolf', name: 'Варг', title: 'Волчий воитель', role: 'jng', emoji: '🐾', color: '#8b6b4a', img: 'img/heroes/werewolf',
     mod: { hp: 1.1, arm: 1.1 },
-    lore: 'Гигантский кабан, несущий на клыках грозовые разряды.',
-    passive: { name: 'Гроза эпиков', desc: 'Урон по Дракону, Барону и лесным монстрам +50%.', npcMul: 1.5 },
+    lore: 'Воин-оборотень с тяжёлым мечом. Его вой слышен за милю до того, как он врывается в бой.',
+    passive: { name: 'Охотник на чудовищ', desc: 'Урон по Дракону, Барону и лесным монстрам +50%.', npcMul: 1.5 },
     q: {
-      name: 'Таран', icon: '🐗', cost: 45, cd: 2, need: 'enemy',
+      name: 'Волчий наскок', icon: '🐾', cost: 45, cd: 2, need: 'enemy',
       desc: 'Сносит поле цели: перемешивает все камни и добавляет 3 булыжника.',
       async cast(G, h, t) {
         await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.convert(b.pick(g => b.plain(g), 3), T_STONE); }, '#d9902b');
       },
     },
     r: {
-      name: 'Громовой рывок', icon: '⚡', cost: 100, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Оглушает цель (она пропускает ход) и наносит урон. Вокруг Бронна взрывается 3×3 своего поля.',
+      name: 'Вой стаи', icon: '🌕', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Оглушает цель (она пропускает ход) и наносит урон. Вокруг Варга взрывается 3×3 своего поля.',
       async cast(G, h, t) {
         await G.skillDamage(h, t, G.sp(h, 90, 0.8), 'magic', '#ffe066');
         G.stun(h, t);
@@ -250,21 +250,21 @@ const HEROES = [
 
   /* ======== СРЕДНЯЯ ЛИНИЯ ======== */
   {
-    id: 'eira', name: 'Эйра', title: 'Ледяная Чародейка', role: 'mid', emoji: '❄', color: '#7fd6ff',
+    id: 'sanddancer', name: 'Зарина', title: 'Танцующая с ятаганом', role: 'mid', emoji: '🌙', color: '#c9a86a', img: 'img/heroes/sanddancer',
     mod: { sp: 1.15 },
-    lore: 'Волшебница вечной мерзлоты, замораживающая само время.',
-    passive: { name: 'Холодный разум', desc: '◆ дают на 50% больше маны.', effects(G, h, c) { c.m.mana *= 1.5; } },
+    lore: 'Пустынная танцовщица: её ятаган рисует в воздухе узоры, и песок сковывает врагов.',
+    passive: { name: 'Ритм пустыни', desc: '◆ дают на 50% больше маны.', effects(G, h, c) { c.m.mana *= 1.5; } },
     q: {
-      name: 'Ледяное копьё', icon: '🧊', cost: 50, cd: 2, need: 'enemy',
-      desc: 'Наносит урон и замораживает целый столбец поля цели.',
+      name: 'Песчаный вихрь', icon: '🌪', cost: 50, cd: 2, need: 'enemy',
+      desc: 'Наносит урон и сковывает песком целый столбец поля цели.',
       async cast(G, h, t) {
         await G.skillDamage(h, t, G.sp(h, 50, 0.6), 'magic', '#7fd6ff');
         await G.enemyBoard(h, t, b => b.freeze(colKeys(U.ri(N)).filter(k => b.at(k) && b.at(k).t !== T_STONE)), '#bdf3ff');
       },
     },
     r: {
-      name: 'Вечная зима', icon: '❄', cost: 120, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Замораживает 12 клеток поля цели, затем наносит урон за каждую замороженную клетку.',
+      name: 'Песчаная буря', icon: '🏜', cost: 120, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Сковывает песком 12 клеток поля цели, затем наносит урон за каждую скованную клетку.',
       async cast(G, h, t) {
         await G.enemyBoard(h, t, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 12)), '#bdf3ff');
         const n = t.board.keys(g => g.ice).length;
@@ -273,17 +273,17 @@ const HEROES = [
     },
   },
   {
-    id: 'piro', name: 'Пиро', title: 'Огненный Шут', role: 'mid', emoji: '🔥', color: '#ff7b2e',
+    id: 'monk', name: 'Сун', title: 'Мастер ки', role: 'mid', emoji: '👊', color: '#6b8f7a', img: 'img/heroes/monk',
     mod: { sp: 1.1 },
-    lore: 'Безумный фокусник, для которого взрыв — лучшая шутка.',
-    passive: { name: 'Пиромания', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 25, 0.25); } },
+    lore: 'Странствующий монах: его удары собирают внутреннюю силу и взрываются, как гром.',
+    passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 25, 0.25); } },
     q: {
-      name: 'Фейерверк', icon: '🎆', cost: 50, cd: 3, need: 'none',
+      name: 'Сгусток ки', icon: '🌀', cost: 50, cd: 3, need: 'none',
       desc: 'Создаёт 2 бомбы на своём поле.',
       async cast(G, h) { await G.selfBoard(h, b => b.pick(g => b.plain(g), 2).map(k => (b.convert([k], b.at(k).t, 'bomb'), k))); },
     },
     r: {
-      name: 'Инферно', icon: '☄', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Сто ударов', icon: '👊', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Создаёт 4 бомбы на своём поле и мгновенно подрывает их все.',
       async cast(G, h) {
         const ks = h.board.pick(g => h.board.plain(g), 4);
@@ -293,16 +293,16 @@ const HEROES = [
     },
   },
   {
-    id: 'nox', name: 'Нокс', title: 'Вестник Пустоты', role: 'mid', emoji: '🌀', color: '#7a3cff',
+    id: 'psiblade', name: 'Кзайра', title: 'Псионический клинок', role: 'mid', emoji: '🗡', color: '#9acd32', img: 'img/heroes/psiblade',
     mod: { sp: 1.15, hp: 1.05 },
-    lore: 'Существо из-за грани, пожирающее чужую магию.',
+    lore: 'Воительница из иного мира с клинком, заряженным силой разума. Она питается чужой магией.',
     passive: {
-      name: 'Пожиратель', desc: 'Каждое совпадение ◆ крадёт 6 маны у цели.',
+      name: 'Поглощение разума', desc: 'Каждое совпадение ◆ крадёт 6 маны у цели.',
       effects(G, h, c) { if (c.counts[T_MANA] > 0) { const t = G.target(h); if (t) { const s = Math.min(t.mana, 6); t.mana -= s; h.mana = Math.min(h.maxMana, h.mana + s); } } },
     },
     q: {
-      name: 'Разлом', icon: '🕳', cost: 50, cd: 2, need: 'enemy',
-      desc: 'Наносит урон и даёт Ноксу щит; все ◆ на поле цели обращаются в булыжники; Нокс крадёт по 4 маны за каждый.',
+      name: 'Ментальный разрез', icon: '🧠', cost: 50, cd: 2, need: 'enemy',
+      desc: 'Наносит урон и даёт Кзайре щит; все ◆ на поле цели обращаются в булыжники; Кзайра крадёт по 4 маны за каждый.',
       ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_MANA) >= 3; },
       async cast(G, h, t) {
         const n = t.board.keysOf(T_MANA).length;
@@ -313,7 +313,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Коллапс', icon: '⚫', cost: 120, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Разрыв сознания', icon: '💫', cost: 120, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Стирает центр 3×3 поля цели (без эффекта) — там остаются булыжники. Мощный урон.',
       async cast(G, h, t) {
         const ks = []; for (let y = 2; y <= 4; y++) for (let x = 2; x <= 4; x++) ks.push(y * N + x);
@@ -323,17 +323,17 @@ const HEROES = [
     },
   },
   {
-    id: 'selena', name: 'Селена', title: 'Звёздная Провидица', role: 'mid', emoji: '✨', color: '#ffd86b',
+    id: 'windmage', name: 'Аэлла', title: 'Повелительница ветров', role: 'mid', emoji: '🌪', color: '#bcd7f5', img: 'img/heroes/windmage',
     mod: { sp: 1.05 },
-    lore: 'Читает судьбы по звёздам и направляет союзников.',
-    passive: { name: 'Звёздный взор', desc: '◉ также дают ману (+3 за камень).', effects(G, h, c) { c.manaFlat += c.counts[T_VIS] * 3; } },
+    lore: 'Чародейка в белых одеждах: ветра несут ей вести со всей карты и рассеивают любой туман.',
+    passive: { name: 'Вести ветра', desc: '◉ также дают ману (+3 за камень).', effects(G, h, c) { c.manaFlat += c.counts[T_VIS] * 3; } },
     q: {
-      name: 'Звездопад', icon: '🌠', cost: 50, cd: 3, need: 'none',
+      name: 'Режущие порывы', icon: '💨', cost: 50, cd: 3, need: 'none',
       desc: 'Превращает 3 случайных камня своего поля в линейные бомбы.',
       async cast(G, h) { await G.selfBoard(h, b => { const ks = b.pick(g => b.plain(g), 3); ks.forEach(k => b.convert([k], b.at(k).t, U.pick(['h', 'v']))); return ks; }); },
     },
     r: {
-      name: 'Созвездие', icon: '💫', cost: 100, cd: 5, lvl: 6, need: 'none',
+      name: 'Око бури', icon: '🌀', cost: 100, cd: 5, lvl: 6, need: 'none',
       desc: 'Развеивает туман на полях всех союзников и дарит Призму себе и одному союзнику в событии.',
       ai: (G, h) => G.alliesIn(h).length >= 2 || G.enemiesIn(h).length > 0,
       async cast(G, h) {
@@ -348,17 +348,17 @@ const HEROES = [
 
   /* ======== СТРЕЛКИ ======== */
   {
-    id: 'rian', name: 'Риан', title: 'Меткий Глаз', role: 'adc', emoji: '🎯', color: '#e0a64a',
+    id: 'dwarfhunter', name: 'Бранд', title: 'Гномий охотник', role: 'adc', emoji: '🎯', color: '#8b5a2b', img: 'img/heroes/dwarfhunter',
     mod: { atk: 1.1 },
-    lore: 'Снайпер из пограничного гарнизона. Не промахивается.',
-    passive: { name: 'Критический выстрел', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
+    lore: 'Гном-следопыт с тяжёлым арбалетом. Болт из него пробивает и щит, и стену.',
+    passive: { name: 'Тяжёлый болт', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
     q: {
-      name: 'Пронзающий выстрел', icon: '➶', cost: 40, cd: 2, need: 'none',
+      name: 'Пробивной болт', icon: '➶', cost: 40, cd: 2, need: 'none',
       desc: 'Подрывает ряд своего поля, в котором больше всего ⚔.',
       async cast(G, h) { await G.blast(h, rowKeys(bestRowOf(h.board, T_ATK))); },
     },
     r: {
-      name: 'Выстрел за горизонт', icon: '🎯', cost: 100, cd: 5, lvl: 6, need: 'global',
+      name: 'Выстрел через полкарты', icon: '🎯', cost: 100, cd: 5, lvl: 6, need: 'global',
       desc: 'Глобальный чистый урон по врагу с наименьшим здоровьем — в любой точке карты.',
       ai: (G, h) => G.allEnemies(h).some(e => e.hp / e.maxHp < 0.4),
       async cast(G, h) {
@@ -368,21 +368,21 @@ const HEROES = [
     },
   },
   {
-    id: 'mira', name: 'Мира', title: 'Стрела Рассвета', role: 'adc', emoji: '🏹', color: '#ff9fb3',
+    id: 'elfarcher', name: 'Лиэн', title: 'Изумрудный лучник', role: 'adc', emoji: '🏹', color: '#3c8d3c', img: 'img/heroes/elfarcher',
     mod: { atk: 1.05 },
-    lore: 'Лучница солнечного ордена, чьи стрелы рассекают тьму.',
+    lore: 'Эльф-лучник в изумрудном плаще. Ветер и лес помогают его стрелам находить цель.',
     passive: {
-      name: 'Ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
+      name: 'Лесной ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
       effects(G, h, c) { if (c.counts[T_ATK] > 0 && c.info.cascade === 0) { h.mem.rhythm = (h.mem.rhythm || 0) + 1; if (h.mem.rhythm % 3 === 0) { c.m.atk *= 1.3; c.label = 'РИТМ ×1.3'; } } },
     },
     q: {
-      name: 'Рассветный выстрел', icon: '☀', cost: 60, cd: 3, need: 'none',
+      name: 'Изумрудная стрела', icon: '🍃', cost: 60, cd: 3, need: 'none',
       desc: 'До 3 ● золота на своём поле становятся ⚔.',
       ai: (G, h) => h.board.count(T_GOLD) >= 5,
       async cast(G, h) { await G.selfBoard(h, b => b.convert(U.shuffle(b.keysOf(T_GOLD).filter(k => !b.at(k).sp)).slice(0, 3), T_ATK)); },
     },
     r: {
-      name: 'Залп рассвета', icon: '🌅', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Ливень стрел', icon: '🌧', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Урон всем врагам в событии, а каждый союзник в событии получает бомбу ⚔ на поле.',
       async cast(G, h) {
         for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 50, 0.4) + h.power * 1.8, 'phys', '#ffb4c4');
@@ -391,10 +391,10 @@ const HEROES = [
     },
   },
   {
-    id: 'korvin', name: 'Корвин', title: 'Механист', role: 'adc', emoji: '⚙', color: '#9aa7b8',
+    id: 'ratking', name: 'Шмыг', title: 'Крысиный проныра', role: 'adc', emoji: '🐀', color: '#6b5a3a', img: 'img/heroes/ratking',
     mod: { atk: 1.18, hp: 1.15, arm: 1.15 },
-    lore: 'Изобретатель, сражающийся армией самодельных устройств.',
-    passive: { name: 'Инженерия', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
+    lore: 'Крыса-проныра с парой кинжалов. Обожает золото, ставит капканы и метает ножи из-за угла.',
+    passive: { name: 'Нюх на золото', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
     q: {
       name: 'Капкан', icon: '🪤', cost: 45, cd: 2, need: 'enemy',
       desc: 'Бьёт цель капканом, сковывает 4 камня на её поле и ставит линейную бомбу на своё поле.',
@@ -405,7 +405,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Ракетный залп', icon: '🚀', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Град ножей', icon: '🔪', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Урон всем врагам в событии и по 4 булыжника на поле каждого из них.',
       async cast(G, h) {
         for (const e of G.enemiesIn(h)) {
@@ -418,12 +418,12 @@ const HEROES = [
 
   /* ======== ПОДДЕРЖКА ======== */
   {
-    id: 'auriel', name: 'Ауриэль', title: 'Светлая Жрица', role: 'sup', emoji: '🕊', color: '#fff0a8',
+    id: 'paladin', name: 'Солара', title: 'Паладин солнца', role: 'sup', emoji: '☀', color: '#e8c66e', img: 'img/heroes/paladin',
     mod: { sp: 1.1 },
-    lore: 'Жрица рассвета, чья молитва поднимает павших на ноги.',
-    passive: { name: 'Милосердие', desc: '✚ также лечат самого раненого союзника в событии (100%).', effects(G, h, c) { c.healAlly += 1.0; } },
+    lore: 'Рыцарь солнечного ордена в золотых латах. Её щит отражает свет, который исцеляет союзников.',
+    passive: { name: 'Свет солнца', desc: '✚ также лечат самого раненого союзника в событии (100%).', effects(G, h, c) { c.healAlly += 1.0; } },
     q: {
-      name: 'Благословение', icon: '🙏', cost: 40, cd: 1, need: 'none',
+      name: 'Солнечное благословение', icon: '🙏', cost: 40, cd: 1, need: 'none',
       desc: 'Сразу лечит самого раненого союзника в событии и превращает 5 камней на его поле в ✚.',
       ai: (G, h) => G.alliesIn(h).some(a => a.hp / a.maxHp < 0.75),
       async cast(G, h) {
@@ -433,7 +433,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Небесный свет', icon: '☀', cost: 110, cd: 5, lvl: 6, need: 'none',
+      name: 'Полуденное сияние', icon: '🌞', cost: 110, cd: 5, lvl: 6, need: 'none',
       desc: 'Обжигает врагов в событии светом, лечит всех союзников на карте и очищает их поля от булыжников, льда и тумана.',
       ai: (G, h) => U.sum(G.allTeam(h), a => 1 - a.hp / a.maxHp) > 0.7,
       async cast(G, h) {
@@ -446,12 +446,12 @@ const HEROES = [
     },
   },
   {
-    id: 'garrok', name: 'Гаррок', title: 'Цепной Страж', role: 'sup', emoji: '⛓', color: '#6f8fa8',
+    id: 'ogre', name: 'Грох', title: 'Огр-вышибала', role: 'sup', emoji: '🍖', color: '#8a8a5a', img: 'img/heroes/ogre',
     mod: { hp: 1.15, arm: 1.2 },
-    lore: 'Тюремщик из подземных бастионов, чей крюк достаёт любого.',
-    passive: { name: 'Защитник', desc: '🛡 также дают щит самому раненому союзнику в событии (40%).', effects(G, h, c) { c.shieldAlly += 0.4; } },
+    lore: 'Огромный огр с дубиной. Хватает врагов ручищами и вбивает их в землю.',
+    passive: { name: 'Широкая спина', desc: '🛡 также дают щит самому раненому союзнику в событии (40%).', effects(G, h, c) { c.shieldAlly += 0.4; } },
     q: {
-      name: 'Крюк', icon: '🪝', cost: 55, cd: 3, need: 'enemy',
+      name: 'Хватка огра', icon: '✊', cost: 55, cd: 3, need: 'enemy',
       desc: 'Выдёргивает 3 ⚔ с поля цели (там остаются булыжники) и переносит их на своё поле.',
       ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_ATK) >= 3; },
       async cast(G, h, t) {
@@ -461,7 +461,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Цепи судьбы', icon: '⛓', cost: 110, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Сокрушительный удар', icon: '🏏', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Оглушает главную цель и сковывает по 4 клетки на полях двух врагов в событии.',
       async cast(G, h) {
         for (const [i, e] of G.enemiesIn(h).slice(0, 2).entries()) {
@@ -472,17 +472,17 @@ const HEROES = [
     },
   },
   {
-    id: 'nia', name: 'Ниа', title: 'Иллюзионистка', role: 'sup', emoji: '🦋', color: '#ff7ce0',
+    id: 'smuggler', name: 'Рэйф', title: 'Контрабандист', role: 'sup', emoji: '🎩', color: '#a0623a', img: 'img/heroes/smuggler',
     mod: { sp: 1.05 },
-    lore: 'Фея снов, сплетающая миражи из пыльцы.',
-    passive: { name: 'Пыльца', desc: '◉ дают щит всем союзникам в событии.', effects(G, h, c) { c.visShield += c.counts[T_VIS] * (6 + h.lvl * 2); } },
+    lore: 'Обаятельный разбойник с саблей. Дымовые шашки, краплёные карты и тайные тропы — всё для команды.',
+    passive: { name: 'Тайные тропы', desc: '◉ дают щит всем союзникам в событии.', effects(G, h, c) { c.visShield += c.counts[T_VIS] * (6 + h.lvl * 2); } },
     q: {
-      name: 'Морок', icon: '🎭', cost: 40, cd: 2, need: 'enemy',
+      name: 'Дымовая шашка', icon: '💨', cost: 40, cd: 2, need: 'enemy',
       desc: 'Перемешивает поле цели и скрывает 6 клеток туманом.',
       async cast(G, h, t) { await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.fogify(b.pick(g => !g.fog, 6)); }, '#ff7ce0'); },
     },
     r: {
-      name: 'Зеркальный мир', icon: '🪞', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Козырь в рукаве', icon: '🃏', cost: 100, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Каждый союзник в событии получает Призму на поле и +35 маны.',
       async cast(G, h) {
         for (const a of G.alliesIn(h)) {
@@ -500,22 +500,22 @@ const HEROES = [
    fit: 3 — родная роль, 2 — хорошо подходит, 1 — терпимо, 0 — плохо.
    tags — роль в составе: tank, heal, control, burst, dps, utility, vision, sustain */
 const HERO_FIT = {
-  granitor: { fit: { top: 3, jng: 1, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
-  veila: { fit: { top: 3, jng: 2, mid: 2, adc: 1, sup: 0 }, tags: ['burst', 'dps'] },
-  morven: { fit: { top: 3, jng: 2, mid: 1, adc: 0, sup: 0 }, tags: ['sustain', 'dps'] },
-  xar: { fit: { top: 1, jng: 3, mid: 2, adc: 0, sup: 0 }, tags: ['burst', 'vision'] },
-  lira: { fit: { top: 1, jng: 3, mid: 1, adc: 0, sup: 2 }, tags: ['heal', 'control'] },
-  bronn: { fit: { top: 2, jng: 3, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
-  eira: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['control', 'burst'] },
-  piro: { fit: { top: 1, jng: 0, mid: 3, adc: 2, sup: 0 }, tags: ['burst'] },
-  nox: { fit: { top: 1, jng: 1, mid: 3, adc: 0, sup: 1 }, tags: ['control', 'burst'] },
-  selena: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['utility', 'vision'] },
-  rian: { fit: { top: 0, jng: 0, mid: 2, adc: 3, sup: 0 }, tags: ['dps'] },
-  mira: { fit: { top: 0, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps'] },
-  korvin: { fit: { top: 1, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps', 'control'] },
-  auriel: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['heal', 'utility'] },
-  garrok: { fit: { top: 2, jng: 1, mid: 0, adc: 0, sup: 3 }, tags: ['tank', 'control'] },
-  nia: { fit: { top: 0, jng: 1, mid: 1, adc: 0, sup: 3 }, tags: ['utility', 'vision'] },
+  frostgolem: { fit: { top: 3, jng: 1, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  runeknight: { fit: { top: 3, jng: 2, mid: 2, adc: 1, sup: 0 }, tags: ['burst', 'dps'] },
+  berserk: { fit: { top: 3, jng: 2, mid: 1, adc: 0, sup: 0 }, tags: ['sustain', 'dps'] },
+  wraith: { fit: { top: 1, jng: 3, mid: 2, adc: 0, sup: 0 }, tags: ['burst', 'vision'] },
+  goblinrider: { fit: { top: 1, jng: 3, mid: 1, adc: 0, sup: 2 }, tags: ['heal', 'control'] },
+  werewolf: { fit: { top: 2, jng: 3, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  sanddancer: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['control', 'burst'] },
+  monk: { fit: { top: 1, jng: 0, mid: 3, adc: 2, sup: 0 }, tags: ['burst'] },
+  psiblade: { fit: { top: 1, jng: 1, mid: 3, adc: 0, sup: 1 }, tags: ['control', 'burst'] },
+  windmage: { fit: { top: 0, jng: 0, mid: 3, adc: 1, sup: 2 }, tags: ['utility', 'vision'] },
+  dwarfhunter: { fit: { top: 0, jng: 0, mid: 2, adc: 3, sup: 0 }, tags: ['dps'] },
+  elfarcher: { fit: { top: 0, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps'] },
+  ratking: { fit: { top: 1, jng: 0, mid: 1, adc: 3, sup: 1 }, tags: ['dps', 'control'] },
+  paladin: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['heal', 'utility'] },
+  ogre: { fit: { top: 2, jng: 1, mid: 0, adc: 0, sup: 3 }, tags: ['tank', 'control'] },
+  smuggler: { fit: { top: 0, jng: 1, mid: 1, adc: 0, sup: 3 }, tags: ['utility', 'vision'] },
 };
 const FIT_NAMES = ['плохо', 'терпимо', 'хорошо', 'родная роль'];
 const TAG_NAMES = { tank: 'танк', heal: 'лекарь', control: 'контроль', burst: 'взрывной урон', dps: 'постоянный урон', utility: 'поддержка', vision: 'обзор', sustain: 'живучесть' };

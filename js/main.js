@@ -127,7 +127,7 @@ const App = {
     for (const t of ['blue', 'red']) {
       const col = meta.colors ? meta.colors[t] : null;
       $('#vs-' + t).innerHTML = `<div class="vs-team">${U.esc(meta.names ? meta.names[t] : t)}</div>` + ROLE_ORDER.map(r => picks[t].find(p => p.role === r)).map((p, i) =>
-        `<div class="vs-card" style="--hc:${p.def.color};transition-delay:${i * 0.12}s"><div class="vp">${faceHTML(p.pl, col)}<span class="hero-badge" style="--hc:${p.def.color}">${p.def.emoji}</span></div><b>${U.esc(p.pl.nick)}</b><small>${p.def.name} · ${ROLES[p.role].short}</small></div>`).join('');
+        `<div class="vs-card" style="--hc:${p.def.color};transition-delay:${i * 0.12}s"><div class="vp">${faceHTML(p.pl, col)}<span class="hero-badge" style="--hc:${p.def.color}">${heroFace(p.def)}</span></div><b>${U.esc(p.pl.nick)}</b><small>${p.def.name} · ${ROLES[p.role].short}</small></div>`).join('');
     }
     $('#screen-vs').classList.remove('go');
     await this.show('screen-vs');

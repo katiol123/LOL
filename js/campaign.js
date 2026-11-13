@@ -30,7 +30,7 @@ function ratingChips(p, n = 5) {
 function masteryList(p, n = 8) {
   const ms = topMastery(p, n);
   if (!ms.length) return '<small class="muted">нет мастерства ни на одном герое</small>';
-  return ms.map(([id, v]) => { const d = HEROES.find(h => h.id === id); return `<span class="mchip ${v >= 15 ? 'star' : ''}" title="${d.name}: мастерство ${v} (+${(v / 4).toFixed(1)} ко всем характеристикам на этом герое)">${d.emoji} ${d.name} <b>${v}</b></span>`; }).join('');
+  return ms.map(([id, v]) => { const d = HEROES.find(h => h.id === id); return `<span class="mchip ${v >= 15 ? 'star' : ''}" title="${d.name}: мастерство ${v} (+${(v / 4).toFixed(1)} ко всем характеристикам на этом герое)"><span class="mface">${heroFace(d)}</span>${d.name} <b>${v}</b></span>`; }).join('');
 }
 function playerRow(L, p, opts = {}) {
   const club = p.club && clubById(L, p.club);
@@ -94,7 +94,7 @@ const Campaign = {
     $('#cr-stats').querySelectorAll('button[data-k]').forEach(b => b.onclick = () => { cs.stats[b.dataset.k] += +b.dataset.d; this.renderCreate(); });
     // герои
     const list = HEROES.slice().sort((a, b) => b.fit[cs.role] - a.fit[cs.role]);
-    $('#cr-hero-list').innerHTML = list.map(d => `<div class="cr-hero ${cs.heroes.has(d.id) ? 'on' : ''}" data-id="${d.id}" style="--hc:${d.color}"><span class="ch-e">${d.emoji}</span><span><b>${d.name}</b><small>${ROLES[cs.role].short} ${fitStars(d.fit[cs.role])} · ${d.tags.map(t => TAG_NAMES[t]).join(', ')}</small></span>${cs.heroes.has(d.id) ? '<em>✦4</em>' : ''}</div>`).join('');
+    $('#cr-hero-list').innerHTML = list.map(d => `<div class="cr-hero ${cs.heroes.has(d.id) ? 'on' : ''}" data-id="${d.id}" style="--hc:${d.color}"><span class="ch-e">${heroFace(d)}</span><span><b>${d.name}</b><small>${ROLES[cs.role].short} ${fitStars(d.fit[cs.role])} · ${d.tags.map(t => TAG_NAMES[t]).join(', ')}</small></span>${cs.heroes.has(d.id) ? '<em>✦4</em>' : ''}</div>`).join('');
     $('#cr-hero-list').querySelectorAll('.cr-hero').forEach(e => e.onclick = () => {
       const id = e.dataset.id;
       if (cs.heroes.has(id)) cs.heroes.delete(id); else if (cs.heroes.size < 3) cs.heroes.add(id);

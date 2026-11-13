@@ -752,3 +752,21 @@ html, body, #app { overflow: clip; }
 .it-card { display: grid; grid-template-columns: 38px 1fr; gap: 8px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid rgba(200,170,110,.18); }
 .it-ic { width: 38px; height: 38px; display: grid; place-items: center; font-size: 22px; border-radius: 8px; background: #1a2440; }
 .it-card b { display: block; font-size: 13px; } .it-card small { color: #ffd76b; } .it-card p { margin: 3px 0 0; font-size: 11.5px; color: #c9cbd4; }
+
+/* ===== Спрайты героев ===== */
+.himg { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.hfull { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 6px 10px rgba(0,0,0,.55)); }
+.hero-badge { overflow: hidden; padding: 0; width: 22px; height: 22px; }
+.hero-card .hero-badge { width: 24px; height: 24px; }
+#feature-head .portrait.pface .hero-badge { width: 28px; height: 28px; }
+.vs-card .vp .hero-badge { width: 44px; height: 44px; }
+.mini-h .mp { overflow: hidden; padding: 0; }
+.pick-slot .pp { overflow: hidden; padding: 0; }
+.pool-card .pe { width: 78%; height: 66%; font-size: 0; }
+.pool-card .pe .hfull { transition: transform .25s; }
+.pool-card:hover .pe .hfull { transform: scale(1.06) translateY(-2px); }
+.hero-detail .hd-portrait { padding: 4px; overflow: hidden; }
+#draft-detail .hd-portrait { width: 160px; height: 160px; }
+.cr-hero .ch-e { overflow: hidden; padding: 0; }
+.mchip .mface { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin-right: 4px; }
+#draft-detail .hero-detail { grid-template-columns: 160px 1fr; }
