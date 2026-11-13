@@ -25,14 +25,14 @@ const BASE_STATS = {
   top: { hp: 640, hpG: 92, atk: 16, atkG: 2.4, arm: 28, armG: 3.2, mana: 100, sp: 25, spG: 5 },
   jng: { hp: 600, hpG: 86, atk: 17, atkG: 2.5, arm: 24, armG: 2.8, mana: 100, sp: 25, spG: 5 },
   mid: { hp: 520, hpG: 74, atk: 14, atkG: 2.0, arm: 18, armG: 2.2, mana: 140, sp: 40, spG: 8 },
-  adc: { hp: 435, hpG: 61, atk: 22, atkG: 3.6, arm: 13, armG: 1.6, mana: 100, sp: 20, spG: 4 },   // «стеклянная пушка»: прячется за передовой
-  sup: { hp: 560, hpG: 80, atk: 12, atkG: 1.6, arm: 24, armG: 2.8, mana: 140, sp: 35, spG: 6 },
+  adc: { hp: 370, hpG: 50, atk: 16, atkG: 4.3, arm: 10, armG: 1.2, mana: 100, sp: 20, spG: 4 },   // «стеклянная пушка»: слаб в начале, растёт быстрее всех
+  sup: { hp: 600, hpG: 70, atk: 21, atkG: 0.9, arm: 28, armG: 2.2, mana: 140, sp: 52, spG: 3.5 },   // силён на старте, медленно растёт
 };
 
 /* Предметы: любой герой может купить любой предмет. tier: 1 — дешёвые, 2 — средние, 3 — крупные, 4 — легендарные поздние.
    Особые свойства: ls вампиризм, crit шанс крита ⚔ (совпадение 4+), pen пробивание брони, thorns отражение физ. урона,
    dodge уклонение от умений, regen восстановление здоровья в минуту, manaRegen мана в минуту, goldPow доход от ●,
-   towerPow урон по строениям, cascPow сила каскадов, shieldPow/healPow сила щитов/лечения, visPow сила ◉. */
+   towerPow урон по строениям, cascPow сила каскадов, shieldPow/healPow сила щитов/лечения, visPow сила ◉, physRed снижение получаемого физ. урона. */
 const ITEMS = {
   // ---- уровень 1: дешёвые компоненты ----
   dagger: { name: 'Кинжал новичка', icon: '🔪', cost: 250, tier: 1, atk: 3 },
@@ -69,8 +69,16 @@ const ITEMS = {
   stormblade: { name: 'Клинок Грома', icon: '⚡', cost: 1800, tier: 3, atk: 18, crit: 0.1 },
   wall: { name: 'Крепостная стена', icon: '🧱', cost: 1900, tier: 3, arm: 45, hp: 300 },
   grimoire: { name: 'Гримуар бездны', icon: '📕', cost: 1900, tier: 3, sp: 55, pen: 0.15 },
+  // ответ на физический урон: против составов из стрелков и бойцов
+  spikes: { name: 'Колючий панцирь', icon: '🦔', cost: 1700, tier: 3, arm: 60, hp: 200, thorns: 0.35 },
+  stoneskin: { name: 'Плащ каменной кожи', icon: '🪨', cost: 1800, tier: 3, arm: 40, hp: 300, physRed: 0.25 },
+  // ответы на другие перекосы состава: магию, лечение, контроль
+  mantle: { name: 'Мантия чародея', icon: '🧙', cost: 1500, tier: 3, hp: 250, magRed: 0.25, manaRegen: 6 },
+  blight: { name: 'Клинок скверны', icon: '🦠', cost: 1200, tier: 2, atk: 10, antiHeal: 0.4 },
+  blightstaff: { name: 'Посох скверны', icon: '☠', cost: 1300, tier: 2, sp: 30, antiHeal: 0.4 },
+  tenacity: { name: 'Амулет стойкости', icon: '🧿', cost: 1000, tier: 2, hp: 150, tenacity: 0.45 },
   // ---- уровень 4: легендарные поздние ----
-  serpent: { name: 'Сердце древнего змея', icon: '🐉', cost: 3200, tier: 4, hp: 700, arm: 20, regen: 0.025 },
+  serpent: { name: 'Сердце древнего змея', icon: '🐉', cost: 3000, tier: 4, hp: 850, arm: 30, regen: 0.03 },
   stars: { name: 'Венец звёздного пламени', icon: '🌟', cost: 3300, tier: 4, sp: 90, mana: 120, cascPow: 0.15 },
   eclipse: { name: 'Затмение', icon: '🌑', cost: 3400, tier: 4, atk: 32, crit: 0.15, ls: 0.1 },
 };
@@ -80,7 +88,8 @@ const ITEM_EFFECTS = {
   thorns: v => `отражает ${Math.round(v * 100)}% физ. урона`, dodge: v => `+${Math.round(v * 100)}% уклонения от умений`, regen: v => `+${(v * 100).toFixed(1)}% здоровья в минуту`,
   manaRegen: v => `+${v} маны в минуту`, goldPow: v => `+${Math.round(v * 100)}% золота от ●`, towerPow: v => `+${Math.round(v * 100)}% урона по строениям`,
   cascPow: v => `каскады сильнее на ${Math.round(v * 100)}%`, shieldPow: v => `щиты сильнее на ${Math.round(v * 100)}%`, healPow: v => `лечение сильнее на ${Math.round(v * 100)}%`,
-  visPow: v => `◉ сильнее на ${Math.round(v * 100)}%`,
+  visPow: v => `◉ сильнее на ${Math.round(v * 100)}%`, physRed: v => `−${Math.round(v * 100)}% получаемого физ. урона`, magRed: v => `−${Math.round(v * 100)}% получаемого магического урона`,
+  antiHeal: v => `попадания режут лечение цели на ${Math.round(v * 100)}%`, tenacity: v => `${Math.round(v * 100)}% шанс стряхнуть оглушение, немоту, провокацию и якорь`,
 };
 const itemDesc = id => Object.entries(ITEMS[id]).filter(([k]) => ITEM_EFFECTS[k]).map(([k, v]) => ITEM_EFFECTS[k](v)).join(', ');
 const ITEM_TIER_NAMES = ['', 'Простой', 'Средний', 'Крупный', 'Легендарный'];
@@ -348,7 +357,7 @@ const HEROES = [
   /* ======== СТРЕЛКИ ======== */
   {
     id: 'dwarfhunter', name: 'Бранд', title: 'Гномий охотник', role: 'adc', emoji: '🎯', color: '#8b5a2b', img: 'img/heroes/dwarfhunter',
-    mod: { atk: 1.1, hp: 0.94, arm: 0.94 },
+    mod: { atk: 1.32, hp: 1.0, arm: 1.0 },
     lore: 'Гном-следопыт с тяжёлым арбалетом. Болт из него пробивает и щит, и стену.',
     passive: { name: 'Тяжёлый болт', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
     q: {

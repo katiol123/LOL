@@ -308,13 +308,13 @@ const AI = {
      для этого героя (набор умений, роль, теги), состава врагов и стадии игры. Тактика решает, насколько разумно
      игрок закупается: сильный тактик берёт лучшее для ситуации и меняет слабые предметы на сильные,
      слабый — покупает почти что попало. */
-  ITEM_UNIT: { atk: 95, arm: 16, hp: 1.9, sp: 21, mana: 3.5, ls: 4000, crit: 7000, pen: 6000, thorns: 4000, dodge: 9500, regen: 27000, manaRegen: 32, goldPow: 6500, towerPow: 3200, cascPow: 9000, shieldPow: 2200, healPow: 2200, visPow: 900 },
+  ITEM_UNIT: { atk: 95, arm: 16, hp: 1.9, sp: 21, mana: 3.5, ls: 4000, crit: 7000, pen: 6000, thorns: 4000, dodge: 9500, regen: 27000, manaRegen: 32, goldPow: 6500, towerPow: 3200, cascPow: 9000, shieldPow: 2200, healPow: 2200, visPow: 900, physRed: 5200, magRed: 5200, antiHeal: 2600, tenacity: 2600 },
   PROFILE: {
-    top: { atk: 0.9, sp: 0.3, hp: 1.0, arm: 1.0, mana: 0.2, ls: 0.8, crit: 0.3, pen: 0.5, thorns: 0.8, dodge: 0.6, regen: 1.0, manaRegen: 0.2, goldPow: 0.4, towerPow: 0.7, cascPow: 0.4, shieldPow: 0.2, healPow: 0.2, visPow: 0.1 },
-    jng: { atk: 1.0, sp: 0.3, hp: 0.8, arm: 0.8, mana: 0.2, ls: 0.8, crit: 0.6, pen: 0.8, thorns: 0.4, dodge: 0.6, regen: 0.6, manaRegen: 0.3, goldPow: 0.5, towerPow: 0.5, cascPow: 0.5, shieldPow: 0.1, healPow: 0.1, visPow: 0.6 },
-    mid: { atk: 0.2, sp: 1.3, hp: 0.5, arm: 0.4, mana: 0.8, ls: 0.1, crit: 0.2, pen: 1.0, thorns: 0.1, dodge: 0.7, regen: 0.3, manaRegen: 1.0, goldPow: 0.5, towerPow: 0.3, cascPow: 1.0, shieldPow: 0.1, healPow: 0.1, visPow: 0.3 },
-    adc: { atk: 1.4, sp: 0.1, hp: 0.4, arm: 0.3, mana: 0.1, ls: 1.0, crit: 1.4, pen: 1.0, thorns: 0.1, dodge: 0.6, regen: 0.2, manaRegen: 0.1, goldPow: 0.7, towerPow: 1.0, cascPow: 0.6, shieldPow: 0, healPow: 0, visPow: 0.1 },
-    sup: { atk: 0.1, sp: 0.8, hp: 0.8, arm: 0.7, mana: 0.6, ls: 0, crit: 0, pen: 0.2, thorns: 0.5, dodge: 0.4, regen: 0.4, manaRegen: 0.8, goldPow: 0.3, towerPow: 0.1, cascPow: 0.4, shieldPow: 1.4, healPow: 1.4, visPow: 1.4 },
+    top: { atk: 0.9, sp: 0.3, hp: 1.0, arm: 1.0, mana: 0.2, ls: 0.8, crit: 0.3, pen: 0.5, thorns: 0.8, dodge: 0.6, regen: 1.0, manaRegen: 0.2, goldPow: 0.4, towerPow: 0.7, cascPow: 0.4, shieldPow: 0.2, healPow: 0.2, visPow: 0.1, physRed: 0.9, magRed: 0.7, antiHeal: 0.5, tenacity: 0.8 },
+    jng: { atk: 1.0, sp: 0.3, hp: 0.8, arm: 0.8, mana: 0.2, ls: 0.8, crit: 0.6, pen: 0.8, thorns: 0.4, dodge: 0.6, regen: 0.6, manaRegen: 0.3, goldPow: 0.5, towerPow: 0.5, cascPow: 0.5, shieldPow: 0.1, healPow: 0.1, visPow: 0.6, physRed: 0.6, magRed: 0.5, antiHeal: 0.6, tenacity: 0.6 },
+    mid: { atk: 0.2, sp: 1.3, hp: 0.5, arm: 0.4, mana: 0.8, ls: 0.1, crit: 0.2, pen: 1.0, thorns: 0.1, dodge: 0.7, regen: 0.3, manaRegen: 1.0, goldPow: 0.5, towerPow: 0.3, cascPow: 1.0, shieldPow: 0.1, healPow: 0.1, visPow: 0.3, physRed: 0.4, magRed: 0.5, antiHeal: 0.5, tenacity: 0.6 },
+    adc: { atk: 1.4, sp: 0.1, hp: 0.4, arm: 0.3, mana: 0.1, ls: 1.0, crit: 1.4, pen: 1.0, thorns: 0.1, dodge: 0.6, regen: 0.2, manaRegen: 0.1, goldPow: 0.7, towerPow: 1.0, cascPow: 0.6, shieldPow: 0, healPow: 0, visPow: 0.1, physRed: 0.3, magRed: 0.3, antiHeal: 0.7, tenacity: 0.5 },
+    sup: { atk: 0.1, sp: 0.8, hp: 0.8, arm: 0.7, mana: 0.6, ls: 0, crit: 0, pen: 0.2, thorns: 0.5, dodge: 0.4, regen: 0.4, manaRegen: 0.8, goldPow: 0.3, towerPow: 0.1, cascPow: 0.4, shieldPow: 1.4, healPow: 1.4, visPow: 1.4, physRed: 0.7, magRed: 0.6, antiHeal: 0.3, tenacity: 0.5 },
   },
   heroProfile(G, h) {
     const a = this.PROFILE[h.def.main || h.role], b = this.PROFILE[h.role], m = h.def.mod || {}, tags = h.def.tags || [];
@@ -323,7 +323,7 @@ const AI = {
     p.atk *= m.atk || 1; p.sp *= m.sp || 1;
     // маги и поддержка, которым не хватает маны, ценят ману выше
     if (h.maxMana && h.mana / h.maxMana < 0.4 && ['mid', 'sup'].includes(h.def.main)) { p.mana *= 1.6; p.manaRegen *= 1.6; }
-    if (tags.includes('tank')) { p.hp += 0.4; p.arm += 0.4; p.thorns += 0.3; }
+    if (tags.includes('tank')) { p.hp += 0.4; p.arm += 0.4; p.thorns += 0.3; p.physRed += 0.4; }
     if (tags.includes('heal')) p.healPow += 0.6;
     if (tags.includes('vision')) p.visPow += 0.4;
     if (tags.includes('dps')) p.crit += 0.3;
@@ -333,11 +333,59 @@ const AI = {
     const phys = U.sum(foes, f => (['adc', 'top', 'jng'].includes(f.def.main) ? 1 : 0) + (f.def.tags.includes('dps') ? 0.4 : 0)) / foes.length;
     // против почти чисто физического состава броня — главный ответ (как в LoL)
     const over = Math.max(0, phys - 0.85);
-    p.arm *= (0.6 + phys) * (1 + 5 * over); p.thorns *= (0.6 + phys) * (1 + 4 * over);
+    p.arm *= (0.6 + phys) * (1 + 5 * over); p.thorns *= (0.6 + phys) * (1 + 4 * over); p.physRed *= (0.4 + phys) * (1 + 5 * over);
+    // остальные перекосы состава: чем больше однотипных врагов сверх обычного, тем ценнее ответ
+    const ex = this.enemyStacks(G, h);
+    p.magRed *= 0.5 + 1.5 * ex.magic; p.antiHeal *= 0.4 + 1.6 * ex.heal; p.tenacity *= 0.5 + 1.5 * ex.control; p.dodge *= 1 + 0.6 * ex.control;
+    p.pen *= 1 + 0.8 * ex.tank;
     // стадия игры: доход ценен рано, осада и легендарные предметы — поздно
     p.goldPow *= Math.max(0, 1 - G.minute / 25);
     p.towerPow *= G.minute > 15 ? 1.3 : 0.6;
     return p;
+  },
+  /* Ответные предметы на каждый тип врагов и «обычное» число таких врагов в составе */
+  COUNTERS: {
+    phys: { items: ['stoneskin', 'spikes', 'mirror'], norm: 3, name: 'физический урон' },
+    magic: { items: ['mantle'], norm: 2, name: 'магия' },
+    heal: { items: ['blight', 'blightstaff'], norm: 1, name: 'лечение и живучесть' },
+    tank: { items: ['spear', 'grimoire'], norm: 1, name: 'танки' },
+    control: { items: ['tenacity', 'boots'], norm: 2, name: 'контроль' },
+  },
+  /* Сколько врагов каждого типа (сверх обычного, в долях: 1 = на одного больше нормы) */
+  enemyStacks(G, h) {
+    const foes = G.teams[h.enemyTeam].heroes.map(f => f.def), out = {};
+    const n = {
+      phys: foes.filter(f => ['adc', 'top', 'jng'].includes(f.main) || f.tags.includes('dps')).length,
+      magic: foes.filter(f => ['mid', 'sup'].includes(f.main) && !f.tags.includes('dps')).length,
+      heal: foes.filter(f => f.tags.includes('heal') || f.tags.includes('sustain')).length,
+      tank: foes.filter(f => f.tags.includes('tank')).length,
+      control: foes.filter(f => f.tags.includes('control')).length,
+    };
+    for (const k in this.COUNTERS) out[k] = Math.max(0, n[k] - this.COUNTERS[k].norm);
+    out.count = n;
+    return out;
+  },
+  /* План закупки ответа: выбранный предмет или null. Решение принимается раз за визит на базу */
+  counterPlan(G, h, inv) {
+    if (G.minute < 4) return null;
+    const ex = this.enemyStacks(G, h), tq = U.clamp((iqOf(h, 'tactic') - 2) / 14, 0, 1.2);
+    h.mem.counterDone = h.mem.counterDone || {};
+    const types = Object.keys(this.COUNTERS).filter(k => ex[k] > 0 && !h.mem.counterDone[k]).sort((a, b) => ex[b] - ex[a]);
+    for (const k of types) {
+      const C = this.COUNTERS[k];
+      if (inv.some(id => C.items.includes(id))) { h.mem.counterDone[k] = true; continue; }
+      // решение «копить на ответ» принимается один раз за визит: шанс растёт с перекосом и умом игрока
+      const key = 'cp_' + k + '_' + G.round;
+      if (h.mem[key] == null) h.mem[key] = U.chance(U.clamp(ex[k] * 0.4 * tq, 0, 0.95));
+      if (!h.mem[key]) continue;
+      return this.pickNear(C.items.filter(id => inv.filter(x => x === id).length === 0), id => this.itemValue(G, h, id));
+    }
+    return null;
+  },
+  /* Насколько состав врага перекошен в физический урон: >0 — больше обычного (обычный состав ≈ 0) */
+  physThreat(G, h) {
+    const foes = G.teams[h.enemyTeam].heroes;
+    return U.sum(foes, f => (['adc', 'top', 'jng'].includes(f.def.main) ? 1 : 0) + (f.def.tags.includes('dps') ? 0.4 : 0)) / foes.length - 0.85;
   },
   itemValue(G, h, id, prof) {
     const it = ITEMS[id]; prof = prof || this.heroProfile(G, h);
@@ -380,6 +428,13 @@ const AI = {
       if (inv.length < 6) {
         if (!cands.length) break;
         let pick;
+        // ответ на перекос состава врага: чем больше однотипных врагов и чем выше Тактика, тем вероятнее
+        // игрок первым делом копит на контрящий предмет (на каждый тип — один раз)
+        const cnt = this.counterPlan(G, h, inv);
+        if (cnt) {
+          if (ITEMS[cnt].cost <= gold && allowed(cnt)) { acts.push({ buy: cnt }); inv.push(cnt); gold -= ITEMS[cnt].cost; continue; }
+          break;
+        }
         if (smart) {
           const slotsLeft = 6 - inv.length;
           const eff = id => val(id) / ITEMS[id].cost;

@@ -8,6 +8,8 @@ const ATK_MUL = 2.6;
 const HERO_DMG = 1.45;
 /* Стоимость волны миньонов за минуту (на одну команду): сколько золота вообще можно снять с линии */
 const WAVE_GOLD = m => 90 + 5 * m;
+/* Запас здоровья волны за минуту: сколько урона по ней вообще толкает линию */
+const WAVE_HP = m => 170 + 14 * m;
 /* Умения стрелков слабее: их сила — в ⚔ и предметах */
 const ADC_SKILL = 0.75;
 const LANES = ['top', 'mid', 'bot'];
@@ -150,38 +152,6 @@ class Game {
     if (hasPerk(x, 'cautious')) m -= 0.15;
     return m;
   }
-  /* Опора линии для стрелка (0…1): стоял ли он на линии вместе с героем-саппортом, насколько тот скилловый,
-     и обогнал ли он вражеского стрелка по золоту. Считается до 15-й минуты, потом фиксируется. */
-  laneSupport(h) {
-    const L = h.laneLog || { n: 0, sup: 0 };
-    const supFrac = L.n ? L.sup / L.n : 0.5;
-    const foe = this.hero(h.enemyTeam, 'adc');
-    const edge = foe ? U.clamp(0.5 + (h.totalGold - foe.totalGold) / 1600, 0, 1) : 0.5;
-    return U.clamp(0.6 * supFrac + 0.4 * edge, 0, 1);
-  }
-  /* Сила стрелка в лейте: без поддержки на линии — ×0.6, с сильным саппортом и выигранной линией — до ×1.3 */
-  laneLate(h) {
-    if (h.laneFixed == null && this.minute >= 15) h.laneFixed = this.laneSupport(h);
-    const S = h.laneFixed != null ? h.laneFixed : this.laneSupport(h);
-    return 0.6 + 0.7 * S;
-  }
-  /* Аура саппорта: на линии до 15-й минуты герой-саппорт прикрывает напарника (×1.2 к эффектам камней) */
-  supportAura(h) {
-    if (this.minute >= 15 || !h.ev || h.ev.type !== 'lane' || (h.def.main || h.def.role) === 'sup') return 1;
-    return h.ev.sides[h.team].some(x => x !== h && x.alive && (x.def.main || x.def.role) === 'sup') ? 1.2 : 1;
-  }
-  /* Сила роли по ходу матча. Саппорт силён в начале и слабеет к концу — если игрок не мастер своего дела;
-     стрелок слаб в начале, а к концу сильнее, но только если нафармил. */
-  roleCurve(h) {
-    const k = U.clamp((this.minute - 8) / 24, 0, 1);
-    const kind = h.def.main || h.def.role;   // тип героя, а не позиция: стрелок на месте саппорта остаётся стрелком
-    if (kind === 'sup') {
-      const skill = U.clamp((playerOvr(h.pl || { stats: {} }) + (h.bonusAll || 0) - 10) / 6, 0, 1);
-      return 1.75 + k * ((0.8 + 0.3 * skill) - 1.75);
-    }
-    if (kind === 'adc') return 0.85 + k * (this.laneLate(h) - 0.85);
-    return 1;
-  }
   /* Числовое значение пассивки с учётом патча */
   pv(h, key) { return (h.def.passive[key] || 0) * (1 + patchMod(h.def.id, 'p')); }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
@@ -284,7 +254,7 @@ class Game {
     this.ui.log(`${this.tag(h)} применяет <b class="skn">${s.icon} ${s.name}</b>${t && s.need === 'enemy' ? ` на ${this.tag(t)}` : ''}.`);
     await wait(650);
     // стрелок силён автоатаками (⚔) и фармом, а не умениями — как в LoL
-    h.castMul = (1 + patchMod(h.def.id, key)) * this.roleCurve(h) * ((h.def.main || h.def.role) === 'adc' ? ADC_SKILL : 1);
+    h.castMul = (1 + patchMod(h.def.id, key)) * ((h.def.main || h.def.role) === 'adc' ? ADC_SKILL : 1);
     try { await s.cast(this, h, t); } finally { h.castMul = 1; }
     await wait(200);
     return true;
@@ -402,9 +372,7 @@ class Game {
     const allies = this.alliesIn(h).length;
     const gm = (sm(0.012, h, 'mech')) * this.pressureFactor(h)
       * (inFight && this.persist.includes(h.ev) ? sm(0.012, h, 'calm') : 1)   // хладнокровие в затяжных боях
-      * (allies >= 2 ? sm(0.012, h, 'team') : 1)                               // слаженность с союзниками
-      * this.roleCurve(h)                                                     // сила роли по ходу матча
-      * this.supportAura(h);                                                  // саппорт на линии усиливает напарника
+      * (allies >= 2 ? sm(0.012, h, 'team') : 1);                              // слаженность с союзниками
     for (const k in c.m) c.m[k] *= gm;
     if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech') + h.itemStat('crit'), 0.01, 0.8))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
     c.m.mana *= sm(0.045, h, 'read');
@@ -497,7 +465,11 @@ class Game {
   farmWave(h, amt) {
     const lane = this.lanes[h.ev.lane];
     const fm = sm(0.05, h, 'farm');
-    lane.farm[h.team] += amt * (sm(0.04, h, 'farm'));
+    // волну можно убить только один раз: урон сверх её запаса здоровья линию дальше не толкает
+    if (!lane.waveHp || lane.waveHp.round !== this.round) lane.waveHp = { round: this.round, blue: 0, red: 0 };
+    const pushAdd = Math.max(0, Math.min(amt * (sm(0.04, h, 'farm')), WAVE_HP(this.minute) - lane.waveHp[h.team]));
+    lane.waveHp[h.team] += pushAdd;
+    lane.farm[h.team] += pushAdd;
     let gold = Math.round(amt * 0.32 * fm * (hasPerk(h, 'farmer') ? 1.2 : 1));
     // волна конечна: за минуту одна команда может снять с линии не больше её стоимости — двое на линии делят золото
     if (!lane.wave || lane.wave.round !== this.round) lane.wave = { round: this.round, blue: 0, red: 0 };
@@ -547,9 +519,9 @@ class Game {
     const baron = this.teams[h.team].baron > 0 ? 1.8 : 1;
     // башню в основном сносит волна: важно, сколько ⚔ собрано и каков уровень, а не атака героя (её место — бой)
     const ref = 15 + 2.3 * (h.lvl - 1) + U.sum(h.items, it => ITEMS[it].atk || 0) * 0.6;
-    // пока враги мертвы, защищать башни некому: каждый павший защитник ускоряет снос на 25%
+    // пока враги мертвы, защищать башни некому: каждый павший защитник ускоряет снос на 50%
     const deadFoes = tm.heroes.filter(x => !x.alive).length;
-    const d = Math.round(amt * (ref / Math.max(1, h.power)) * 0.9 * baron * (1 + 0.25 * deadFoes) * (1 + h.itemStat('towerPow')));
+    const d = Math.round(amt * (ref / Math.max(1, h.power)) * 0.9 * baron * (1 + 0.5 * deadFoes) * (1 + h.itemStat('towerPow')));
     h.dmg += d; h.sdmg += d;
     this.ui.projectileTo(h, { kind: 'structure', ev }, '#ffd166');
     this.ui.npcHit(ev, d);
@@ -635,7 +607,7 @@ class Game {
   /* ---------------- Бой ---------------- */
   dealDamage(src, tgt, amt, kind = 'phys', noRedirect) {
     if (!tgt || !tgt.alive || amt <= 0) return 0;
-    let arm = (tgt.armor + this.teamBuffs(tgt.team).arm) * (1 - Math.min(0.6, src ? src.itemStat('pen') : 0)) * (kind === 'phys' ? this.physAdapt(tgt.team) : 1);
+    let arm = (tgt.armor + this.teamBuffs(tgt.team).arm) * (1 - Math.min(0.6, src ? src.itemStat('pen') : 0));
     if (kind === 'magic') arm *= 0.5;
     if (kind === 'true') arm = 0;
     let d = amt * HERO_DMG * 100 / (100 + arm) * (1 + 0.008 * Math.max(0, sd(tgt, 'agr')));
@@ -645,6 +617,9 @@ class Game {
     d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.3, 1.7);
     // уязвимость рядом с врагом, у которого она в пассивке (Ундина), и якорь (+20% урона)
     if (kind === 'phys' && ev && ev.sides && ev.sides[tgt.enemyTeam].some(x => x.alive && x.def.passive.vuln)) d *= 1 + this.pv(ev.sides[tgt.enemyTeam].find(x => x.alive && x.def.passive.vuln), 'vuln');
+    if (kind === 'phys') d *= 1 - Math.min(0.4, tgt.itemStat('physRed'));   // предметы против физического урона
+    if (kind === 'magic') d *= 1 - Math.min(0.4, tgt.itemStat('magRed'));   // и против магического
+    if (src && src.itemStat('antiHeal') > 0) tgt.wounded = { until: this.round + 1, k: Math.min(0.6, src.itemStat('antiHeal')) };   // скверна режет лечение
     if (tgt.anchored > 0) d *= 1.2;
     if (src && hasPerk(src, 'hunter') && tgt.hp / tgt.maxHp < 0.35) d *= 1.2;
     if (src && hasPerk(src, 'reckless')) d *= 1.1;
@@ -671,16 +646,6 @@ class Game {
     if (ok) { this.ui.float(tgt, 'УВОРОТ!', '#9fe8ff'); tgt.dodged = (tgt.dodged || 0) + 1; }
     return ok;
   }
-  /* Однотипный урон легко закрыть бронёй: каждый «физический» герой врага сверх трёх даёт +45% брони
-     (так в LoL команда собирается в броню против состава из одних стрелков и бойцов) */
-  physAdapt(team) {
-    if (!this._physN) this._physN = {};
-    if (this._physN[team] == null) {
-      const foes = this.teams[this.enemyOf(team)].heroes;
-      this._physN[team] = foes.filter(f => ['adc', 'top', 'jng'].includes(f.def.main) && (f.def.tags.includes('dps') || f.def.main === 'adc' || (f.def.mod || {}).atk > 1)).length;
-    }
-    return 1 + 0.45 * Math.max(0, this._physN[team] - 3);
-  }
   /* Урон без брони и перехвата: уже посчитанное значение уходит в щит и здоровье */
   takeRaw(src, tgt, d) {
     if (!tgt.alive || d <= 0) return 0;
@@ -701,6 +666,7 @@ class Game {
 
   healHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
+    if (tgt.wounded && tgt.wounded.until >= this.round) amt *= 1 - tgt.wounded.k;
     if (src && src.castMul) amt *= src.castMul;
     if (src !== tgt) amt *= sm(0.08, src, 'team');
     const before = tgt.hp;
@@ -729,8 +695,10 @@ class Game {
     else this.ui.burstTo(h, 'mana', '#3fe0f0');
   }
   addGold(h, amt) { h.gold += amt; h.totalGold += amt; }
+  /* Амулет стойкости: шанс стряхнуть контроль */
+  shrug(tgt) { const t = tgt.itemStat('tenacity'); if (t > 0 && U.chance(t)) { this.ui.float(tgt, 'СТОЙКОСТЬ', '#c9f'); return true; } return false; }
   stun(src, tgt) {
-    if (!tgt.alive) return;
+    if (!tgt.alive || this.shrug(tgt)) return;
     tgt.stunned = 1;
     sfx('stun');
     this.ui.float(tgt, 'ОГЛУШЕНИЕ', '#ffe066');
@@ -925,6 +893,26 @@ class Game {
       for (const d of this.teams[this.enemyOf(t)].heroes) if (this.free(d) && U.chance(0.75)) this.join(ev, d);
       this.persist.push(ev);
       this.ui.log(`🚩 ${tm.name} собираются в натиск на <b>${lane.toUpperCase()}</b>!`, t);
+    }
+
+    // 4б. Численный перевес: пока у врага двое и больше на респауне, команда собирается и давит башню.
+    // Решает командное мышление того, кто созывает: умные команды используют перевес почти всегда
+    for (const t of ['blue', 'red']) {
+      const et = this.enemyOf(t);
+      const dead = this.teams[et].heroes.filter(h => !h.alive).length;
+      if (dead < 2 || this.persist.some(e => e.team && e.att === t)) continue;
+      const crew = this.teams[t].heroes.filter(h => this.free(h) && h.hp / h.maxHp > 0.4);
+      if (crew.length < 3) continue;
+      const caller = U.maxBy(crew, h => iqOf(h, 'team'));
+      if (!U.chance(U.clamp((iqOf(caller, 'team') - 2) / 14 + 0.15 * (dead - 2), 0.1, 0.95))) continue;
+      const lane = this.bestSiegeLane(et);
+      const st = this.structureFor(et, lane);
+      if (!st || (st.idx === 3 && !this.nexusOpen(et))) continue;
+      const ev = this.mkEv('siege', { lane, att: t, structure: st, left: 2, team: true });
+      crew.forEach(h => this.join(ev, h));
+      for (const d of this.teams[et].heroes) if (this.free(d) && U.chance(0.75)) this.join(ev, d);
+      this.persist.push(ev);
+      this.ui.log(`👥 ${this.tag(caller)}: «У них ${dead} на респауне — все на <b>${lane.toUpperCase()}</b>!»`, t);
     }
 
     // 4a. Сигналы, отправленные человеком (тем же механизмом, что и у ИИ)
@@ -1197,7 +1185,7 @@ class Game {
             const lane = this.lanes[st.lane];
             const minions = (ev.att === 'blue' ? lane.push : -lane.push) > 0.3;
             const dmg = (90 + this.minute * 9) * (minions ? 0.5 : 1) * (st.idx === 3 ? 1.3 : 1);
-            const v = U.pick(att);
+            const v = this.frontline(att);   // башня бьёт того, кто впереди: танк прикрывает осаду, без него достаётся хрупким
             this.ui.projectileFrom({ kind: 'structure', ev }, v, '#ffe9a8');
             this.dealDamage(null, v, dmg, 'true');
           }
@@ -1238,13 +1226,6 @@ class Game {
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
         if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
-        // журнал линии стрелка: стоял ли рядом герой-саппорт (и насколько скилловый игрок за ним)
-        if ((h.def.main || h.def.role) === 'adc' && this.minute < 15 && h.ev.type === 'lane') {
-          const L = h.laneLog = h.laneLog || { n: 0, sup: 0 };
-          L.n++;
-          const s = h.ev.sides[h.team].find(x => x !== h && x.alive && (x.def.main || x.def.role) === 'sup');
-          if (s) L.sup += 0.6 + 0.4 * U.clamp((playerOvr(s.pl || { stats: {} }) + (s.bonusAll || 0) - 8) / 8, 0, 1);
-        }
         // мидер и саппорт копят желание сходить на соседнюю линию (роум); быстрее — у агрессивных
         if ((h.role === 'mid' || h.role === 'sup') && h.ev.lane === h.lane && ['lane', 'siege', 'defend'].includes(h.ev.type)) h.roam += Math.max(3, (h.role === 'mid' ? 14 : 12) + 1.2 * sd(h, 'agr'));
       } else {
@@ -1320,9 +1301,9 @@ class Game {
     owner.mana = Math.max(0, owner.mana - 15);
     this.dealDamage(src && src.alive ? src : null, owner, dmg, 'magic');
   }
-  taunt(src, foes, rounds = 1) { for (const e of foes) { e.taunted = rounds + 1; e.tauntBy = src; this.ui.float(e, '😠 ПРОВОКАЦИЯ', '#ffb36b'); } }
-  silence(src, tgt, rounds) { tgt.silenced = rounds + 1; this.ui.float(tgt, '🤐 НЕМОТА', '#9fd3ff'); }
-  anchor(src, tgt, rounds) { tgt.anchored = rounds + 1; this.ui.float(tgt, '⚓ ЯКОРЬ', '#c8d2e0'); }
+  taunt(src, foes, rounds = 1) { for (const e of foes) { if (this.shrug(e)) continue; e.taunted = rounds + 1; e.tauntBy = src; this.ui.float(e, '😠 ПРОВОКАЦИЯ', '#ffb36b'); } }
+  silence(src, tgt, rounds) { if (this.shrug(tgt)) return; tgt.silenced = rounds + 1; this.ui.float(tgt, '🤐 НЕМОТА', '#9fd3ff'); }
+  anchor(src, tgt, rounds) { if (this.shrug(tgt)) return; tgt.anchored = rounds + 1; this.ui.float(tgt, '⚓ ЯКОРЬ', '#c8d2e0'); }
   /* Немедленный дополнительный ход союзника (Ноктюрн) */
   async bonusMove(h) {
     if (!h.alive || this.over) return;

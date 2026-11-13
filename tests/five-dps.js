@@ -31,6 +31,7 @@ if (!process.env.FD_WORKER) {
       console.log(`5 дамагеров против сбалансированных: побед ${(100 * S('win') / N).toFixed(1)}% из ${N} (погрешность ±${(200 * Math.sqrt(0.25 / N)).toFixed(1)} п.п.)`);
       console.log(`пригодность к ролям: дамагеры ${(S('fitA') / N).toFixed(1)} из 15, сбалансированные ${(S('fitB') / N).toFixed(1)}`);
       console.log(`за матч: убийств ${(S('ka') / N).toFixed(1)} / ${(S('kb') / N).toFixed(1)}, драконов ${(S('da') / N).toFixed(2)} / ${(S('db') / N).toFixed(2)}, Баронов ${(S('ba') / N).toFixed(2)} / ${(S('bb') / N).toFixed(2)}, башен снесено ${(S('ta') / N).toFixed(1)} / ${(S('tb') / N).toFixed(1)} (дамагеры / сбалансированные); длина ${(S('min') / N).toFixed(1)} мин`);
+      console.log(`предметы против физ. урона за матч: у дамагеров ${(S('ia') / N).toFixed(2)}, у сбалансированных ${(S('ib') / N).toFixed(2)}; средняя броня сбалансированных к концу ${(S('ar') / S('arN')).toFixed(0)}`);
       console.log(`победы дамагеров по длине матча: до 35 мин ${(100 * S('w35') / S('s35')).toFixed(0)}% (${S('s35')}), 35–45 мин ${(100 * S('w45') / S('s45')).toFixed(0)}% (${S('s45')}), дольше ${(100 * S('wl') / S('l45')).toFixed(0)}% (${S('l45')})`);
     });
   }
@@ -38,7 +39,7 @@ if (!process.env.FD_WORKER) {
   const n = +(process.argv[2] || 400);
   const dps = HEROES.filter(h => h.tags.includes('dps'));
   let win = 0, fitA = 0, fitB = 0, minSum = 0, kills = { a: 0, b: 0 }, early = 0, earlyN = 0;
-  const X = { da: 0, db: 0, ba: 0, bb: 0, ta: 0, tb: 0, s35: 0, w35: 0, s45: 0, w45: 0, l45: 0, wl: 0 };
+  const X = { ia: 0, ib: 0, ar: 0, arN: 0, da: 0, db: 0, ba: 0, bb: 0, ta: 0, tb: 0, s35: 0, w35: 0, s45: 0, w45: 0, l45: 0, wl: 0 };
   for (let i = 0; i < n; i++) {
     const A = assign(U.shuffle(dps.slice()).slice(0, 5));
     // сбалансированный состав: танк, лекарь или поддержка, контроль, стрелок и ещё один герой — все на подходящих ролях
@@ -67,6 +68,7 @@ if (!process.env.FD_WORKER) {
     const bt = at === 'blue' ? 'red' : 'blue', fallen = t => ['top', 'mid', 'bot'].reduce((s, l) => s + g.teams[t].towers[l].filter(x => x <= 0).length, 0);
     X.da += g.teams[at].dragons.length; X.db += g.teams[bt].dragons.length; X.ba += g.teams[at].baronsTaken || 0; X.bb += g.teams[bt].baronsTaken || 0;
     X.ta += fallen(bt); X.tb += fallen(at);
+    for (const h of g.heroes) { const cnt = h.items.filter(i => i === 'spikes' || i === 'stoneskin').length; if (h.team === at) X.ia += cnt; else { X.ib += cnt; X.ar += h.armor; X.arN++; } }
     const won = g.winner === at ? 1 : 0; if (g.minute < 35) { X.s35++; X.w35 += won; } else if (g.minute < 45) { X.s45++; X.w45 += won; } else { X.l45++; X.wl += won; }
   }
   process.send(Object.assign({ n, win, fitA, fitB, ka: kills.a, kb: kills.b, min: minSum }, X));
