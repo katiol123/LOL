@@ -91,6 +91,8 @@ const UI = {
     $('#col-blue').innerHTML = ''; $('#col-red').innerHTML = '';
     $('#log').innerHTML = ''; $('#killfeed').innerHTML = '';
     for (const h of game.heroes) this.buildCard(h);
+    $('.hud-team.blue .hud-name').textContent = game.teams.blue.name;
+    $('.hud-team.red .hud-name').textContent = game.teams.red.name;
     Minimap.pos.clear();
     this.resize();
     this.view = game.heroes[0];
@@ -103,8 +105,8 @@ const UI = {
     c.innerHTML = `
       <div class="hc-info">
         <div class="hc-top">
-          <div class="portrait">${h.def.emoji}<span class="lvl">1</span></div>
-          <div class="hc-name"><b>${h.name}</b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${ROLES[h.role].name}</small></div>
+          <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${h.def.emoji}</span><span class="lvl">1</span><span class="tilt-badge" title="Тильт">😤</span></div>
+          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}</b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Герой не по профилю роли: ${FIT_NAMES[h.fit]}">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>
@@ -142,10 +144,12 @@ const UI = {
     }
     const f0 = $('#feature'); f0.style.width = f0.style.height = '10px';
     const box = $('#feature-box');
-    const fs = Math.max(200, Math.min(box.clientWidth, box.clientHeight) - 4);
+    const strip = 0.9 / N;  // полоса «следующие камни» над полем
+    const fs = Math.max(200, Math.min(box.clientWidth, (box.clientHeight - 4) / (1 + strip)));
     const f = $('#feature');
-    f.style.width = f.style.height = fs + 'px';
-    f.width = f.height = Math.round(fs * d);
+    this.featStrip = Math.round(fs * strip);
+    f.style.width = fs + 'px'; f.style.height = (fs + this.featStrip) + 'px';
+    f.width = Math.round(fs * d); f.height = Math.round((fs + this.featStrip) * d);
     const mp = $('#minimap');
     const ms = Math.max(140, Math.min(230, ($('#bottom').clientHeight || 230) - 34));
     mp.style.width = mp.style.height = ms + 'px';
@@ -175,9 +179,12 @@ const UI = {
     // главное поле
     const f = $('#feature'); const fc = f.getContext('2d');
     fc.setTransform(d, 0, 0, d, 0, 0);
-    const fs = f.width / d;
-    fc.clearRect(0, 0, fs, fs);
-    if (this.view) BoardView.draw(fc, this.view.board, 0, 0, fs, time, { active: G.active === this.view, dim: !this.view.alive, select: this.select });
+    const fs = f.width / d, st = this.featStrip || 0;
+    fc.clearRect(0, 0, fs, fs + st);
+    if (this.view) {
+      BoardView.preview(fc, this.view.board, 0, 0, fs, st, AI.preview(this.view), time);
+      BoardView.draw(fc, this.view.board, 0, st, fs, time, { active: G.active === this.view, dim: !this.view.alive, select: this.select });
+    }
     // мини-карта
     const m = $('#minimap'); const mc = m.getContext('2d');
     mc.setTransform(d, 0, 0, d, 0, 0);
@@ -247,8 +254,8 @@ const UI = {
     if (!h) return;
     const head = $('#feature-head');
     head.style.setProperty('--hc', h.def.color);
-    head.innerHTML = `<div class="portrait" style="--hc:${h.def.color};border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${h.def.emoji}</div>
-      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>ур. ${h.lvl} · ${h.team === 'blue' ? 'Синие' : 'Красные'} · ${ROLES[h.role].name} · ${h.def.title}</small></div>`;
+    head.innerHTML = `<div class="portrait pface" style="border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}">${h.def.emoji}</span></div>
+      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${U.esc(h.nick)} · ${h.name}</b><small>ур. ${h.lvl} · ${U.esc(this.game.teams[h.team].name)} · ${ROLES[h.role].name}${h.ms ? ' · мастерство ' + h.ms : ''}${h.fit < 3 ? ' · не по профилю' : ''}</small></div>`;
     head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
     $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
     this.skKey = '';
@@ -464,7 +471,7 @@ const UI = {
     b.addEventListener('animationend', () => b.remove());
   },
   killFeed(src, tgt) {
-    const e = el('div', 'kf', src ? `<span class="tag ${src.team}">${src.def.emoji} ${src.name}</span><span class="x">⚔</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${tgt.name}</span>` : `<span class="x">☠</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${tgt.name}</span>`);
+    const e = el('div', 'kf', src ? `<span class="tag ${src.team}">${src.def.emoji} ${U.esc(src.nick)}</span><span class="x">⚔</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${U.esc(tgt.nick)}</span>` : `<span class="x">☠</span><span class="tag ${tgt.team}">${tgt.def.emoji} ${U.esc(tgt.nick)}</span>`);
     if (src) sfx('kill');
     const kf = $('#killfeed'); kf.appendChild(e);
     if (kf.children.length > 4) kf.firstChild.remove();
@@ -478,6 +485,20 @@ const UI = {
     this.float(h, `Уровень ${h.lvl}!`, '#ffe066');
     const p = this.heroDst(h); if (p) FX.burst(p[0], p[1], '#ffe066', 16, 120);
   },
+  teamColors(t) { return (this.game && this.game.opts.colors && this.game.opts.colors[t]) || (t === 'blue' ? ['#1e5f9e', '#d9e6f5'] : ['#9e2235', '#ffcf8a']); },
+  tilt(h) {
+    const r = this.cards.get(h.id); if (!r) return;
+    r.c.classList.toggle('tilted', h.tilt > 0);
+    r.c.querySelector('.tilt-badge').textContent = h.tilt > 0 ? '😤' + (h.tilt > 1 ? h.tilt : '') : '';
+    this.float(h, h.tilt > 0 ? `ТИЛЬТ ${h.tilt}` : 'спокоен', h.tilt > 0 ? '#ff8a5c' : '#9fe8ff');
+    if (h.tilt > 0) sfx('tilt');
+  },
+  signal(sig) {
+    sfx('ping');
+    Minimap.ping(sig.from, sig.type);
+    this.float(sig.from, this.game.signalLabel(sig), '#ffe066');
+    for (const a of sig.answers) this.float(a.h, a.accept ? (a.fast ? '✔ иду!' : '⏳ позже') : '✖ нет', a.accept ? '#9fe8a0' : '#ff9a9a', true);
+  },
   shop(h, items) { sfx('coin'); this.float(h, '🛒 ' + items.map(i => i === 'elixir' ? '🧪' : ITEMS[i].icon).join(''), '#ffd76b'); },
   boardHit(h, color) {
     const r = this.cards.get(h.id);
@@ -489,13 +510,23 @@ const UI = {
 };
 
 /* ---------- Драфт ---------- */
+/* Лицо игрока в цветах клуба (или стороны) */
+function faceHTML(p, colors, cls = '') {
+  if (!p || !p.face) return `<div class="face-wrap ${cls}"><div class="face-blank">?</div></div>`;
+  return `<div class="face-wrap ${cls}">${faceSVG(p.face, { jersey: colors && colors[0] || '#2b4c7e', jersey2: colors && colors[1] || '#e8c66e' })}</div>`;
+}
+const fitStars = f => '★'.repeat(f) + '☆'.repeat(3 - f);
+
 const Draft = {
-  heroCard(d) {
-    const s = BASE_STATS[d.role], m = d.mod || {};
+  heroCard(d, pl) {
+    const s = BASE_STATS[d.main || d.role], m = d.mod || {};
+    const fits = ROLE_ORDER.filter(r => d.fit[r] >= 1).sort((a, b) => d.fit[b] - d.fit[a]).map(r => `<span class="fit f${d.fit[r]}">${ROLES[r].short} ${fitStars(d.fit[r])}</span>`).join('');
+    const ms = pl ? masteryOf(pl, d.id) : 0;
     return `<div class="hero-detail" style="--hc:${d.color}">
       <div class="hd-portrait">${d.emoji}</div>
       <div>
-        <h3>${d.name}</h3><div class="hd-title">${d.title} · ${ROLES[d.role].icon} ${ROLES[d.role].name}</div>
+        <h3>${d.name}</h3><div class="hd-title">${d.title} · ${d.tags.map(t => TAG_NAMES[t]).join(', ')}</div>
+        <div class="hd-fits">${fits}${ms ? `<span class="fit ms">Мастерство ${pl.nick}: ${ms}</span>` : ''}</div>
         <div class="hd-lore">${d.lore}</div>
         <div class="hd-stats"><span>❤ <b>${Math.round(s.hp * (m.hp || 1))}</b></span><span>⚔ <b>${(s.atk * (m.atk || 1)).toFixed(0)}</b></span><span>🛡 <b>${Math.round(s.arm * (m.arm || 1))}</b></span><span>✦ <b>${Math.round(s.sp * (m.sp || 1))}</b></span><span>◆ <b>${s.mana}</b></span></div>
         <div class="skill-line"><div class="si">✧<i>П</i></div><div><b>${d.passive.name}</b> <small>пассивное</small><br>${d.passive.desc}</div></div>
@@ -503,21 +534,27 @@ const Draft = {
         <div class="skill-line"><div class="si">${d.r.icon}<i>R</i></div><div><b>${d.r.name}</b> <small>${d.r.cost} маны · КД ${d.r.cd} · с 6 ур.</small><br>${d.r.desc}</div></div>
       </div></div>`;
   },
-  async run() {
+  /* players: { blue: [5 игроков], red: [...] }, meta: { names, colors } */
+  async run(players, meta = {}) {
+    const names = meta.names || { blue: 'Синие', red: 'Красные' };
+    const colors = meta.colors || { blue: ['#1e5f9e', '#d9e6f5'], red: ['#9e2235', '#ffcf8a'] };
+    $('.draft-team.blue').textContent = names.blue; $('.draft-team.red').textContent = names.red;
     const pool = $('#draft-pool'); pool.innerHTML = '';
     const cards = new Map();
-    const sorted = ROLE_ORDER.flatMap(r => HEROES.filter(h => h.role === r));
-    for (const d of sorted) {
-      const c = el('div', 'pool-card', `<div class="pe">${d.emoji}</div><div class="pn">${d.name}</div><div class="pr">${ROLES[d.role].short}</div>`);
+    for (const d of ROLE_ORDER.flatMap(r => HEROES.filter(h => h.main === r))) {
+      const c = el('div', 'pool-card', `<div class="pe">${d.emoji}</div><div class="pn">${d.name}</div><div class="pr">${ROLE_ORDER.filter(r => d.fit[r] >= 2).map(r => ROLES[r].short).join(' · ')}</div>`);
       c.style.setProperty('--hc', d.color);
       c.addEventListener('click', () => { $('#draft-detail').innerHTML = this.heroCard(d); });
       pool.appendChild(c); cards.set(d.id, c);
     }
-    $('#draft-detail').innerHTML = '<p style="color:var(--muted)">ИИ-капитаны выбирают героев. Нажмите на любого героя, чтобы изучить его умения.</p>';
-    const slots = { blue: [], red: [] };
+    $('#draft-detail').innerHTML = '<p style="color:var(--muted)">Игроки выбирают героев. Любой герой подходит на любую роль, но звёзды показывают, где он силён. Нажмите на героя, чтобы изучить его.</p>';
+    const slots = { blue: new Map(), red: new Map() };
     for (const t of ['blue', 'red']) {
       const col = $('#picks-' + t); col.innerHTML = '';
-      for (let i = 0; i < 5; i++) { const s = el('div', 'pick-slot', `<div class="pp">?</div><div class="pn"><b>—</b><small>ожидание</small></div>`); col.appendChild(s); slots[t].push(s); }
+      for (const p of players[t]) {
+        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
+        col.appendChild(s); slots[t].set(p, s);
+      }
     }
     const order = ['blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red'];
     $('#draft-order').innerHTML = order.map(t => `<div class="po ${t}"></div>`).join('');
@@ -526,41 +563,34 @@ const Draft = {
     const taken = new Set();
     for (let i = 0; i < order.length; i++) {
       const t = order[i];
-      const slot = slots[t][picks[t].length];
-      slot.classList.add('picking');
       po.forEach((x, j) => { x.classList.toggle('cur', j === i); x.classList.toggle('done', j < i); });
-      $('#draft-phase').textContent = `${t === 'blue' ? 'Синие' : 'Красные'} выбирают`;
+      $('#draft-phase').textContent = `${names[t]} выбирают`;
       $('#draft-phase').style.color = t === 'blue' ? 'var(--blue)' : 'var(--red)';
-      const need = ROLE_ORDER.filter(r => !picks[t].some(p => p.role === r));
-      const avail = HEROES.filter(h => !taken.has(h.id) && need.includes(h.role));
-      // приоритет: роль, где осталось меньше всего героев (за неё борются)
-      const scarce = U.minBy(need, r => avail.filter(h => h.role === r).length + Math.random());
-      const cand = avail.filter(h => h.role === scarce);
-      $('#draft-sub').textContent = `Ищут героя на роль: ${ROLES[scarce].name}`;
-      const browse = U.shuffle(avail.slice()).slice(0, 4);
-      for (const b of browse) {
-        const c = cards.get(b.id); c.classList.add('hover');
-        sfx('draft', { n: U.ri(8) });
-        await wait(170); c.classList.remove('hover');
-      }
-      const choice = U.pick(cand);
-      const cc = cards.get(choice.id);
+      const pick = AI.draftPick(players, picks, taken, t);
+      const slot = slots[t].get(pick.pl);
+      slot.classList.add('picking');
+      $('#draft-sub').textContent = `${pick.pl.nick} (${ROLES[pick.role].name}) выбирает героя…`;
+      const browse = U.shuffle(HEROES.filter(h => !taken.has(h.id) && h !== pick.def)).slice(0, 3);
+      for (const b of browse) { const c = cards.get(b.id); c.classList.add('hover'); sfx('draft', { n: U.ri(8) }); await wait(160); c.classList.remove('hover'); }
+      const cc = cards.get(pick.def.id);
       cc.classList.add('hover');
-      $('#draft-detail').innerHTML = this.heroCard(choice);
+      $('#draft-detail').innerHTML = this.heroCard(pick.def, pick.pl);
       await wait(420);
       cc.classList.remove('hover');
       sfx('lockin');
       cc.classList.add('taken');
-      cc.dataset.team = t === 'blue' ? 'СИНИЕ' : 'КРАСНЫЕ';
+      cc.dataset.team = names[t].toUpperCase();
       cc.style.setProperty('--tc', t === 'blue' ? '#1e6fa8' : '#a82a36');
-      taken.add(choice.id);
-      picks[t].push(choice);
+      taken.add(pick.def.id);
+      picks[t].push(pick);
       slot.classList.remove('picking'); slot.classList.add('done');
-      slot.querySelector('.pp').textContent = choice.emoji;
-      slot.querySelector('.pp').style.background = `radial-gradient(circle at 35% 30%, ${choice.color}, #0b0f1d 85%)`;
-      slot.querySelector('.pn').innerHTML = `<b>${choice.name}</b><small>${ROLES[choice.role].icon} ${ROLES[choice.role].name}</small>`;
+      const pp = slot.querySelector('.pp');
+      pp.textContent = pick.def.emoji;
+      pp.style.background = `radial-gradient(circle at 35% 30%, ${pick.def.color}, #0b0f1d 85%)`;
+      slot.querySelector('.pn').innerHTML = `<b>${U.esc(pick.pl.nick)} · ${pick.def.name}</b><small>${ROLES[pick.role].icon} ${ROLES[pick.role].name} ${fitStars(pick.def.fit[pick.role])}</small><em class="why ${pick.def.fit[pick.role] < 3 ? 'off' : ''}">${pick.reason}</em>`;
       await wait(380);
     }
+    po.forEach(x => { x.classList.remove('cur'); x.classList.add('done'); });
     $('#draft-phase').textContent = 'Составы утверждены';
     $('#draft-phase').style.color = 'var(--gold)';
     $('#draft-sub').textContent = 'Загрузка Ущелья Кристаллов…';

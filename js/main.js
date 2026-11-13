@@ -9,7 +9,9 @@ const App = {
     await new Promise(r => setTimeout(r, 450));
     document.querySelectorAll('.screen').forEach(s => { s.style.transition = 'none'; s.classList.toggle('active', s.id === id); });
     void document.body.offsetWidth;
-    document.querySelectorAll('.screen').forEach(s => { s.style.transition = ''; });
+    document.querySelectorAll('.screen').forEach(s => { s.style.transition = ''; s.scrollTop = 0; s.scrollLeft = 0; });
+    const app = $('#app'); app.scrollTop = 0; app.scrollLeft = 0;
+    if (innerWidth > 900) { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }
     await new Promise(r => setTimeout(r, 120));
     fade.classList.remove('on');
   },
@@ -54,8 +56,14 @@ const App = {
     $('#codex-close').onclick = () => $('#codex').classList.remove('open');
     $('#codex').onclick = e => { if (e.target.id === 'codex') $('#codex').classList.remove('open'); };
     $('#btn-start').onclick = () => this.start();
-    $('#btn-again').onclick = () => this.start();
-    $('#btn-menu').onclick = () => this.show('screen-title');
+    $('#btn-again').onclick = () => (this.endAction ? this.endAction() : this.start());
+    $('#btn-menu').onclick = () => { this.endAction = null; this.show('screen-title'); this.refreshTitle(); };
+    $('#btn-campaign').onclick = () => { if (loadLeague() && !confirm('Начать новую кампанию? Сохранённая будет заменена.')) return; Campaign.openCreate(); };
+    $('#btn-continue').onclick = () => Campaign.continueSaved();
+    $('#hub-menu').onclick = () => { this.show('screen-title'); this.refreshTitle(); };
+    $('#profile-close').onclick = () => $('#profile').classList.remove('open');
+    $('#profile').onclick = e => { if (e.target.id === 'profile') $('#profile').classList.remove('open'); };
+    this.refreshTitle();
     document.querySelectorAll('.speed button[data-speed]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.speed));
     addEventListener('keydown', e => {
       if (!this.game) return;
@@ -92,56 +100,88 @@ const App = {
     document.querySelectorAll('.speed button[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === (Clock.paused ? 0 : Clock.speed)));
   },
 
+  refreshTitle() { $('#btn-continue').hidden = !loadLeague(); },
+
+  /* Быстрый матч: два случайных клуба из свежесгенерированной лиги */
   async start() {
     if (this.running) return;
+    const L = createLeague();
+    const [a, b] = U.shuffle(L.clubs.slice()).slice(0, 2);
+    Campaign.L = L;
+    await this.playMatch({ blue: rosterOf(L, a), red: rosterOf(L, b) }, {
+      names: { blue: a.name, red: b.name }, colors: { blue: clubColors(a), red: clubColors(b) }, quick: true,
+    });
+  },
+
+  /* Общий запуск матча: драфт → VS → игра → итоги. Возвращает игру, когда игрок нажмёт «Продолжить». */
+  async playMatch(players, meta) {
     this.running = true;
-    this.setSpeed(1);
+    this.setSpeed(this.lastSpeed && !meta.quick ? this.lastSpeed : 1);
+    Clock.headless = false;
+    this.meta = meta;
     await this.show('screen-draft');
-    const picks = await Draft.run();
-    // VS
+    const picks = await Draft.run(players, meta);
     for (const t of ['blue', 'red']) {
-      $('#vs-' + t).innerHTML = ROLE_ORDER.map(r => picks[t].find(p => p.role === r)).map((d, i) =>
-        `<div class="vs-card" style="--hc:${d.color};transition-delay:${i * 0.12}s"><div class="vp">${d.emoji}</div><b>${d.name}</b><small>${ROLES[d.role].short} · ${d.title}</small></div>`).join('');
+      const col = meta.colors ? meta.colors[t] : null;
+      $('#vs-' + t).innerHTML = `<div class="vs-team">${U.esc(meta.names ? meta.names[t] : t)}</div>` + ROLE_ORDER.map(r => picks[t].find(p => p.role === r)).map((p, i) =>
+        `<div class="vs-card" style="--hc:${p.def.color};transition-delay:${i * 0.12}s"><div class="vp">${faceHTML(p.pl, col)}<span class="hero-badge" style="--hc:${p.def.color}">${p.def.emoji}</span></div><b>${U.esc(p.pl.nick)}</b><small>${p.def.name} · ${ROLES[p.role].short}</small></div>`).join('');
     }
     $('#screen-vs').classList.remove('go');
     await this.show('screen-vs');
     await new Promise(r => setTimeout(r, 100));
     $('#screen-vs').classList.add('go');
     await new Promise(r => setTimeout(r, 3400));
-    // Матч
-    this.game = new Game(picks.blue, picks.red, UI);
+    this.game = new Game(picks.blue, picks.red, UI, { names: meta.names, colors: meta.colors });
     await this.show('screen-game');
     UI.init(this.game);
     requestAnimationFrame(() => UI.resize());
     await new Promise(r => setTimeout(r, 400));
-    UI.banner('ДОБРО ПОЖАЛОВАТЬ', 'в Ущелье Кристаллов', 'sys');
+    UI.banner('ДОБРО ПОЖАЛОВАТЬ', `${meta.names ? meta.names.blue + ' — ' + meta.names.red : 'в Ущелье Кристаллов'}`, 'sys');
     this.running = false;
+    const done = new Promise(res => { this.matchDone = res; });
     try { await this.game.run(); } catch (e) { console.error(e); UI.log('Ошибка симуляции: ' + U.esc(e.message), 'sys'); }
+    return done;
   },
 
   showEnd(G) {
+    const meta = this.meta || {};
+    computeRatings(G);
+    const rec = meta.onResult ? meta.onResult(G) : null;
+    const gains = rec ? Object.fromEntries(rec.players.map(x => [x.id, x.gain])) : {};
     const w = G.winner;
-    $('#end-title').textContent = w === 'blue' ? 'Победа Синих' : 'Победа Красных';
+    $('#end-title').textContent = `Победа: ${G.teams[w].name}`;
     $('#end-title').className = w;
-    $('#end-sub').textContent = `Длительность ${U.fmtTime(G.minute)} · Убийства ${G.teams.blue.kills} : ${G.teams.red.kills} · Драконы ${G.teams.blue.dragons.length} : ${G.teams.red.dragons.length} · Башни ${this.towersDown(G, 'red')} : ${this.towersDown(G, 'blue')}`;
+    let sub = `Длительность ${U.fmtTime(G.minute)} · Убийства ${G.teams.blue.kills} : ${G.teams.red.kills} · Драконы ${G.teams.blue.dragons.length} : ${G.teams.red.dragons.length} · Башни ${this.towersDown(G, 'red')} : ${this.towersDown(G, 'blue')}`;
+    if (meta.series) {
+      const ws = [...meta.series.prev, rec ? rec.winner : null].filter(Boolean);
+      const h = ws.filter(x => x === 'home').length, a = ws.length - h;
+      sub += ` · Серия: ${meta.series.homeName} ${h} : ${a} ${meta.series.awayName}${ws.length === 2 ? (h === a ? ' — ничья (по 1 очку)' : ` — победа ${h > a ? meta.series.homeName : meta.series.awayName} (3 очка)`) : ''}`;
+    }
+    $('#end-sub').textContent = sub;
     const all = G.heroes;
-    const score = h => h.k * 3 + h.a * 1.5 - h.d * 1.5 + h.dmg / 1200 + (h.healed + (h.shielded || 0)) / 900 + (h.vis || 0) / 6;
-    const mvp = U.maxBy(G.teams[w].heroes, score);
-    const row = h => `<tr><td class="${h === mvp ? 'mvp' : ''}"><span class="pt" style="--hc:${h.def.color}">${h.def.emoji}</span>${h.name}${h === mvp ? ' ★ MVP' : ''}</td><td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
+    const mvp = all.find(h => h.mvp);
+    const row = h => `<tr class="${h.pl && h.pl.human ? 'me' : ''}"><td class="${h === mvp ? 'mvp' : ''}"><span class="pt pface-s">${faceHTML(h.pl, UI.teamColors(h.team))}</span>${U.esc(h.nick)}${h.pl && h.pl.human ? ' <span class="you">ВЫ</span>' : ''}${h === mvp ? ' ★ MVP' : ''}<br><small class="muted">${h.def.emoji} ${h.name} · ${ROLES[h.role].short}${h.fit < 3 ? ' ' + fitStars(h.fit) : ''}</small></td>
+      <td><span class="rbadge" style="background:${ratingColor(h.rating)}">${h.rating.toFixed(1)}</span>${gains[h.pl.id] ? `<span class="gain" title="Мастерство на герое выросло за высокую оценку"> ✦+${gains[h.pl.id]}</span>` : ''}</td>
+      <td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
     $('#end-table').innerHTML = ['blue', 'red'].map(t => `
-      <div class="panel et ${t} ${t === w ? 'win' : ''}"><h3>${G.teams[t].name}${t === w ? ' — победа' : ''}</h3>
-      <table><tr><th>Герой</th><th>Ур.</th><th>У/С/П</th><th>Урон</th><th>Леч./щит</th><th>Обзор</th><th>Золото</th><th>Предметы</th></tr>
+      <div class="panel et ${t} ${t === w ? 'win' : ''}"><h3>${U.esc(G.teams[t].name)}${t === w ? ' — победа' : ''}</h3>
+      <table><tr><th>Игрок</th><th>Оценка</th><th>Ур.</th><th>У/С/П</th><th>Урон</th><th>Леч./щит</th><th>Обзор</th><th>Золото</th><th>Предметы</th></tr>
       ${G.teams[t].heroes.map(row).join('')}</table></div>`).join('');
     const aw = [
+      ['★ Лучшая оценка', mvp, h => h.rating.toFixed(1)],
       ['⚔ Больше всего урона', U.maxBy(all, h => h.dmg), h => Math.round(h.dmg)],
       ['☠ Больше всего убийств', U.maxBy(all, h => h.k * 100 + h.a), h => `${h.k} уб.`],
       ['✚ Лучший целитель', U.maxBy(all, h => h.healed + (h.shielded || 0)), h => Math.round(h.healed + (h.shielded || 0))],
       ['◉ Мастер обзора', U.maxBy(all, h => h.vis || 0), h => `${Math.round(h.vis || 0)} ◉`],
-      ['● Самый богатый', U.maxBy(all, h => h.totalGold), h => `${h.totalGold}💰`],
     ];
     let awards = $('#awards');
     if (!awards) { awards = el('div', 'awards'); awards.id = 'awards'; $('#end-table').after(awards); const g = document.createElement('canvas'); g.id = 'end-graph'; awards.after(g); }
-    awards.innerHTML = aw.map(([t, h, f]) => `<div class="award"><small>${t}</small><b class="tag ${h.team}">${h.def.emoji} ${h.name}</b><div class="aw-v">${f(h)}</div></div>`).join('');
+    awards.innerHTML = aw.map(([t, h, f]) => `<div class="award"><small>${t}</small><b class="tag ${h.team}">${h.def.emoji} ${U.esc(h.nick)}</b><div class="aw-v">${f(h)}</div></div>`).join('');
+    // кнопки
+    const again = $('#btn-again');
+    if (meta.quick) { again.textContent = '⚔ Новый матч'; this.endAction = null; }
+    else { again.textContent = meta.continueLabel || 'Продолжить →'; this.endAction = () => { this.endAction = null; const r = this.matchDone; this.matchDone = null; if (r) r(G); }; }
+    $('#btn-menu').hidden = !meta.quick;
     this.show('screen-end').then(() => {
       const g = $('#end-graph'); const d = DPR();
       g.width = g.clientWidth * d; g.height = g.clientHeight * d;

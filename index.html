@@ -39,10 +39,79 @@
         </div>
       </div>
       <div class="title-actions">
-        <button class="btn primary big" id="btn-start">⚔ Начать матч: ИИ против ИИ</button>
+        <button class="btn primary big" id="btn-campaign">🏆 Новая кампания</button>
+        <button class="btn big" id="btn-continue" hidden>▶ Продолжить кампанию</button>
+        <button class="btn" id="btn-start">⚔ Быстрый матч: ИИ против ИИ</button>
         <button class="btn" id="btn-codex">📜 Герои (16)</button>
       </div>
     </div>
+  </section>
+
+  <!-- Создание персонажа -->
+  <section id="screen-create" class="screen">
+    <div class="cr-wrap">
+      <header class="cr-head"><h2>Создание игрока</h2><p>Распределите 80 очков характеристик, выберите роль, внешность и любимых героев.</p></header>
+      <div class="cr-grid">
+        <div class="panel cr-face">
+          <div id="cr-face-preview"></div>
+          <div class="cr-row"><button class="btn small" id="cr-random-face">🎲 Случайное лицо</button><button class="btn small" id="cr-gender">⚥ Сменить пол</button></div>
+          <div id="cr-face-controls"></div>
+        </div>
+        <div class="panel cr-main">
+          <div class="cr-names">
+            <label>Имя<input id="cr-first" maxlength="16"></label>
+            <label>Фамилия<input id="cr-last" maxlength="18"></label>
+            <label>Ник<input id="cr-nick" maxlength="14"></label>
+          </div>
+          <div class="cr-label">Основная роль</div>
+          <div id="cr-roles" class="cr-chips"></div>
+          <div class="cr-label">Заготовки</div>
+          <div id="cr-presets" class="cr-chips"></div>
+          <div class="cr-label">Характеристики <span id="cr-points"></span></div>
+          <div id="cr-stats"></div>
+          <p class="cr-hint">Шкала 1–20, на старте 4–16. Пункты выше 14 стоят по 2 очка. Бонусы формы и мастерства на героях добавляются сверху, вплоть до 30.</p>
+        </div>
+        <div class="panel cr-heroes">
+          <div class="cr-label">Любимые герои <small>(до 3, стартовое мастерство 4)</small></div>
+          <div id="cr-hero-list"></div>
+        </div>
+      </div>
+      <div class="title-actions"><button class="btn" id="cr-back">← В меню</button><button class="btn primary big" id="cr-next">Далее: выбор клуба →</button></div>
+    </div>
+  </section>
+
+  <!-- Выбор клуба -->
+  <section id="screen-clubs" class="screen">
+    <div class="cl-wrap">
+      <header class="cr-head"><h2>Выбор клуба</h2><p>16 клубов уже созданы. Изучите составы: вы займёте место игрока своей роли, и он покинет игру.</p></header>
+      <div class="cl-grid">
+        <div id="cl-list"></div>
+        <div class="panel" id="cl-detail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Центр лиги -->
+  <section id="screen-hub" class="screen">
+    <header class="hub-head">
+      <div id="hub-title"></div>
+      <div class="hub-actions"><button class="btn small" id="hub-menu">☰ Меню</button></div>
+    </header>
+    <div class="hub-grid">
+      <div class="hub-col">
+        <div class="panel" id="hub-next"></div>
+        <div class="panel" id="hub-me"></div>
+      </div>
+      <div class="hub-col">
+        <div class="panel" id="hub-roster"></div>
+        <div class="panel" id="hub-results"></div>
+      </div>
+      <div class="hub-col">
+        <div class="panel" id="hub-table"></div>
+        <div class="panel" id="hub-top"></div>
+      </div>
+    </div>
+    <div id="hub-progress" hidden><div class="hp-box panel"><b id="hp-text">Просчёт тура…</b><div class="bar"><i class="fill" id="hp-fill"></i></div></div></div>
   </section>
 
   <!-- Драфт -->
@@ -134,6 +203,7 @@
     </div>
   </section>
 
+  <div id="profile" class="modal"><div class="modal-box panel prof-box"><button class="close" id="profile-close">✕</button><div id="profile-body"></div></div></div>
   <div id="codex" class="modal"><div class="modal-box panel"><button class="close" id="codex-close">✕</button><h2>Герои Лиги Кристаллов</h2><div id="codex-filter"></div><div id="codex-list"></div></div></div>
 </div>
 
@@ -148,10 +218,16 @@
 <script src="js/audio.js"></script>
 <script src="js/board.js"></script>
 <script src="js/data.js"></script>
+<script src="js/players.js"></script>
+<script src="js/faces.js"></script>
+<script src="js/rating.js"></script>
+<script src="js/norms.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/game.js"></script>
+<script src="js/league.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/campaign.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

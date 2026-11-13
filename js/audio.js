@@ -147,6 +147,8 @@ const Sound = {
       }
       case 'gank': if (this.ok(name, 400)) { [0, 6].forEach((n, i) => this.tone(st(n), 0.35, { type: 'square', vol: 0.06, delay: i * 0.12, filter: 1200 })); } break;
       case 'recall': if (this.ok(name, 300)) { this.tone(st(12), 0.6, { type: 'sine', vol: 0.06, slide: st(24), attack: 0.2 }); } break;
+      case 'ping': if (this.ok(name, 250)) { this.tone(st(19), 0.12, { type: 'sine', vol: 0.12 }); this.tone(st(24), 0.18, { type: 'sine', vol: 0.1, delay: 0.1 }); } break;
+      case 'tilt': if (this.ok(name, 300)) { this.tone(st(-2), 0.35, { type: 'sawtooth', vol: 0.06, slide: st(-8), filter: 900 }); } break;
       case 'draft': if (this.ok(name, 80)) this.tone(st(12 + (a.n || 0)), 0.08, { type: 'triangle', vol: 0.06 }); break;
       case 'lockin': if (this.ok(name, 150)) { this.tone(st(0), 0.6, { type: 'sawtooth', vol: 0.08, filter: 1500 }); this.tone(st(7), 0.6, { type: 'sawtooth', vol: 0.06, filter: 1500 }); this.noise(0.25, { freq: 3000, vol: 0.1 }); } break;
       case 'whoosh': if (this.ok(name, 300)) this.noise(0.7, { freq: 300, sweep: 4000, vol: 0.18, attack: 0.3, ftype: 'bandpass', q: 1.5 }); break;

@@ -100,6 +100,31 @@ const Sprites = {
 };
 
 const BoardView = {
+  /* Полоса «следующие камни»: сколько видно — зависит от Чтения игры (0–4 на столбец) */
+  preview(ctx, b, x0, y0, size, h, count, time) {
+    if (h <= 0) return;
+    const cell = size / N;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,12,24,0.7)';
+    roundRect(ctx, x0, y0, size, h - 3, 6); ctx.fill();
+    if (!count) {
+      ctx.fillStyle = 'rgba(140,147,168,0.8)'; ctx.font = `${Math.max(9, h * 0.32)}px Inter, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Следующие камни не видны (мало «Чтения игры»)', x0 + size / 2, y0 + (h - 3) / 2);
+      ctx.restore(); return;
+    }
+    const gs = Math.min(cell * 0.62, (h - 6) / count);
+    for (let c = 0; c < N; c++) {
+      const q = b.queue[c];
+      for (let i = 0; i < count; i++) {
+        // ближайший к падению — внизу полосы
+        const px = x0 + c * cell + cell / 2, py = y0 + h - 4 - gs * (i + 0.5);
+        ctx.globalAlpha = 0.95 - i * 0.18;
+        ctx.drawImage(Sprites.get(q[i], gs), px - gs / 2, py - gs / 2, gs, gs);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  },
   draw(ctx, b, x0, y0, size, time, opts = {}) {
     const cell = size / N;
     ctx.save();
@@ -280,6 +305,8 @@ const MapGeo = {
 
 const Minimap = {
   pos: new Map(),
+  pings: [],
+  ping(h, type) { this.pings.push({ id: h.id, team: h.team, type, t: 0 }); },
   bg: null,
   drawBg(s) {
     const cv = document.createElement('canvas'); cv.width = cv.height = s;
@@ -350,6 +377,22 @@ const Minimap = {
       ctx.strokeStyle = `rgba(255,220,120,${1 - pr})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(p[0] * s, p[1] * s, s * (0.03 + pr * 0.06), 0, Math.PI * 2); ctx.stroke();
     }
+    // сигналы
+    for (const p of this.pings) {
+      p.t += dt * 0.6;
+      const pos = this.pos.get(p.id); if (!pos) continue;
+      const col = p.type === 'retreat' ? '#ff6b6b' : p.type === 'help' ? '#ffb347' : '#ffe066';
+      for (let k = 0; k < 2; k++) {
+        const tt = (p.t * 2 + k * 0.5) % 1;
+        ctx.strokeStyle = col; ctx.globalAlpha = (1 - tt) * Math.max(0, 1 - p.t);
+        ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos[0] * s, pos[1] * s, s * (0.03 + tt * 0.08), 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = Math.max(0, 1 - p.t);
+      ctx.font = `${s * 0.06}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText({ obj: '❗', help: '⚡', push: '🎯', retreat: '⛔' }[p.type] || '❗', pos[0] * s, pos[1] * s - s * 0.07);
+      ctx.globalAlpha = 1;
+    }
+    this.pings = this.pings.filter(p => p.t < 1);
     // герои
     G.heroes.forEach((h, i) => {
       const tgt = MapGeo.heroTarget(G, h, i % 5);
