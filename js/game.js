@@ -565,7 +565,7 @@ class Game {
     tm.kills++;
     // награда: серия жертвы и «камбэк» отстающей команды
     const goldDiff = U.sum(this.teams[tgt.team].heroes, x => x.totalGold) - U.sum(tm.heroes, x => x.totalGold);
-    let bounty = 250 + Math.min(350, Math.max(0, victimStreak - 1) * 70) + (goldDiff > 1200 ? 150 : 0);
+    let bounty = 250 + Math.min(350, Math.max(0, victimStreak - 1) * 70) + (goldDiff > 1200 ? 200 : 0);
     if (victimStreak >= 3) this.ui.log(`💥 ${this.tag(src)} прерывает серию ${this.tag(tgt)}!`, src.team);
     if (!this.firstBlood) { this.firstBlood = true; bounty += 100; this.ui.banner('ПЕРВАЯ КРОВЬ', `${src.name} убивает ${tgt.name}`, src.team); }
     this.addGold(src, bounty); this.gainXp(src, 100 + tgt.lvl * 12);
@@ -628,7 +628,7 @@ class Game {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
       const next = BUILDS[h.role][h.buildIdx];
-      const rich = (next ? h.gold >= ITEMS[next].cost : h.gold >= 900) && (hpR < 0.92 || U.chance(0.5));
+      const rich = (next && h.items.length < 6 ? h.gold >= ITEMS[next].cost : h.gold >= 900) && (hpR < 0.92 || U.chance(0.5));
       if (hpR < 0.3 || h.mana < 20 && hpR < 0.6 || rich) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }

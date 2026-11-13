@@ -116,7 +116,7 @@ const HEROES = [
       async cast(G, h, t) {
         await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 5), T_ATK));
         const n = h.board.count(T_ATK);
-        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 1.5, 'phys', '#5fd3c6');
+        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 1.3, 'phys', '#5fd3c6');
         await G.settle(h, true);
       },
     },
@@ -331,8 +331,8 @@ const HEROES = [
       desc: 'Глобальный чистый урон по врагу с наименьшим здоровьем — в любой точке карты.',
       ai: (G, h) => G.allEnemies(h).some(e => e.hp / e.maxHp < 0.4),
       async cast(G, h) {
-        const t = U.minBy(G.allEnemies(h), e => e.hp);
-        if (t) await G.skillDamage(h, t, G.sp(h, 100, 0.5) + h.power * 4, 'true', '#ffcf6b');
+        const t = U.minBy(G.allEnemies(h), e => e.hp / e.maxHp);
+        if (t) await G.skillDamage(h, t, G.sp(h, 100, 0.5) + h.power * 3.2, 'true', '#ffcf6b');
       },
     },
   },
@@ -341,8 +341,8 @@ const HEROES = [
     mod: { atk: 1.05 },
     lore: 'Лучница солнечного ордена, чьи стрелы рассекают тьму.',
     passive: {
-      name: 'Ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.4 урона.',
-      effects(G, h, c) { if (c.counts[T_ATK] > 0 && c.info.cascade === 0) { h.mem.rhythm = (h.mem.rhythm || 0) + 1; if (h.mem.rhythm % 3 === 0) { c.m.atk *= 1.4; c.label = 'РИТМ ×1.4'; } } },
+      name: 'Ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
+      effects(G, h, c) { if (c.counts[T_ATK] > 0 && c.info.cascade === 0) { h.mem.rhythm = (h.mem.rhythm || 0) + 1; if (h.mem.rhythm % 3 === 0) { c.m.atk *= 1.3; c.label = 'РИТМ ×1.3'; } } },
     },
     q: {
       name: 'Рассветный выстрел', icon: '☀', cost: 60, cd: 3, need: 'none',
@@ -378,7 +378,7 @@ const HEROES = [
       desc: 'Урон всем врагам в событии и по 4 булыжника на поле каждого из них.',
       async cast(G, h) {
         for (const e of G.enemiesIn(h)) {
-          await G.skillDamage(h, e, G.sp(h, 80, 0.7) + h.power * 3.5, 'phys', '#ffaa33');
+          await G.skillDamage(h, e, G.sp(h, 80, 0.7) + h.power * 4, 'phys', '#ffaa33');
           await G.enemyBoard(h, e, b => b.convert(b.pick(g => b.plain(g), 4), T_STONE), '#9aa7b8');
         }
       },
@@ -406,7 +406,7 @@ const HEROES = [
       desc: 'Обжигает врагов в событии светом, лечит всех союзников на карте и очищает их поля от булыжников, льда и тумана.',
       ai: (G, h) => U.sum(G.allTeam(h), a => 1 - a.hp / a.maxHp) > 0.7,
       async cast(G, h) {
-        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 70, 0.6), 'magic', '#fff3a0');
+        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 90, 0.7), 'magic', '#fff3a0');
         for (const a of G.allTeam(h)) {
           G.healHero(h, a, G.sp(h, 120, 1.2));
           await G.allyBoard(h, a, b => b.cleanse(null), '#fff7c2', true);
@@ -431,11 +431,11 @@ const HEROES = [
     },
     r: {
       name: 'Цепи судьбы', icon: '⛓', cost: 110, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Оглушает главную цель и сковывает по 6 клеток на полях двух врагов в событии.',
+      desc: 'Оглушает главную цель и сковывает по 4 клетки на полях двух врагов в событии.',
       async cast(G, h) {
         for (const [i, e] of G.enemiesIn(h).slice(0, 2).entries()) {
           if (i === 0) G.stun(h, e);
-          await G.enemyBoard(h, e, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 6)), '#9fb6c9');
+          await G.enemyBoard(h, e, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 4)), '#9fb6c9');
         }
       },
     },
