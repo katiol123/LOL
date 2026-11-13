@@ -35,9 +35,11 @@ function makePlayer(o) {
 const playerOvr = p => U.sum(STAT_KEYS, k => p.stats[k]) / STAT_KEYS.length;
 /* Форма: средняя оценка за последние 5 матчей → бонус −2…+2 ко всем характеристикам */
 function playerFormAvg(p) { const r = p.ratings.slice(-5); return r.length ? U.sum(r) / r.length : 6.5; }
-function playerFormBonus(p) { return U.clamp((playerFormAvg(p) - 6.5) * 1.0, -1.5, 1.5); }
-function formArrow(p) { const b = playerFormBonus(p); return b >= 1.2 ? '⬆' : b >= 0.4 ? '↗' : b > -0.4 ? '➡' : b > -1.2 ? '↘' : '⬇'; }
-function formColor(p) { const b = playerFormBonus(p); return b >= 0.4 ? '#5fe08a' : b > -0.4 ? '#c8cbd6' : '#ff7b7b'; }
+/* Форма: средняя оценка за 5 матчей → бонус/штраф от −5 до +5 ко всем характеристикам (9.0 → +5, 4.0 → −5) */
+const FORM_MAX = 5, FORM_SLOPE = FORM_MAX / 2.5;
+function playerFormBonus(p) { return U.clamp((playerFormAvg(p) - 6.5) * FORM_SLOPE, -FORM_MAX, FORM_MAX); }
+function formArrow(p) { const b = playerFormBonus(p); return b >= 3 ? '⬆' : b >= 1 ? '↗' : b > -1 ? '➡' : b > -3 ? '↘' : '⬇'; }
+function formColor(p) { const b = playerFormBonus(p); return b >= 1 ? '#5fe08a' : b > -1 ? '#c8cbd6' : '#ff7b7b'; }
 function ratingColor(r) { return r >= 8 ? '#5fe08a' : r >= 7 ? '#a8e05f' : r >= 6 ? '#e0d25f' : r >= 5 ? '#e0a05f' : '#ff6b6b'; }
 
 /* Базовый игрок «всё по 10» — для быстрых матчей без лиги и для тестов */

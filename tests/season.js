@@ -26,5 +26,5 @@ const seed = +(process.argv[2] || 7);
   console.log(`Оценок ≥ 8.0: ${(high8 / total * 100).toFixed(1)}%`);
   console.log('Средняя оценка по ролям:', Object.entries(byRole).map(([r, a]) => `${r} ${avg(a).toFixed(2)}`).join(' · '));
   const fb = Object.values(L.players).map(p => Math.abs(ctx.playerFormBonus(p)));
-  console.log(`Средний |бонус формы|: ${avg(fb).toFixed(2)} из 1.5`);
+  console.log(`Средний |бонус формы|: ${avg(fb).toFixed(2)} из 5; у предела (±4.5+): ${fb.filter(x => x >= 4.5).length} из ${fb.length}`);
 })().catch(e => { console.error(e); process.exit(1); });

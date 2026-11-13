@@ -108,9 +108,9 @@ function applyGame(L, fixture, game, homeSide) {
     const s = p.season; s.games++; if (h.team === game.winner) s.wins++; s.k += h.k; s.d += h.d; s.a += h.a; s.ratingSum += h.rating; if (h.mvp) s.mvp++;
     const before = masteryOf(p, h.def.id);
     let gain = h.rating >= 9.5 ? 2 : h.rating >= 8 ? 1 : 0;
-    // чем выше мастерство, тем труднее расти дальше: шанс роста 1 − M/26 (случайность — от сида лиги)
+    // чем выше мастерство, тем труднее расти дальше: шанс роста 1 − M/21 (случайность — от сида лиги)
     const rng = U.seeded((L.seed * 31 + fixture.tour * 997 + fixture.games.length * 131 + [...p.id].reduce((x, ch) => (x * 33 + ch.charCodeAt(0)) >>> 0, 7) + Math.round(h.rating * 10)) >>> 0);
-    if (gain && rng() > 1 - before / 26) gain = 0;
+    if (gain && rng() > 1 - before / 21) gain = 0;
     if (gain) p.mastery[h.def.id] = Math.min(MASTERY_MAX, before + gain);
     rec.players.push({ id: p.id, hero: h.def.id, rating: h.rating, k: h.k, d: h.d, a: h.a, mvp: h.mvp, gain });
   }
