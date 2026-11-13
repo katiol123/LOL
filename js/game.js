@@ -152,6 +152,8 @@ class Game {
     if (hasPerk(x, 'cautious')) m -= 0.15;
     return m;
   }
+  /* Скорость фарма героя (характеристика героя, как здоровье и атака): дамагеры фармят медленнее — без поддержки им трудно камбекать */
+  farmRate(h) { return (h.def.mod && h.def.mod.farm) || 1; }
   /* Числовое значение пассивки с учётом патча */
   pv(h, key) { return (h.def.passive[key] || 0) * (1 + patchMod(h.def.id, 'p')); }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
@@ -402,7 +404,7 @@ class Game {
       this.addMana(h, amt, true);
     }
     if (counts[T_GOLD] > 0) {
-      const amt = Math.round(counts[T_GOLD] * 13 * c.m.gold * casc);
+      const amt = Math.round(counts[T_GOLD] * 13 * c.m.gold * casc * this.farmRate(h));
       this.addGold(h, amt);
       this.ui.burstTo(h, 'gold', '#ffc93c', amt);
     }
@@ -470,7 +472,7 @@ class Game {
     const pushAdd = Math.max(0, Math.min(amt * (sm(0.04, h, 'farm')), WAVE_HP(this.minute) - lane.waveHp[h.team]));
     lane.waveHp[h.team] += pushAdd;
     lane.farm[h.team] += pushAdd;
-    let gold = Math.round(amt * 0.32 * fm * (hasPerk(h, 'farmer') ? 1.2 : 1));
+    let gold = Math.round(amt * 0.32 * fm * (hasPerk(h, 'farmer') ? 1.2 : 1) * this.farmRate(h));
     // волна конечна: за минуту одна команда может снять с линии не больше её стоимости — двое на линии делят золото
     if (!lane.wave || lane.wave.round !== this.round) lane.wave = { round: this.round, blue: 0, red: 0 };
     const cap = WAVE_GOLD(this.minute) * (hasPerk(h, 'farmer') ? 1.1 : 1);
@@ -555,7 +557,7 @@ class Game {
     if (h.def.passive.scrap) { h.scrap++; h.recalc(); this.ui.float(h, `⚙ металлолом ${h.scrap}`, '#d9a066'); }
     if (npc.kind === 'camp') {
       const gm = 1 + ((h.def.passive.campGold || 1) - 1) * (1 + patchMod(h.def.id, 'p'));
-      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')) * (hasPerk(h, 'farmer') ? 1.2 : 1));
+      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')) * (hasPerk(h, 'farmer') ? 1.2 : 1) * this.farmRate(h));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');
@@ -836,6 +838,12 @@ class Game {
   free(h) { return h.alive && !h.ev; }
 
   assignEvents() {
+    // осады прошлой минуты, у которых не было защитников, — атакуемая команда может отреагировать
+    const sieged = { blue: [], red: [] };
+    for (const ev of this.events || []) if (ev.type === 'siege' && ev.att && this.structureAlive(ev.structure)) {
+      const dt = this.enemyOf(ev.att);
+      if (!ev.sides[dt].some(x => x.alive)) sieged[dt].push({ lane: ev.lane, n: ev.sides[ev.att].filter(x => x.alive).length, st: ev.structure });
+    }
     this.events = [];
     for (const h of this.heroes) h.ev = null;
     // 1. Погибшие
@@ -968,6 +976,23 @@ class Game {
     if (!this.persist.some(e => e.type === 'dragon') && this.dragon.alive) this.tryObjective(this.dragon, 100, ['jng', 'adc', 'sup', 'mid']);
     if (!this.persist.some(e => e.type === 'baron') && this.baron.alive) this.tryObjective(this.baron, 150, ['jng', 'adc', 'sup', 'mid', 'top']);
 
+    // 5б. Реакция на осаду: Карта решает, заметил ли игрок, что его башню бьют; командное мышление — стоит ли идти
+    for (const t of ['blue', 'red']) for (const s of sieged[t]) {
+      let sent = 0;
+      const cands = this.teams[t].heroes.filter(h => this.free(h) && h.alive).sort((a, b) => (a.lane === s.lane ? -2 : a.role === 'jng' || a.role === 'mid' ? -1 : 0) - (b.lane === s.lane ? -2 : b.role === 'jng' || b.role === 'mid' ? -1 : 0));
+      for (const h of cands) {
+        if (sent >= Math.max(1, s.n)) break;
+        if (h.mem.defendRound === this.round) continue;
+        if (!U.chance(U.clamp(0.35 + 0.05 * sd(h, 'map') + (s.st.idx >= 2 ? 0.2 : 0), 0.05, 0.95))) continue;   // заметил?
+        const smart = U.chance(U.clamp((iqOf(h, 'team') - 2) / 14, 0.05, 1));
+        const go = smart ? h.hp / h.maxHp > 0.45 && sent + 1 >= s.n - 1 + (h.def.tags.includes('tank') ? -1 : 0) || (h.hp / h.maxHp > 0.45 && s.st.idx >= 2) : U.chance(0.5);
+        if (!go) continue;
+        h.mem.defendLane = s.lane; h.mem.defendRound = this.round; sent++;
+      }
+      this.defStats = this.defStats || { sieged: 0, sent: 0, answered: 0 }; this.defStats.sieged++; this.defStats.sent += sent; if (sent) this.defStats.answered++;
+      if (sent) this.ui.log(`🛡 ${this.teams[t].name} спешат защищать башню на <b>${s.lane.toUpperCase()}</b>.`, t);
+    }
+
     // 6. Ганги
     for (const t of U.shuffle(['blue', 'red'])) {
       const j = this.hero(t, 'jng');
@@ -982,7 +1007,7 @@ class Game {
     // 7. Обычные занятия: линии, лес, свободная осада
     for (const l of LANES) {
       const present = { blue: [], red: [] };
-      for (const h of this.heroes) if (this.free(h) && h.lane === l) present[h.team].push(h);
+      for (const h of this.heroes) if (this.free(h) && (h.mem.defendRound === this.round ? h.mem.defendLane : h.lane) === l) present[h.team].push(h);
       if (!present.blue.length && !present.red.length) continue;
       if (present.blue.length && present.red.length) {
         const ev = this.mkEv('lane', { lane: l });
@@ -1191,7 +1216,7 @@ class Game {
           if (att.length) {
             const lane = this.lanes[st.lane];
             const minions = (ev.att === 'blue' ? lane.push : -lane.push) > 0.3;
-            const dmg = (90 + this.minute * 9) * (minions ? 0.5 : 1) * (st.idx === 3 ? 1.3 : 1);
+            const dmg = (130 + this.minute * 16) * (minions ? 0.5 : 1) * (st.idx === 3 ? 1.3 : 1);   // башня растёт со временем и наказывает осаду без передовой
             const v = this.frontline(att);   // башня бьёт того, кто впереди: танк прикрывает осаду, без него достаётся хрупким
             this.ui.projectileFrom({ kind: 'structure', ev }, v, '#ffe9a8');
             this.dealDamage(null, v, dmg, 'true');

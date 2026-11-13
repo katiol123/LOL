@@ -111,7 +111,7 @@ const HEROES = [
   /* ======== ВЕРХНЯЯ ЛИНИЯ ======== */
   {
     id: 'frostgolem', name: 'Иней', title: 'Хрустальный голем', role: 'top', emoji: '❄', color: '#8fd4ff', img: 'img/heroes/frostgolem',
-    mod: { hp: 1.12, arm: 1.25, atk: 1.0 },
+    mod: { hp: 0.95, arm: 1.02, atk: 0.9 },
     lore: 'Голем из вечного льда горных пиков: в его трещинах звенят кристаллы, о которые ломаются клинки.',
     passive: { name: 'Ледяной панцирь', desc: 'Щиты от 🛡 на 60% сильнее.', effects(G, h, c) { c.m.def *= 1.6; } },
     q: {
@@ -135,7 +135,7 @@ const HEROES = [
   },
   {
     id: 'runeknight', name: 'Торвальд', title: 'Рунный страж', role: 'top', emoji: '🛡', color: '#4a6fa5', img: 'img/heroes/runeknight',
-    mod: { atk: 1.0, hp: 0.9, arm: 0.94 },
+    mod: { atk: 1.0, hp: 0.9, arm: 0.94, farm: 0.7 },
     lore: 'Закованный в латы страж с рунным мечом: каждая руна на клинке — клятва, которую он не нарушил.',
     passive: {
       name: 'Рунная сталь', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
@@ -163,7 +163,7 @@ const HEROES = [
   },
   {
     id: 'berserk', name: 'Ульв', title: 'Ярый берсерк', role: 'top', emoji: '🪓', color: '#a0522d', img: 'img/heroes/berserk',
-    mod: { hp: 1.15, atk: 1.15 },
+    mod: { hp: 1.15, atk: 1.15, farm: 0.7 },
     lore: 'Северный воин с двумя топорами: чем глубже его раны, тем страшнее он в бою.',
     passive: { name: 'Упоение битвой', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
@@ -209,7 +209,7 @@ const HEROES = [
   },
   {
     id: 'goblinrider', name: 'Шнырь', title: 'Гоблин-наездник', role: 'jng', emoji: '🐺', color: '#7c8c4a', img: 'img/heroes/goblinrider',
-    mod: { hp: 1.0, sp: 1.2 },
+    mod: { hp: 1.08, sp: 1.3 },
     lore: 'Хитрый гоблин верхом на огромном волке: метает копья, ставит сети и лечит зверя травами.',
     passive: {
       name: 'Лесная добыча', desc: 'Лесные лагеря дают на 40% больше золота; ✚ лечат на 25% сильнее.',
@@ -283,7 +283,7 @@ const HEROES = [
   },
   {
     id: 'monk', name: 'Сун', title: 'Мастер ки', role: 'mid', emoji: '👊', color: '#6b8f7a', img: 'img/heroes/monk',
-    mod: { sp: 1.1 },
+    mod: { sp: 1.0, hp: 0.95 },
     lore: 'Странствующий монах: его удары собирают внутреннюю силу и взрываются, как гром.',
     passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 25, 0.25); } },
     q: {
@@ -357,7 +357,7 @@ const HEROES = [
   /* ======== СТРЕЛКИ ======== */
   {
     id: 'dwarfhunter', name: 'Бранд', title: 'Гномий охотник', role: 'adc', emoji: '🎯', color: '#8b5a2b', img: 'img/heroes/dwarfhunter',
-    mod: { atk: 1.32, hp: 1.0, arm: 1.0 },
+    mod: { atk: 1.32, hp: 1.0, arm: 1.0, farm: 0.7 },
     lore: 'Гном-следопыт с тяжёлым арбалетом. Болт из него пробивает и щит, и стену.',
     passive: { name: 'Тяжёлый болт', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
     q: {
@@ -377,7 +377,7 @@ const HEROES = [
   },
   {
     id: 'elfarcher', name: 'Лиэн', title: 'Изумрудный лучник', role: 'adc', emoji: '🏹', color: '#3c8d3c', img: 'img/heroes/elfarcher',
-    mod: { atk: 1.05 },
+    mod: { atk: 1.14, farm: 0.7 },
     lore: 'Эльф-лучник в изумрудном плаще. Ветер и лес помогают его стрелам находить цель.',
     passive: {
       name: 'Лесной ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
@@ -400,7 +400,7 @@ const HEROES = [
   },
   {
     id: 'ratking', name: 'Шмыг', title: 'Крысиный проныра', role: 'adc', emoji: '🐀', color: '#6b5a3a', img: 'img/heroes/ratking',
-    mod: { atk: 1.18, hp: 1.15, arm: 1.15 },
+    mod: { atk: 1.18, hp: 1.15, arm: 1.15, farm: 0.7 },
     lore: 'Крыса-проныра с парой кинжалов. Обожает золото, ставит капканы и метает ножи из-за угла.',
     passive: { name: 'Нюх на золото', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
     q: {
@@ -427,7 +427,7 @@ const HEROES = [
   /* ======== ПОДДЕРЖКА ======== */
   {
     id: 'paladin', name: 'Солара', title: 'Паладин солнца', role: 'sup', emoji: '☀', color: '#e8c66e', img: 'img/heroes/paladin',
-    mod: { sp: 1.1 },
+    mod: { sp: 1.22, hp: 1.08 },
     lore: 'Рыцарь солнечного ордена в золотых латах. Её щит отражает свет, который исцеляет союзников.',
     passive: { name: 'Свет солнца', desc: '✚ также лечат самого раненого союзника в событии (100%).', effects(G, h, c) { c.healAlly += 1.0; } },
     q: {
@@ -601,7 +601,7 @@ const HEROES = [
   },
   {
     id: 'crabpirate', name: 'Клешнир', title: 'Пират-краб', role: 'adc', emoji: '🦀', color: '#d2462e', img: 'img/heroes/crabpirate',
-    mod: { atk: 1.12, hp: 1.1, arm: 1.1 },
+    mod: { atk: 1.12, hp: 1.1, arm: 1.1, farm: 0.7 },
     lore: 'Капитан-краб с пушкой на клешне. Палит бортовыми залпами, бросает якорь и забирает добычу у павших.',
     passive: { name: 'Абордаж', desc: 'Убийство или помощь отбирает у жертвы 25% её золота. Крабий панцирь: больше здоровья и брони, чем у других стрелков.', plunder: 0.25 },
     q: {
