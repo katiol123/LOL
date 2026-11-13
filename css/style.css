@@ -719,3 +719,11 @@ html, body, #app { overflow: clip; }
 .et td { padding: 3px 4px; }
 .et .pt.pface-s, .et .pt.pface-s .face-wrap { width: 22px; height: 22px; }
 .end-wrap .title-actions { position: sticky; bottom: 0; padding: 10px 0; background: linear-gradient(transparent, rgba(5,6,12,.95) 35%); z-index: 3; width: 100%; justify-content: center; }
+
+/* ===== Визуал, финальный круг ===== */
+.hero-card .sig-bubble { top: 6px; left: auto; right: 12px; border-radius: 12px 12px 2px 12px; }
+#col-red .hero-card .sig-bubble { right: auto; left: 12px; border-radius: 12px 12px 12px 2px; }
+.end-wrap { padding-bottom: 96px; }
+.share { position: relative; width: 260px; height: 12px; border-radius: 6px; }
+.share i { border-radius: 6px; opacity: .85; }
+.share b { position: absolute; left: 6px; top: -1px; font-size: 9.5px; color: #fff; text-shadow: 0 1px 2px #000; }

@@ -257,7 +257,7 @@ const UI = {
     const head = $('#feature-head');
     head.style.setProperty('--hc', h.def.color);
     head.innerHTML = `<div class="portrait pface" style="border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}">${h.def.emoji}</span></div>
-      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${U.esc(h.nick)} · ${h.name}</b><small>ур. ${h.lvl} · ${U.esc(this.game.teams[h.team].name)} · ${ROLES[h.role].name}${h.ms ? ' · мастерство ' + h.ms : ''}${h.fit < 3 ? ' · не по профилю' : ''}</small></div>`;
+      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${U.esc(h.nick)} · ${h.name}</b><small>ур. ${h.lvl} · ${ROLES[h.role].name}${h.ms ? ' · мастерство ' + h.ms : ''}${h.fit < 3 ? ' · не по профилю' : ''}</small></div>`;
     head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
     $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
     this.skKey = '';
@@ -473,7 +473,8 @@ const UI = {
     b.style.setProperty('--bc', col);
     b.style.animationDuration = (2.4 / Math.max(0.7, Math.min(3, Clock.speed))) + 's';
     const bs = $('#banners');
-    if (bs.children.length >= 2) bs.firstChild.remove();
+    // на поле одновременно только один баннер: новый сменяет предыдущий
+    while (bs.children.length) bs.firstChild.remove();
     bs.appendChild(b);
     b.addEventListener('animationend', () => b.remove());
   },
