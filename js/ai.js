@@ -373,12 +373,16 @@ const AI = {
     const types = Object.keys(this.COUNTERS).filter(k => ex[k] > 0 && !h.mem.counterDone[k]).sort((a, b) => ex[b] - ex[a]);
     for (const k of types) {
       const C = this.COUNTERS[k];
-      if (inv.some(id => C.items.includes(id))) { h.mem.counterDone[k] = true; continue; }
+      // при сильном перекосе (двое и больше лишних однотипных врагов) — до двух ответных предметов
+      const want = ex[k] >= 2 ? 2 : 1;
+      if (inv.filter(id => C.items.includes(id)).length >= want) { h.mem.counterDone[k] = true; continue; }
       // решение «копить на ответ» принимается один раз за визит: шанс растёт с перекосом и умом игрока
       const key = 'cp_' + k + '_' + G.round;
       if (h.mem[key] == null) h.mem[key] = U.chance(U.clamp(ex[k] * 0.4 * tq, 0, 0.95));
       if (!h.mem[key]) continue;
-      return this.pickNear(C.items.filter(id => inv.filter(x => x === id).length === 0), id => this.itemValue(G, h, id));
+      const opts = C.items.filter(id => !inv.includes(id));
+      if (!opts.length) { h.mem.counterDone[k] = true; continue; }
+      return this.pickNear(opts, id => this.itemValue(G, h, id));
     }
     return null;
   },
@@ -390,7 +394,8 @@ const AI = {
   itemValue(G, h, id, prof) {
     const it = ITEMS[id]; prof = prof || this.heroProfile(G, h);
     let v = 0;
-    for (const k in this.ITEM_UNIT) if (it[k]) v += it[k] * this.ITEM_UNIT[k] * prof[k];
+    const owned = h.items.includes(id);   // второй такой же предмет: особые эффекты не складываются (кроме крита и уклонения)
+    for (const k in this.ITEM_UNIT) if (it[k] && !(owned && !ITEM_STACKING.has(k))) v += it[k] * this.ITEM_UNIT[k] * prof[k];
     if (it.tier === 4 && G.minute > 22) v *= 1.15;
     v *= this.taste(h.pl, id);
     if (it.tier === 1 && G.minute > 20) v *= 0.7;    // в поздней игре слоты дороже дешёвых предметов

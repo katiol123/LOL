@@ -52,7 +52,7 @@ const ITEMS = {
   boots: { name: 'Сапоги ловкача', icon: '👢', cost: 800, tier: 2, dodge: 0.06, hp: 80 },
   spear: { name: 'Копьё пробивания', icon: '🔱', cost: 900, tier: 2, atk: 8, pen: 0.12 },
   focus: { name: 'Фокусирующая линза', icon: '🔍', cost: 950, tier: 2, sp: 25, cascPow: 0.08 },
-  mirror: { name: 'Зеркальный щит', icon: '🪞', cost: 1000, tier: 2, arm: 22, thorns: 0.12 },
+  mirror: { name: 'Зеркальный щит', icon: '🪞', cost: 900, tier: 2, arm: 30, thorns: 0.15 },
   chalice: { name: 'Чаша прилива', icon: '🏆', cost: 1000, tier: 2, manaRegen: 12, sp: 15, healPow: 0.1 },
   aegis: { name: 'Эгида Союза', icon: '🔰', cost: 1100, tier: 2, arm: 24, hp: 200, shieldPow: 0.25 },
   censer: { name: 'Кадило Света', icon: '🕯', cost: 1100, tier: 2, sp: 28, healPow: 0.3 },
@@ -70,8 +70,8 @@ const ITEMS = {
   wall: { name: 'Крепостная стена', icon: '🧱', cost: 1900, tier: 3, arm: 45, hp: 300 },
   grimoire: { name: 'Гримуар бездны', icon: '📕', cost: 1900, tier: 3, sp: 55, pen: 0.15 },
   // ответ на физический урон: против составов из стрелков и бойцов
-  spikes: { name: 'Колючий панцирь', icon: '🦔', cost: 1700, tier: 3, arm: 60, hp: 200, thorns: 0.35 },
-  stoneskin: { name: 'Плащ каменной кожи', icon: '🪨', cost: 1800, tier: 3, arm: 40, hp: 300, physRed: 0.25 },
+  spikes: { name: 'Колючий панцирь', icon: '🦔', cost: 1650, tier: 3, arm: 75, hp: 200, thorns: 0.35 },
+  stoneskin: { name: 'Плащ каменной кожи', icon: '🪨', cost: 1750, tier: 3, arm: 50, hp: 300, physRed: 0.3 },
   // ответы на другие перекосы состава: магию, лечение, контроль
   mantle: { name: 'Мантия чародея', icon: '🧙', cost: 1500, tier: 3, hp: 250, magRed: 0.25, manaRegen: 6 },
   blight: { name: 'Клинок скверны', icon: '🦠', cost: 1200, tier: 2, atk: 10, antiHeal: 0.4 },
@@ -209,7 +209,7 @@ const HEROES = [
   },
   {
     id: 'goblinrider', name: 'Шнырь', title: 'Гоблин-наездник', role: 'jng', emoji: '🐺', color: '#7c8c4a', img: 'img/heroes/goblinrider',
-    mod: { hp: 1.08, sp: 1.3 },
+    mod: { hp: 1.15, sp: 1.42, arm: 1.08, atk: 1.2 },
     lore: 'Хитрый гоблин верхом на огромном волке: метает копья, ставит сети и лечит зверя травами.',
     passive: {
       name: 'Лесная добыча', desc: 'Лесные лагеря дают на 40% больше золота; ✚ лечат на 25% сильнее.',
@@ -260,7 +260,7 @@ const HEROES = [
   /* ======== СРЕДНЯЯ ЛИНИЯ ======== */
   {
     id: 'sanddancer', name: 'Зарина', title: 'Танцующая с ятаганом', role: 'mid', emoji: '🌙', color: '#c9a86a', img: 'img/heroes/sanddancer',
-    mod: { sp: 1.15 },
+    mod: { sp: 1.28, hp: 1.06 },
     lore: 'Пустынная танцовщица: её ятаган рисует в воздухе узоры, и песок сковывает врагов.',
     passive: { name: 'Ритм пустыни', desc: '◆ дают на 50% больше маны.', effects(G, h, c) { c.m.mana *= 1.5; } },
     q: {
@@ -377,7 +377,7 @@ const HEROES = [
   },
   {
     id: 'elfarcher', name: 'Лиэн', title: 'Изумрудный лучник', role: 'adc', emoji: '🏹', color: '#3c8d3c', img: 'img/heroes/elfarcher',
-    mod: { atk: 1.14 },
+    mod: { atk: 1.22 },
     lore: 'Эльф-лучник в изумрудном плаще. Ветер и лес помогают его стрелам находить цель.',
     passive: {
       name: 'Лесной ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
@@ -427,7 +427,7 @@ const HEROES = [
   /* ======== ПОДДЕРЖКА ======== */
   {
     id: 'paladin', name: 'Солара', title: 'Паладин солнца', role: 'sup', emoji: '☀', color: '#e8c66e', img: 'img/heroes/paladin',
-    mod: { sp: 1.22, hp: 1.08 },
+    mod: { sp: 1.35, hp: 1.15, arm: 1.1 },
     lore: 'Рыцарь солнечного ордена в золотых латах. Её щит отражает свет, который исцеляет союзников.',
     passive: { name: 'Свет солнца', desc: '✚ также лечат самого раненого союзника в событии (100%).', effects(G, h, c) { c.healAlly += 1.0; } },
     q: {
@@ -481,13 +481,13 @@ const HEROES = [
   },
   {
     id: 'smuggler', name: 'Рэйф', title: 'Контрабандист', role: 'sup', emoji: '🎩', color: '#a0623a', img: 'img/heroes/smuggler',
-    mod: { sp: 1.05 },
+    mod: { sp: 1.3, hp: 1.15, arm: 1.1 },
     lore: 'Обаятельный разбойник с саблей. Дымовые шашки, краплёные карты и тайные тропы — всё для команды.',
     passive: { name: 'Тайные тропы', desc: '◉ дают щит всем союзникам в событии.', effects(G, h, c) { c.visShield += c.counts[T_VIS] * (6 + h.lvl * 2); } },
     q: {
       name: 'Дымовая шашка', icon: '💨', cost: 40, cd: 2, need: 'enemy',
-      desc: 'Перемешивает поле цели и скрывает 6 клеток туманом.',
-      async cast(G, h, t) { await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.fogify(b.pick(g => !g.fog, 6)); }, '#ff7ce0'); },
+      desc: 'Бьёт цель, перемешивает её поле и скрывает 6 клеток туманом.',
+      async cast(G, h, t) { await G.skillDamage(h, t, G.sp(h, 45, 0.55), 'magic', '#ff7ce0'); await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.fogify(b.pick(g => !g.fog, 6)); }, '#ff7ce0'); },
     },
     r: {
       name: 'Козырь в рукаве', icon: '🃏', cost: 100, cd: 5, lvl: 6, need: 'enemy',
@@ -527,7 +527,7 @@ const HEROES = [
   },
   {
     id: 'spidertinker', name: 'Винтик', title: 'Механический паук', role: 'jng', emoji: '🕷', color: '#b87333', img: 'img/heroes/spidertinker',
-    mod: { atk: 1.05 },
+    mod: { atk: 1.12, hp: 1.06 },
     lore: 'Гном-изобретатель верхом на заводном пауке. Из каждого убитого монстра выковыривает детали для брони.',
     passive: { name: 'Металлолом', desc: 'За каждого убитого монстра или эпика: +4 брони и +3 атаки до конца матча.', scrap: true },
     q: {

@@ -6,6 +6,8 @@ const TOWER_HP = [1100, 1600, 2000];
 const NEXUS_HP = 3400;
 const ATK_MUL = 2.6;
 const HERO_DMG = 1.45;
+/* Свойства предметов, которые складываются от одинаковых предметов */
+const ITEM_STACKING = new Set(['atk', 'arm', 'hp', 'sp', 'mana', 'crit', 'dodge']);
 /* Стоимость волны миньонов за минуту (на одну команду): сколько золота вообще можно снять с линии */
 const WAVE_GOLD = m => 90 + 5 * m;
 /* Запас здоровья волны за минуту: сколько урона по ней вообще толкает линию */
@@ -56,7 +58,12 @@ class Hero {
   get lane() { return ROLE_LANE[this.role]; }
   get nick() { return this.pl ? this.pl.nick : this.name; }
   get alive() { return this.dead <= 0; }
-  itemStat(k) { return U.sum(this.items, it => ITEMS[it][k] || 0) + (this.elix || 0) * (ELIXIR[k] || 0); }
+  /* Свойства предметов. Обычные характеристики (атака, броня, здоровье, сила умений, мана) складываются всегда;
+     особые эффекты двух одинаковых предметов не складываются — кроме шанса крита и уклонения */
+  itemStat(k) {
+    const list = ITEM_STACKING.has(k) ? this.items : [...new Set(this.items)];
+    return U.sum(list, it => ITEMS[it][k] || 0) + (this.elix || 0) * (ELIXIR[k] || 0);
+  }
   recalc() {
     const b = BASE_STATS[this.def.main || this.def.role], m = this.def.mod || {}, L = this.lvl - 1;
     const ratio = this.maxHp ? this.hp / this.maxHp : 1;
@@ -143,7 +150,7 @@ class Game {
   /* Позиционка: удар принимает тот, у кого больше «текущее здоровье + бросок от 1 до X» (+ модификаторы позиции).
      Крепкие бойцы и танки идут вперёд и прикрывают союзников; стрелки держатся сзади. */
   frontline(e) {
-    const X = 0.8 * U.sum(e, x => x.maxHp) / e.length;
+    const X = 0.4 * U.sum(e, x => x.maxHp) / e.length;
     return U.maxBy(e, x => x.hp + x.shield * 0.5 + U.rand(1, X) + X * this.posMod(x));
   }
   posMod(x) {
