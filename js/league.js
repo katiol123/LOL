@@ -61,6 +61,7 @@ function genLeaguePlayer(rng, used, role, clubLevel) {
   if (rng() < 0.08) iqBase += 4.5;   // «прирождённый стратег» — может оказаться в любом клубе
   p.iq = Object.fromEntries(IQ_KEYS.map(k => [k, Math.round(U.clamp(iqBase + (rng() + rng() + rng() - 1.5) * 2.6, 3, 18))]));
   p.age = 17 + rng.ri(12);
+  p.perks = rollPerks(rng);
   return p;
 }
 
@@ -280,6 +281,7 @@ function applyLeagueMeta(L) {
 }
 /* Совместимость со старыми сохранениями */
 function upgradeLeague(L) {
+  if (!L.perksDone) { const r = U.seeded(L.seed + 555); for (const p of Object.values(L.players)) if (!p.perks) p.perks = rollPerks(r); L.perksDone = true; }
   if (!L.patch) L.patch = newPatchState('1.0', {}, [], {});
   for (const c of L.clubs) if (!c.captain || !L.players[c.captain]) pickCaptain(L, c);
   return L;

@@ -36,7 +36,7 @@ function playerRow(L, p, opts = {}) {
   const club = p.club && clubById(L, p.club);
   return `<div class="prow ${p.human ? 'me' : ''}" data-pid="${p.id}">
     ${faceHTML(p, club ? clubColors(club) : null, 'pr-face')}
-    <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
+    <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}${perkHTML(p)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
     <div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>
     <div class="pr-form" style="color:${formColor(p)}" title="Форма: средняя оценка за 5 матчей ${playerFormAvg(p).toFixed(2)}">${formArrow(p)}</div>
     ${opts.last ? `<div class="pr-last">${ratingChips(p, 3)}</div>` : ''}
@@ -106,7 +106,7 @@ const Campaign = {
   finishCreate() {
     const cs = this.cs;
     if (STAT_BUDGET - this.spent() !== 0) return;
-    const p = makePlayer({ nick: cs.nick.trim() || 'Игрок', first: cs.first.trim() || 'Игрок', last: cs.last.trim(), role: cs.role, stats: Object.assign({}, cs.stats), face: cs.face, human: true, age: 19, iq: { board: 10, tactic: 10, team: 10 } });
+    const p = makePlayer({ nick: cs.nick.trim() || 'Игрок', first: cs.first.trim() || 'Игрок', last: cs.last.trim(), role: cs.role, stats: Object.assign({}, cs.stats), face: cs.face, human: true, age: 19, iq: { board: 10, tactic: 10, team: 10 }, perks: rollPerks(Math.random) });
     for (const id of cs.heroes) p.mastery[id] = 4;
     this.human = p;
     this.openClubs();
@@ -198,6 +198,7 @@ const Campaign = {
       <div class="prof-l">${faceHTML(p, club ? clubColors(club) : null, 'big')}
         <h2>${U.esc(p.nick)}</h2><div class="muted">${U.esc(p.first)} ${U.esc(p.last)}${p.age ? ' · ' + p.age + ' лет' : ''}</div>
         <div>${ROLES[p.role].icon} ${ROLES[p.role].name}${club ? ` · ${club.emblem} ${club.name}` : ''}</div>
+        ${(p.perks || []).length ? `<div class="perks">${perkHTML(p, true)}</div>` : '<div class="perks none">Особенностей менталитета нет</div>'}
         <div class="prof-ovr">Рейтинг <b>${playerOvr(p).toFixed(1)}</b> · Форма <b style="color:${formColor(p)}">${formArrow(p)} ${playerFormAvg(p).toFixed(2)}</b> (${playerFormBonus(p) >= 0 ? '+' : ''}${playerFormBonus(p).toFixed(1)} ко всем)</div>
         <div class="cr-label">Последние оценки</div><div>${ratingChips(p, 8)}</div>
         <div class="cr-label">Сезон</div><div class="muted">Игр ${s.games} · побед ${s.wins} · У/С/П ${s.k}/${s.d}/${s.a} · средняя оценка ${s.games ? (s.ratingSum / s.games).toFixed(2) : '—'} · MVP ${s.mvp}</div>
@@ -246,7 +247,7 @@ const Campaign = {
     $('#hub-meta').innerHTML = this.patchHTML(false);
     $('#hub-meta').onclick = () => this.openView({ type: 'patch', id: this.L.patch.name });
     // мой игрок
-    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
+    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
     // состав
     $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба</div>${rosterOf(L, club).map(p => playerRow(L, p, { last: true })).join('')}`;
     // результаты прошлого тура

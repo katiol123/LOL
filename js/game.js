@@ -117,6 +117,9 @@ class Game {
     // провокация: пока действует, враг бьёт только провокатора
     if (h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy)) return h.tauntBy;
     if (e.length === 1) return e[0];
+    // «Мстительный» бьёт своего последнего убийцу, «Охотник за фрагами» — самого раненого
+    if (h.mem.killer && h.mem.killer.alive && e.includes(h.mem.killer) && hasPerk(h, 'vengeful')) return h.mem.killer;
+    if (hasPerk(h, 'hunter')) return U.minBy(e, x => (x.hp + x.shield) / x.maxHp);
     const ev = h.ev;
     // Командное мышление: бить ту же цель, что и союзники (фокус)
     const f = ev && ev.focus && ev.focus[h.team];
@@ -340,7 +343,7 @@ class Game {
     }
     const buff = this.teamBuffs(h.team);
     // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
-    const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech')) * (1 + 4 * h.itemStat('cascPow'));
+    const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech')) * (1 + 4 * h.itemStat('cascPow')) * (hasPerk(h, 'combo') ? 1.1 : 1);
     const inFight = h.ev && h.ev.sides && this.enemiesIn(h).length > 0;
     const allies = this.alliesIn(h).length;
     const gm = (sm(0.012, h, 'mech')) * this.pressureFactor(h)
@@ -439,7 +442,7 @@ class Game {
     const lane = this.lanes[h.ev.lane];
     const fm = sm(0.05, h, 'farm');
     lane.farm[h.team] += amt * (sm(0.04, h, 'farm'));
-    const gold = Math.round(amt * 0.32 * fm);
+    const gold = Math.round(amt * 0.32 * fm * (hasPerk(h, 'farmer') ? 1.2 : 1));
     const cs = Math.max(1, Math.round(amt / 45));
     h.cs += cs;
     this.addGold(h, gold);
@@ -515,7 +518,7 @@ class Game {
     if (h.def.passive.scrap) { h.scrap++; h.recalc(); this.ui.float(h, `⚙ металлолом ${h.scrap}`, '#d9a066'); }
     if (npc.kind === 'camp') {
       const gm = 1 + ((h.def.passive.campGold || 1) - 1) * (1 + patchMod(h.def.id, 'p'));
-      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')));
+      const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')) * (hasPerk(h, 'farmer') ? 1.2 : 1));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');
@@ -578,6 +581,9 @@ class Game {
     // уязвимость рядом с врагом, у которого она в пассивке (Ундина), и якорь (+20% урона)
     if (kind === 'phys' && ev && ev.sides && ev.sides[tgt.enemyTeam].some(x => x.alive && x.def.passive.vuln)) d *= 1 + this.pv(ev.sides[tgt.enemyTeam].find(x => x.alive && x.def.passive.vuln), 'vuln');
     if (tgt.anchored > 0) d *= 1.2;
+    if (src && hasPerk(src, 'hunter') && tgt.hp / tgt.maxHp < 0.35) d *= 1.2;
+    if (src && hasPerk(src, 'reckless')) d *= 1.1;
+    if (hasPerk(tgt, 'reckless')) d *= 1.1;
     // защитник (Кассиан) перехватывает часть урона, который получают союзники в его событии
     if (!noRedirect && ev && ev.sides) {
       const guard = ev.sides[tgt.team].find(x => x !== tgt && x.alive && x.def.passive.phalanx);
@@ -683,6 +689,7 @@ class Game {
 
   kill(src, tgt) {
     if (tgt.dead > 0) return;
+    if (src && src.team !== tgt.team) tgt.mem.killer = src;
     // жатва душ (Валдрек): любая смерть рядом с некромантом усиливает его
     if (tgt.ev && tgt.ev.sides) for (const x of [...tgt.ev.sides.blue, ...tgt.ev.sides.red]) if (x !== tgt && x.alive && x.def.passive.souls && x.souls < 20) { x.souls++; x.recalc(); this.ui.float(x, `💀 душа ${x.souls}`, '#7bff9e'); }
     tgt.hp = 0; tgt.shield = 0;
@@ -750,12 +757,14 @@ class Game {
 
   /* ---------------- Тильт ---------------- */
   tryTilt(h, amount, why) {
-    const chance = U.clamp(0.45 - 0.035 * sd(h, 'calm'), 0.05, 0.9);
+    const chance = U.clamp(0.45 - 0.035 * sd(h, 'calm'), 0.05, 0.9) * (hasPerk(h, 'stress') ? 0.5 : 1);
     if (!U.chance(chance)) return;
     const before = h.tilt;
     h.tilt = Math.min(3, h.tilt + amount);
     h.mem.tiltAt = this.round;
     if (h.tilt > before) { this.ui.tilt(h); this.ui.log(`😤 ${this.tag(h)} тильтует после ${why} (−${h.tilt} к Механике, Реакции и Чтению игры, +${h.tilt} к Агрессии).`); }
+    // «Токсичный»: его тильт передаётся союзникам рядом
+    if (h.tilt > before && hasPerk(h, 'toxic') && !why.startsWith('токсичности')) for (const a of this.alliesIn(h)) if (a !== h) this.tryTilt(a, 1, `токсичности ${h.nick}`);
   }
   calmDown(h) { if (h.tilt > 0) { h.tilt--; h.mem.tiltAt = this.round; if (!h.tilt) this.ui.log(`😌 ${this.tag(h)} успокаивается.`); this.ui.tilt(h); } }
 
@@ -789,7 +798,7 @@ class Game {
       // откликнувшиеся «позже» прибывают на минуту позже
       for (const x of ev.late || []) if (x.alive && !x.ev && x.hp / x.maxHp > 0.25 && !ev.sides[x.team].includes(x)) ev.sides[x.team].push(x);
       ev.late = [];
-      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && (x.hp / x.maxHp > 0.12 || x.anchored > 0));
+      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && (x.hp / x.maxHp > (hasPerk(x, 'cautious') ? 0.25 : hasPerk(x, 'reckless') ? 0.04 : 0.12) || x.anchored > 0));
       // сигнал «Отступаем», если команда в событии явно проигрывает
       for (const t of ['blue', 'red']) {
         const own = ev.sides[t], foe = ev.sides[this.enemyOf(t)];
@@ -821,7 +830,8 @@ class Game {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
       const rich = h.gold >= AI.shopTarget(this, h) && (hpR < 0.92 || U.chance(0.5));
-      if (h.anchored <= 0 && (hpR < 0.3 - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich)) {
+      const pk = hasPerk(h, 'cautious') ? 0.12 : hasPerk(h, 'reckless') ? -0.15 : 0;
+      if (h.anchored <= 0 && (hpR < 0.3 + pk - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich)) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
     }
@@ -891,12 +901,12 @@ class Game {
     // 6. Ганги
     for (const t of U.shuffle(['blue', 'red'])) {
       const j = this.hero(t, 'jng');
-      if (this.free(j) && j.gank >= 100) this.startGank(j);
+      if (this.free(j) && j.gank >= 100) { if (hasPerk(j, 'loner')) { j.gank = 0; continue; } this.startGank(j); }
     }
     // 6б. Роумы мидера и саппорта
     if (this.minute >= 4) for (const t of U.shuffle(['blue', 'red'])) for (const r of U.shuffle(['mid', 'sup'])) {
       const h = this.hero(t, r);
-      if (this.free(h) && h.roam >= 100) this.tryRoam(h);
+      if (this.free(h) && h.roam >= 100) { if (hasPerk(h, 'loner')) { h.roam = 0; continue; } this.tryRoam(h); }
     }
 
     // 7. Обычные занятия: линии, лес, свободная осада
@@ -1018,7 +1028,7 @@ class Game {
     let duo = null;
     if (opt.roam && opt.smart) {
       const jg = this.hero(j.team, 'jng');
-      if (this.free(jg) && jg.gank >= 35 && U.chance(U.clamp(0.25 + 0.04 * sd(jg, 'team'), 0.05, 0.9))) { this.join(ev, jg); jg.gank = 0; duo = jg; }
+      if (this.free(jg) && !hasPerk(jg, 'loner') && jg.gank >= 35 && U.chance(U.clamp(0.25 + 0.04 * sd(jg, 'team'), 0.05, 0.9))) { this.join(ev, jg); jg.gank = 0; duo = jg; }
     }
     this.heroes.filter(h => h.team === j.team && this.free(h) && h.lane === best.l).forEach(h => this.join(ev, h));
     best.victims.forEach(h => this.join(ev, h));
@@ -1048,7 +1058,7 @@ class Game {
       this.announce(help);
     }
     const ej = this.hero(et, 'jng');
-    if (this.free(ej) && !help && U.chance(spotted ? 0.65 : 0.15 + ej.gank / 250)) {
+    if (this.free(ej) && !hasPerk(ej, 'loner') && !help && U.chance(spotted ? 0.65 : 0.15 + ej.gank / 250)) {
       this.join(ev, ej);
       ej.gank = Math.max(0, ej.gank - 40);
       msg += ` ${this.tag(ej)} прибегает с контр-гангом!`;

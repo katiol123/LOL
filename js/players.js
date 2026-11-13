@@ -131,10 +131,62 @@ const topMastery = (p, n = 3) => Object.entries(p.mastery).sort((a, b) => b[1] -
 
 /* ---------- Эффективная характеристика героя в матче ----------
    база (≤20) + мастерство/4 + форма ± тильт; общий предел 30 */
+/* ---------- Перки: черты менталитета игрока ----------
+   При создании кампании: 25% — один перк, 3.5% — сразу два. */
+const PERKS = {
+  stress: { name: 'Стрессоустойчивый', icon: '🧊', desc: 'Впадает в тильт в 2 раза реже.' },
+  vengeful: { name: 'Мстительный', icon: '🗡', desc: 'Старается атаковать того, кто убил его последним.' },
+  loner: { name: 'Одиночка', icon: '🐺', desc: 'Не ходит на ганги и роумы, игнорирует призывы союзников о помощи.' },
+  late: { name: 'Игрок лейта', icon: '⏳', desc: 'До 25-й минуты предпочитает собирать ● золото — копит на поздние предметы.' },
+  stubborn: { name: 'Неуступчивый', icon: '🪨', desc: 'Пока команда уступает по убийствам, +2 ко всем характеристикам.' },
+  leader: { name: 'Лидер', icon: '🎖', desc: 'Союзники в одном событии с ним получают +1 ко всем характеристикам.' },
+  hunter: { name: 'Охотник за фрагами', icon: '🎯', desc: 'Всегда бьёт самого раненого врага; +20% урона по врагам, у которых меньше 35% здоровья.' },
+  cautious: { name: 'Осторожный', icon: '🛡', desc: 'Раньше выходит из проигранных драк и раньше уходит на базу.' },
+  reckless: { name: 'Безрассудный', icon: '💥', desc: 'Почти не отступает; наносит на 10% больше урона, но и получает на 10% больше.' },
+  toxic: { name: 'Токсичный', icon: '☣', desc: 'Когда он тильтует, союзники рядом тоже могут затильтовать.' },
+  caller: { name: 'Голос команды', icon: '📣', desc: 'Союзники чаще откликаются на его сигналы и прибегают быстрее.' },
+  farmer: { name: 'Фармила', icon: '🌾', desc: '+20% золота с волн и лагерей, но часто игнорирует призывы на объекты и о помощи.' },
+  bigstage: { name: 'Игрок больших матчей', icon: '🏟', desc: 'В боях за Дракона и Барона +2 ко всем характеристикам, после 30-й минуты +1.' },
+  slow: { name: 'Медленный разгон', icon: '🐢', desc: 'До 10-й минуты −2 ко всем характеристикам, после 20-й — +1.' },
+  combo: { name: 'Комбинатор', icon: '🧩', desc: 'Ищет комбо: выше ценит особые камни и каскады, его каскады на 10% сильнее.' },
+};
+const PERK_CLASH = [['cautious', 'reckless'], ['loner', 'caller'], ['loner', 'leader'], ['stress', 'toxic']];
+function rollPerks(rng) {
+  const r = rng(), n = r < 0.035 ? 2 : r < 0.285 ? 1 : 0;
+  const out = [], keys = Object.keys(PERKS);
+  while (out.length < n) {
+    const k = keys[Math.floor(rng() * keys.length)];
+    if (out.includes(k) || PERK_CLASH.some(([a, b]) => (a === k && out.includes(b)) || (b === k && out.includes(a)))) continue;
+    out.push(k);
+  }
+  return out;
+}
+/* Значки перков: icons — только иконки (с подсказкой), иначе плашки с названием */
+function perkHTML(p, full) {
+  const ps = (p && p.perks) || [];
+  if (!ps.length) return '';
+  return ps.map(k => { const d = PERKS[k]; return full ? `<span class="perk" title="${d.desc}"><i>${d.icon}</i>${d.name}</span>` : `<span class="perk-i" title="${d.name}: ${d.desc}">${d.icon}</span>`; }).join('');
+}
+const hasPerk = (h, k) => !!(h && h.pl && h.pl.perks && h.pl.perks.includes(k));
+/* Ситуативный бонус перков к характеристикам (не к скрытому интеллекту) */
+function perkStatBonus(h) {
+  const G = h.game, p = h.pl;
+  if (!G || !p || (!p.perks && !h.ev)) return 0;
+  let v = 0;
+  const perks = p.perks || [];
+  if (perks.length) {
+    if (perks.includes('stubborn') && G.teams[h.team].kills < G.teams[h.enemyTeam].kills) v += 2;
+    if (perks.includes('bigstage')) v += (h.ev && (h.ev.type === 'dragon' || h.ev.type === 'baron')) ? 2 : G.minute >= 30 ? 1 : 0;
+    if (perks.includes('slow')) v += G.minute < 10 ? -2 : G.minute >= 20 ? 1 : 0;
+  }
+  const ev = h.ev;
+  if (ev && ev.sides && ev.sides[h.team] && ev.sides[h.team].some(x => x !== h && x.alive && hasPerk(x, 'leader'))) v += 1;
+  return v;
+}
 function effStat(h, key) {
   const p = h.pl;
   if (!p) return 10;
-  let v = Math.min(STAT_CAP_BASE, p.stats[key]) + (h.bonusAll || 0);
+  let v = Math.min(STAT_CAP_BASE, p.stats[key]) + (h.bonusAll || 0) + perkStatBonus(h);
   if (h.tilt) {
     if (key === 'rea' || key === 'mech' || key === 'read') v -= h.tilt;
     if (key === 'agr') v += h.tilt;

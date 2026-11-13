@@ -108,7 +108,7 @@ const UI = {
       <div class="hc-info">
         <div class="hc-top">
           <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${heroFace(h.def)}</span><span class="lvl">1</span></div>
-          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
+          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}${perkHTML(h.pl)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>
@@ -594,7 +594,7 @@ const Draft = {
       banRows[t] = el('div', 'ban-row', AI.BAN_ORDER.filter(x => x === t).map(() => '<span class="ban-slot"></span>').join(''));
       col.appendChild(banRows[t]);
       for (const p of players[t]) {
-        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}${p === caps[t] ? ' <span class="capt">C</span>' : ''}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
+        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}${p === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(p)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
         col.appendChild(s); slots[t].set(p, s);
       }
     }
@@ -637,7 +637,7 @@ const Draft = {
         pp.innerHTML = heroFace(step.def);
         pp.style.background = `radial-gradient(circle at 35% 30%, ${step.def.color}, #0b0f1d 85%)`;
         const ms = masteryOf(step.pl, step.def.id);
-        slot.querySelector('.pn').innerHTML = `<b>${U.esc(step.pl.nick)}${step.pl === caps[t] ? ' <span class="capt">C</span>' : ''}</b><span class="ph">${step.def.name}</span><small>${ROLES[step.role].short} ${fitStars(step.def.fit[step.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why">${this.chips(step.parts, 1)}</em>`;
+        slot.querySelector('.pn').innerHTML = `<b>${U.esc(step.pl.nick)}${step.pl === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(step.pl)}</b><span class="ph">${step.def.name}</span><small>${ROLES[step.role].short} ${fitStars(step.def.fit[step.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why">${this.chips(step.parts, 1)}</em>`;
         slot.title = step.reason;
       }
       await wait(ban ? 450 : 380);

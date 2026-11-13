@@ -35,21 +35,24 @@ const AI = {
     if (id === 'windmage' || id === 'smuggler') w[T_VIS] += 0.4;
     if (id === 'berserk' && h.lvl >= 6) w[T_HEAL] += 0.5;
     if (id === 'frostgolem') w[T_DEF] += 0.5;
+    // перк «Игрок лейта»: до 25-й минуты копит золото
     // Тактика: насколько ИИ учитывает ситуацию (здоровье, ману, событие, роль); слабый тактик играет «по шаблону»
     const k = U.clamp((iqOf(h, 'tactic') - 2) / 12, 0, 1.25);
     const flat = [1.6, 0.8, 0.8, 0.8, 1.1, 0.8];
     // слабый тактик ещё и «плывёт» в приоритетах от хода к ходу
     const drift = U.clamp((12 - iqOf(h, 'tactic')) / 10, 0, 1) * 0.9;
     for (let t = 0; t < 6; t++) w[t] = Math.max(0.05, (flat[t] + k * (w[t] - flat[t])) * (1 + U.rand(-drift, drift)));
+    if (hasPerk(h, 'late') && G.minute < 25) w[T_GOLD] *= 2.2;   // «Игрок лейта» копит золото на поздние предметы
     return w;
   },
 
   scoreSim(sim, w, h) {
     let s = 0;
     for (let t = 0; t < 6; t++) s += sim.counts[t] * w[t];
-    for (const c of sim.creates) s += c.sp === 'prism' ? 7 : c.sp === 'bomb' ? 4.5 : 3.2;
+    const cm = hasPerk(h, 'combo') ? 1.6 : 1;   // «Комбинатор» выше ценит особые камни и их срабатывание
+    for (const c of sim.creates) s += (c.sp === 'prism' ? 7 : c.sp === 'bomb' ? 4.5 : 3.2) * cm;
     s += sim.stones * 0.9;
-    s += sim.acts.length * 1.2;
+    s += sim.acts.length * 1.2 * cm;
     return s;
   },
 
@@ -119,6 +122,9 @@ const AI = {
   respondSignal(G, h, sig) {
     if (!h.alive || (h.ev && (h.ev.type === 'recall' || h.ev.type === 'dead'))) return { accept: false, fast: false };
     const hp = h.hp / h.maxHp;
+    // «Одиночка» не идёт на помощь, «Фармила» часто игнорирует призывы на объекты и о помощи
+    if (sig.type === 'help' && hasPerk(h, 'loner')) return { accept: false, fast: false };
+    if ((sig.type === 'help' || sig.type === 'obj') && hasPerk(h, 'farmer') && U.chance(0.5)) return { accept: false, fast: false };
     let p;
     if (sig.type === 'retreat') p = 0.45 + 0.04 * sd(h, 'team') + (hp < 0.4 ? 0.3 : 0) - 0.02 * sd(h, 'agr');
     else p = 0.4 + 0.035 * sd(h, 'team') + 0.015 * sd(sig.from, 'team') - (hp < 0.4 ? 0.25 : 0);
@@ -135,8 +141,11 @@ const AI = {
       else useful = hp > 0.5;
       p = useful ? 0.55 + 0.035 * sd(h, 'team') + 0.25 : 0.12;
     }
+    if (hasPerk(sig.from, 'caller')) p += 0.2;   // «Голос команды»
+    if (sig.type === 'retreat' && hasPerk(h, 'reckless')) p -= 0.3;
+    if (sig.type === 'retreat' && hasPerk(h, 'cautious')) p += 0.2;
     const accept = U.chance(U.clamp(p, 0.03, 0.97));
-    return { accept, fast: accept && AI.arrivesFast(h) };
+    return { accept, fast: accept && (AI.arrivesFast(h) || (hasPerk(sig.from, 'caller') && U.chance(0.35))) };
   },
   arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team'), 0.05, 0.95)); },
 

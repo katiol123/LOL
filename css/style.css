@@ -848,3 +848,10 @@ html, body, #app { overflow: clip; }
 .pn-live small { color: var(--muted); }
 @media (max-width: 700px) { .pn-live .lv { grid-template-columns: 28px 1fr 60px 36px; } .pn-live .lv small { display: none; } }
 .pn-row.skill .pn-d { color: #c9a8ff !important; } .pn-row.skill { border-left-color: #b98cff !important; }
+
+/* ---------- Перки менталитета ---------- */
+.perk-i { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; border-radius: 5px; font-size: 11px; line-height: 1; vertical-align: 1px; background: rgba(185,140,255,.18); border: 1px solid rgba(185,140,255,.45); cursor: help; }
+.perks { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.perks.none { color: var(--muted); font-size: 12px; }
+.perk { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #e6d8ff; background: linear-gradient(90deg, rgba(150,100,255,.28), rgba(150,100,255,.08)); border: 1px solid rgba(185,140,255,.5); box-shadow: 0 0 10px rgba(150,100,255,.2); cursor: help; }
+.perk i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(185,140,255,.3); font-size: 12px; }
