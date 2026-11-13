@@ -223,7 +223,7 @@ var RATING_NORMS = {
  "off": {
   "top": -0.05,
   "jng": 0.07,
-  "mid": -0.085,
+  "mid": 0.015,
   "adc": 0.046,
   "sup": -0.117
  }

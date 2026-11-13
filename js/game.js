@@ -655,10 +655,12 @@ class Game {
     from.signals = (from.signals || 0) + 1;
     return sig;
   }
+  humanSignal(h, type, data = {}) { (this.humanQueue = this.humanQueue || []).push({ h, type, data }); }
   answer(sig, h) {
     // человек отвечает через интерфейс; если ответа ещё нет (null), он считается «позже» и прибывает на минуту позже
     let r = (h.ctrl !== 'ai' && this.ui.askSignal) ? this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
-    if (!r) r = { accept: true, fast: false, pending: true };
+    // молчание на «Отступаем» — уходит сразу (безопаснее), на остальные сигналы — «позже»
+    if (!r) r = sig.type === 'retreat' ? { accept: true, fast: true, pending: true } : { accept: true, fast: false, pending: true };
     sig.answers.push(Object.assign({ h }, r));
     if (r.accept) h.answered = (h.answered || 0) + 1;
     return r;
@@ -765,6 +767,11 @@ class Game {
       for (const d of this.teams[this.enemyOf(t)].heroes) if (this.free(d) && U.chance(0.75)) this.join(ev, d);
       this.persist.push(ev);
       this.ui.log(`🚩 ${tm.name} собираются в натиск на <b>${lane.toUpperCase()}</b>!`, t);
+    }
+
+    // 4a. Сигналы, отправленные человеком (тем же механизмом, что и у ИИ)
+    for (const q of (this.humanQueue || []).splice(0)) {
+      if (q.type === 'obj') { const npc = q.data.kind === 'baron' ? this.baron : this.dragon; const sig = this.signal(q.h, 'obj', { kind: npc.kind }); if (sig) { this.teams[q.h.team].pressure += 10 * sm(0.05, q.h, 'team'); for (const x of this.teams[q.h.team].heroes) if (x !== q.h && this.free(x)) { const r = this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; } this.announce(sig); } }
     }
 
     // 4b. Сигнал «Давим линию»: соперники по линии мертвы, башня стоит
