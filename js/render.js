@@ -287,7 +287,8 @@ const MapGeo = {
   },
   heroTarget(G, h, i) {
     const ev = h.ev;
-    const jitter = [(i % 3 - 1) * 0.025, ((i / 3 | 0) % 3 - 1) * 0.025];
+    // герои в одной точке раздвигаются, чтобы крупные фишки не перекрывали друг друга
+    const jitter = [(i % 3 - 1) * 0.06, ((i / 3 | 0) % 3 - 1) * 0.06];
     let p;
     if (!ev || ev.type === 'dead' || ev.type === 'recall') p = this.base[h.team];
     else if (ev.type === 'lane') {
@@ -408,16 +409,17 @@ const Minimap = {
     }
     this.pings = this.pings.filter(p => p.t < 1);
     // герои
-    G.heroes.forEach((h, i) => {
+    const order = G.heroes.map((h, i) => [h, i]).sort((a, b) => (a[0] === G.active) - (b[0] === G.active));
+    order.forEach(([h, i]) => {
       const tgt = MapGeo.heroTarget(G, h, i % 5);
       let cur = this.pos.get(h.id);
       if (!cur) { cur = [...MapGeo.base[h.team]]; this.pos.set(h.id, cur); }
       const k = Math.min(1, dt * 2.5);
       cur[0] += (tgt[0] - cur[0]) * k; cur[1] += (tgt[1] - cur[1]) * k;
       if (!h.alive) return;
-      const r = s * 0.032;
+      const r = s * 0.056;
       const active = G.active === h;
-      const rr = r * (active ? 1.3 : 1.1), x = cur[0] * s, y = cur[1] * s;
+      const rr = r * (active ? 1.22 : 1), x = U.clamp(cur[0] * s, rr + 2, s - rr - 2), y = U.clamp(cur[1] * s, rr + 2, s - rr - 2);
       const img = heroFaceImage(h.def);
       ctx.save();
       ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2);
