@@ -62,7 +62,7 @@ const ITEMS = {
   cleaver: { name: 'Секира Раскола', icon: '🪓', cost: 1300, tier: 3, atk: 14, hp: 250 },
   bastion: { name: 'Латы Бастиона', icon: '🏰', cost: 1300, tier: 3, arm: 38, hp: 250 },
   thirst: { name: 'Жаждущий клинок', icon: '🩸', cost: 1400, tier: 3, atk: 16, ls: 0.15 },
-  titan: { name: 'Сердце Титана', icon: '💗', cost: 1500, tier: 3, hp: 650 },
+  titan: { name: 'Сердце Титана', icon: '💗', cost: 1500, tier: 3, hp: 760, regen: 0.006 },
   abyss: { name: 'Посох Бездны', icon: '🔮', cost: 1500, tier: 3, sp: 65, mana: 40 },
   bow: { name: 'Лук Гиперзвука', icon: '🏹', cost: 1500, tier: 3, atk: 22 },
   reaper: { name: 'Коса Жнеца', icon: '⚰', cost: 1650, tier: 3, atk: 26, hp: 150 },

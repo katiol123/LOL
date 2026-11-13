@@ -16,13 +16,14 @@ const N = +(process.argv[2] || 200);
   const byRole = {}, legendMin = [], counts = [];
   let smartWins = 0;
   for (let i = 0; i < N; i++) {
-    const a = ctx.teamOf({}), b = ctx.teamOf({});
-    a.forEach(p => p.shopIq = 18); b.forEach(p => p.shopIq = 2);   // только закупка отличается
+    let a, b;
+    if (process.env.LEAGUE) { if (i % 60 === 0) ctx._L = ctx.createLeague(9100 + i); const cs = ctx.U.shuffle(ctx._L.clubs.slice()); a = ctx.rosterOf(ctx._L, cs[0]); b = ctx.rosterOf(ctx._L, cs[1]); a.forEach(p => p.shopIq = null); b.forEach(p => p.shopIq = null); }
+    else { a = ctx.teamOf({}); b = ctx.teamOf({}); a.forEach(p => p.shopIq = 18); b.forEach(p => p.shopIq = 2); }   // только закупка отличается
     const side = i % 2 === 0;
     const g = await ctx.playMatch(side ? a : b, side ? b : a);
     if (g.winner === (side ? 'blue' : 'red')) smartWins++;
     for (const h of g.heroes) {
-      if (h.pl.shopIq !== 18) continue;
+      if (!process.env.LEAGUE && h.pl.shopIq !== 18) continue;
       const r = byRole[h.role] = byRole[h.role] || {};
       for (const it of h.items) r[it] = (r[it] || 0) + 1;
       counts.push(h.items.length);
@@ -35,6 +36,10 @@ const N = +(process.argv[2] || 200);
     const top = Object.entries(byRole[r]).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([id, n]) => `${ctx.ITEMS[id].name} ${n}`);
     console.log(`${r.toUpperCase()}: ${top.join(' · ')}`);
   }
-  const used = new Set(Object.values(byRole).flatMap(o => Object.keys(o)));
-  console.log(`Покупается разных предметов: ${used.size} из ${Object.keys(ctx.ITEMS).length}`);
+  const total = {};
+  for (const o of Object.values(byRole)) for (const [id, n] of Object.entries(o)) total[id] = (total[id] || 0) + n;
+  const used = Object.keys(ctx.ITEMS).filter(id => total[id]);
+  console.log(`Покупается разных предметов: ${used.length} из ${Object.keys(ctx.ITEMS).length}`);
+  console.log('Покупки по всем предметам:', Object.keys(ctx.ITEMS).sort((x, y) => (total[x] || 0) - (total[y] || 0)).map(id => `${id} ${total[id] || 0}`).join(' · '));
+  if (process.env.REQUIRE_ALL && used.length < Object.keys(ctx.ITEMS).length) { console.log('ПРОВАЛ: не все предметы используются'); process.exit(1); }
 })().catch(e => { console.error(e); process.exit(1); });
