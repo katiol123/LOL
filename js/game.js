@@ -106,7 +106,19 @@ class Game {
   alliesIn(h) { const ev = h.ev; if (!ev || !ev.sides) return [h]; return ev.sides[h.team].filter(x => x.alive); }
   allTeam(h) { return this.teams[h.team].heroes.filter(x => x.alive); }
   allEnemies(h) { return this.teams[h.enemyTeam].heroes.filter(x => x.alive && !(x.ev && x.ev.type === 'recall')); }
-  target(h) { const e = this.enemiesIn(h); return e.length ? U.minBy(e, x => (x.hp + x.shield) / x.maxHp) : null; }
+  target(h) {
+    const e = this.enemiesIn(h);
+    if (!e.length) return null;
+    if (e.length === 1) return e[0];
+    const ev = h.ev;
+    // Командное мышление: бить ту же цель, что и союзники (фокус)
+    const f = ev && ev.focus && ev.focus[h.team];
+    if (f && f.alive && e.includes(f) && U.chance(U.clamp((iqOf(h, 'team') - 3) / 14, 0, 0.95))) return f;
+    // Тактика: выбрать цель, которую реально добить (наименьший запас здоровья), иначе — кого попало
+    const t = U.chance(U.clamp((iqOf(h, 'tactic') - 2) / 14, 0.05, 0.98)) ? U.minBy(e, x => x.hp + x.shield) : U.pick(e);
+    if (ev) { ev.focus = ev.focus || {}; if (!ev.focus[h.team] || !ev.focus[h.team].alive) ev.focus[h.team] = t; }
+    return t;
+  }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
   teamBuffs(t) {
     const tm = this.teams[t]; const b = { atk: 1, arm: 0, regen: 0, mana: 0 };
@@ -869,6 +881,13 @@ class Game {
       const called = x => x.mem.call && x.mem.call.kind === npc.kind && x.mem.call.round === this.round;
       const crew = tm.heroes.filter(h => this.free(h) && h.hp / h.maxHp > 0.4 && (roles.includes(h.role) && !called(h) || called(h) && h.mem.call.fast));
       if (crew.length < (isBaron ? 3 : 2)) continue;
+      // Командное мышление «капитана» (лучший по этому параметру в составе): начинать бой за эпика только когда это выгодно
+      const caller = U.maxBy(crew, x => iqOf(x, 'team'));
+      if (U.chance(U.clamp((iqOf(caller, 'team') - 2) / 14, 0, 1))) {
+        const foes = this.teams[this.enemyOf(t)].heroes.filter(x => x.alive);
+        const avgHp = U.sum(crew, x => x.hp / x.maxHp) / crew.length;
+        if (tm.heroes.filter(x => x.alive).length < foes.length || avgHp < 0.55) continue;
+      }
       const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 4, dtype: npc.type, late: tm.heroes.filter(h => this.free(h) && called(h) && !h.mem.call.fast) });
       crew.forEach(h => this.join(ev, h));
       tm.pressure -= threshold * 0.7;
@@ -878,7 +897,10 @@ class Game {
       const contest = U.clamp(0.3 + (etm.river - tm.river) * 0.07 + (etm.pressure - tm.pressure * 0.5) / 300 + (isBaron ? 0.15 : 0) + 0.025 * (mapE - teamA), 0.05, 0.92);
       const spotted = U.chance(contest);
       if (spotted) {
-        const defs = roles.map(r => this.hero(et, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.35);
+        let defs = roles.map(r => this.hero(et, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.35);
+        // Командное мышление защитников: не оспаривать эпика в явном меньшинстве
+        const dc = defs.length ? U.maxBy(defs, x => iqOf(x, 'team')) : null;
+        if (dc && U.chance(U.clamp((iqOf(dc, 'team') - 2) / 14, 0, 1)) && defs.length < crew.length - 1) defs = [];
         defs.forEach(h => this.join(ev, h));
         etm.river *= 0.5;
       }
@@ -903,7 +925,8 @@ class Game {
       options.push({ l, victims, score });
     }
     if (!options.length) return;
-    const best = U.maxBy(options, o => o.score);
+    // Командное мышление лесника: выбрать самую выгодную линию для ганга (слабый — почти наугад)
+    const best = U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1)) ? U.maxBy(options, o => o.score) : U.pick(options);
     j.gank = 0;
     const lane = this.lanes[best.l];
     const ev = this.mkEv('gank', { lane: best.l, att: j.team, left: 2 });

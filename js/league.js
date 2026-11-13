@@ -54,6 +54,10 @@ function genLeaguePlayer(rng, used, role, clubLevel) {
   else if (roll < 0.14) { level -= 2 + rng() * 1.5; talent = 'weak'; } // слабое звено — тоже в любом
   const p = makePlayer({ nick: idn.nick, first: idn.first, last: idn.last, role, stats: genStats(rng, role, level), talent });
   p.face = genFace(rng, { female: idn.female });
+  // скрытый игровой интеллект: в сильных клубах в среднем выше, но у каждого свой разброс
+  let iqBase = 10 + (clubLevel - 10) * 0.9 + (talent === 'star' ? 1.5 : talent === 'weak' ? -1.5 : 0);
+  if (rng() < 0.08) iqBase += 4.5;   // «прирождённый стратег» — может оказаться в любом клубе
+  p.iq = Object.fromEntries(IQ_KEYS.map(k => [k, Math.round(U.clamp(iqBase + (rng() + rng() + rng() - 1.5) * 2.6, 3, 18))]));
   p.age = 17 + rng.ri(12);
   return p;
 }

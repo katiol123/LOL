@@ -15,6 +15,7 @@ const AI = {
       default: w = [2.6, 1.1, 0.7, 0.8, 0.4, 0.3];
     }
     // здоровье
+    const base = w.slice();
     w[T_HEAL] = hp > 0.95 ? 0.1 : w[T_HEAL] + (1 - hp) * 4;
     if (enemies) w[T_DEF] += (1 - hp) * 1.8;
     // мана для умений
@@ -34,6 +35,12 @@ const AI = {
     if (id === 'selena' || id === 'nia') w[T_VIS] += 0.4;
     if (id === 'morven' && h.lvl >= 6) w[T_HEAL] += 0.5;
     if (id === 'granitor') w[T_DEF] += 0.5;
+    // Тактика: насколько ИИ учитывает ситуацию (здоровье, ману, событие, роль); слабый тактик играет «по шаблону»
+    const k = U.clamp((iqOf(h, 'tactic') - 2) / 12, 0, 1.25);
+    const flat = [1.6, 0.8, 0.8, 0.8, 1.1, 0.8];
+    // слабый тактик ещё и «плывёт» в приоритетах от хода к ходу
+    const drift = U.clamp((12 - iqOf(h, 'tactic')) / 10, 0, 1) * 0.9;
+    for (let t = 0; t < 6; t++) w[t] = Math.max(0.05, (flat[t] + k * (w[t] - flat[t])) * (1 + U.rand(-drift, drift)));
     return w;
   },
 
@@ -60,6 +67,10 @@ const AI = {
       return all.length ? U.pick(all) : null;
     }
     const w = this.weights(G, h);
+    const iq = iqOf(h, 'board');
+    if (U.chance(Math.max(0, 8 - iq) * 0.03)) return U.pick(moves);   // «зевок»: случайный ход
+    const noise = 0.4 + (20 - iq) * 0.26;
+    const depth = iq >= 14 ? 3 : iq >= 8 ? 1 : 0;
     let best = null, bs = -Infinity;
     for (const mv of moves) {
       let s;
@@ -71,16 +82,19 @@ const AI = {
           s = h.board.count(color) * w[color] + 4;
         }
       } else {
-        s = this.scoreSim(h.board.simulateDeep(mv, blind, preview), w, h);
+        s = this.scoreSim(depth ? h.board.simulateDeep(mv, blind, preview, depth) : h.board.simulate(mv, blind), w, h);
       }
       // предпочтение ходов внизу поля (больше шансов на каскад)
-      s += Math.max(mv.r, mv.r2) * 0.12 + Math.random() * 0.8;
+      s += Math.max(mv.r, mv.r2) * 0.12 * (iq >= 10 ? 1 : 0) + Math.random() * noise;
       if (s > bs) { bs = s; best = mv; }
     }
     return best;
   },
 
   chooseSkill(G, h, after) {
+    // слабый тактик тратит умения как попало
+    if (U.chance(U.clamp((14 - iqOf(h, 'tactic')) / 16, 0, 0.8))) { for (const k of ['r', 'q']) if (G.canCast(h, k) && U.chance(0.55)) return k; return null; }
+    const enemies = G.enemiesIn(h);
     for (const key of ['r', 'q']) {
       if (!G.canCast(h, key)) continue;
       const s = h.def[key];
@@ -91,6 +105,11 @@ const AI = {
       if (key === 'r' && s.need === 'enemy' && !G.enemiesIn(h).length && !['dragon', 'baron'].includes(h.ev.type)) continue;
       if (key === 'r' && s.need === 'none' && !s.ai && !G.enemiesIn(h).length) continue;
       if (after && U.chance(0.4)) continue;
+      // сильный тактик: урон по врагам — когда враги рядом; ульта — по раненой цели или в бою за эпика
+      if (iqOf(h, 'tactic') >= 12 && s.need === 'enemy' && key === 'r') {
+        const t = G.target(h);
+        if (t && t.hp / t.maxHp > 0.7 && enemies.length <= 1 && !['dragon', 'baron'].includes(h.ev.type)) continue;
+      }
       return key;
     }
     return null;
@@ -103,6 +122,19 @@ const AI = {
     let p;
     if (sig.type === 'retreat') p = 0.45 + 0.04 * sd(h, 'team') + (hp < 0.4 ? 0.3 : 0) - 0.02 * sd(h, 'agr');
     else p = 0.4 + 0.035 * sd(h, 'team') + 0.015 * sd(sig.from, 'team') - (hp < 0.4 ? 0.25 : 0);
+    // Командное мышление: умный игрок оценивает, полезен ли отклик сейчас
+    const c = iqOf(h, 'team');
+    if (U.chance(U.clamp((c - 2) / 16, 0, 1))) {
+      const ev = G.events.find(e => e.id === sig.data.ev) || sig.from.ev;
+      const own = ev && ev.sides ? ev.sides[h.team].filter(x => x.alive).length : 1;
+      const foe = ev && ev.sides ? ev.sides[h.enemyTeam].filter(x => x.alive).length : 0;
+      let useful;
+      if (sig.type === 'retreat') useful = hp < 0.55 || own < foe;
+      else if (sig.type === 'help') useful = hp > 0.45 && (h.role === 'jng' || h.role === 'mid' || h.lane === sig.data.lane);
+      else if (sig.type === 'obj') useful = hp > 0.5 && G.allTeam(h).length >= G.allEnemies(h).length - 1;
+      else useful = hp > 0.5;
+      p = useful ? 0.55 + 0.035 * sd(h, 'team') + 0.25 : 0.12;
+    }
     const accept = U.chance(U.clamp(p, 0.03, 0.97));
     return { accept, fast: accept && AI.arrivesFast(h) };
   },
@@ -116,14 +148,15 @@ const AI = {
     const m = masteryOf(pl, def.id);
     s += m * 0.9;
     const tags = mine.flatMap(d => d.tags);
-    const need = { tank: 2.5, heal: 1.8, control: 1.2 };
+    const c = (pl.iq && pl.iq.team) || 10, ck = U.clamp((c - 2) / 12, 0, 1.3);
+    const need = { tank: 2.5 * ck, heal: 1.8 * ck, control: 1.2 * ck };
     for (const t of def.tags) {
       if (need[t] && !tags.includes(t)) s += need[t];
       if (tags.filter(x => x === t).length >= 2) s -= 1.5;
     }
     const steal = Math.max(0, ...enemyPlayers.map(p => masteryOf(p, def.id)));
-    if (steal >= 15) s += 3;
-    return s + rng() * 3.5;
+    if (steal >= 15) s += 3 * ck;
+    return s + rng() * (3.5 + (20 - c) * 0.35);
   },
   draftReason(pl, role, def, mine) {
     const fit = def.fit[role], m = masteryOf(pl, def.id);

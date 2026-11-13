@@ -106,7 +106,7 @@ const Campaign = {
   finishCreate() {
     const cs = this.cs;
     if (STAT_BUDGET - this.spent() !== 0) return;
-    const p = makePlayer({ nick: cs.nick.trim() || 'Игрок', first: cs.first.trim() || 'Игрок', last: cs.last.trim(), role: cs.role, stats: Object.assign({}, cs.stats), face: cs.face, human: true, age: 19 });
+    const p = makePlayer({ nick: cs.nick.trim() || 'Игрок', first: cs.first.trim() || 'Игрок', last: cs.last.trim(), role: cs.role, stats: Object.assign({}, cs.stats), face: cs.face, human: true, age: 19, iq: { board: 10, tactic: 10, team: 10 } });
     for (const id of cs.heroes) p.mastery[id] = 4;
     this.human = p;
     this.openClubs();

@@ -237,12 +237,12 @@ class Board {
 
   /* Ход с предсказанием каскадов: падение уже лежащих камней известно всем,
      а новые камни — только первые `preview` из очереди каждого столбца. Остальные неизвестны (-1). */
-  simulateDeep(mv, blind, preview) {
+  simulateDeep(mv, blind, preview, maxDepth = 3) {
     const { res, T, SP } = this.firstStep(mv, blind);
     const total = { counts: res.counts.slice(), stones: res.stones, creates: res.creates.slice(), acts: res.acts.slice(), depth: 0 };
     const used = new Array(N).fill(0);
     let last = res;
-    for (let d = 1; d <= 3; d++) {
+    for (let d = 1; d <= maxDepth; d++) {
       for (const k of last.clear) { T[kr(k)][kc(k)] = -9; SP[kr(k)][kc(k)] = null; }
       for (const cr of last.creates) { T[kr(cr.k)][kc(cr.k)] = cr.t; SP[kr(cr.k)][kc(cr.k)] = cr.sp; }
       for (let c = 0; c < N; c++) {
