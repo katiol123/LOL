@@ -46,10 +46,11 @@ const App = {
     sp.appendChild(el('div', '', `<b style="color:#aab">Булыжник</b><span>Помеха от умений врага: не двигается и не совпадает. Раскалывается от соседнего совпадения.</span>`));
     lg.appendChild(sp);
     // кодекс
-    const codex = role => { $('#codex-list').innerHTML = ROLE_ORDER.filter(r => !role || r === role).flatMap(r => HEROES.filter(h => h.role === r)).map(d => Draft.heroCard(d)).join(''); };
+    const itemsHTML = () => [1, 2, 3, 4].map(t => `<div class="it-tier"><h3>${ITEM_TIER_NAMES[t]}</h3><div class="it-grid">${Object.entries(ITEMS).filter(([, it]) => it.tier === t).sort((x, y) => x[1].cost - y[1].cost).map(([id, it]) => `<div class="it-card"><span class="it-ic">${it.icon}</span><div><b>${it.name}</b><small>${it.cost} 💰</small><p>${itemDesc(id)}</p></div></div>`).join('')}</div></div>`).join('') + '<p class="cd-note">Любой герой может купить любой предмет. Что брать, ИИ решает по своему герою, роли, составу врагов и стадии игры; насколько удачно — зависит от его Тактики. В инвентаре 6 слотов: слабые предметы продаются за 60% цены ради более сильных.</p>';
+    const codex = role => { if (role === 'items') { $('#codex-list').innerHTML = `<div class="it-wrap">${itemsHTML()}</div>`; return; } $('#codex-list').innerHTML = ROLE_ORDER.filter(r => !role || r === role).flatMap(r => HEROES.filter(h => h.role === r)).map(d => Draft.heroCard(d)).join(''); };
     codex(null);
     const cf = $('#codex-filter');
-    cf.innerHTML = `<button class="on" data-r="">Все</button>` + ROLE_ORDER.map(r => `<button data-r="${r}">${ROLES[r].icon} ${ROLES[r].name}</button>`).join('');
+    cf.innerHTML = `<button class="on" data-r="">Все</button>` + ROLE_ORDER.map(r => `<button data-r="${r}">${ROLES[r].icon} ${ROLES[r].name}</button>`).join('') + `<button data-r="items">🛒 Предметы (${Object.keys(ITEMS).length})</button>`;
     cf.querySelectorAll('button').forEach(b => b.onclick = () => { cf.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); codex(b.dataset.r || null); });
     this.titleGems();
     $('#btn-codex').onclick = () => $('#codex').classList.add('open');
@@ -164,7 +165,7 @@ const App = {
     const mvp = all.find(h => h.mvp);
     const row = h => `<tr class="${h.pl && h.pl.human ? 'me' : ''}"><td class="${h === mvp ? 'mvp' : ''}"><span class="pt pface-s">${faceHTML(h.pl, UI.teamColors(h.team))}</span>${U.esc(h.nick)}${h.pl && h.pl.human ? ' <span class="you">ВЫ</span>' : ''}${h === mvp ? ' ★ MVP' : ''}<br><small class="muted">${h.def.emoji} ${h.name} · ${ROLES[h.role].short}${h.fit < 3 ? ' ' + fitStars(h.fit) : ''}</small>${(() => { const sh = Math.round(h.dmg / Math.max(1, U.sum(G.teams[h.team].heroes, x => x.dmg)) * 100); return `<span class="share" title="Доля урона команды"><i style="width:${sh}%"></i><b>${sh}% урона</b></span>`; })()}</td>
       <td><span class="rbadge" style="background:${ratingColor(h.rating)}">${h.rating.toFixed(1)}</span>${gains[h.pl.id] ? `<span class="gain" title="Мастерство на герое выросло за высокую оценку"> ✦+${gains[h.pl.id]}</span>` : ''}</td>
-      <td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
+      <td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${U.esc(ITEMS[i].name + ' — ' + itemDesc(i))}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
     $('#end-table').innerHTML = ['blue', 'red'].map(t => `
       <div class="panel et ${t} ${t === w ? 'win' : ''}"><h3>${U.esc(G.teams[t].name)}${G.teams[t].heroes.some(h => h.pl && h.pl.human) ? ' <span class="you">ВАШ КЛУБ</span>' : ''}${t === w ? ' — победа' : ''}</h3>
       <table><tr><th>Игрок</th><th>Оценка</th><th>Ур.</th><th>У/С/П</th><th>Урон</th><th>Леч./щит</th><th>Обзор</th><th>Золото</th><th>Предметы</th></tr>

@@ -225,7 +225,7 @@ const UI = {
     set('kda', `${h.k}/${h.d}/${h.a}`, v => { r.kda.textContent = '⚔ ' + v; });
     set('cs', h.cs, v => { r.cs.textContent = '🗡' + v; });
     set('gold', Math.round(h.gold), v => { r.gold.textContent = '💰' + v; });
-    set('items', h.items.join(','), () => { r.items.innerHTML = h.items.map(i => `<span class="it" title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join(''); });
+    set('items', h.items.join(','), () => { r.items.innerHTML = h.items.map(i => `<span class="it" title="${U.esc(ITEMS[i].name + ' — ' + itemDesc(i))}">${ITEMS[i].icon}</span>`).join(''); });
     const ev = h.ev;
     let evName = '—', evCol = '#888';
     if (ev) {

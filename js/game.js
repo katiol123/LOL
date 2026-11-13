@@ -44,7 +44,6 @@ class Hero {
   }
   get enemyTeam() { return this.team === 'blue' ? 'red' : 'blue'; }
   get lane() { return ROLE_LANE[this.role]; }
-  get build() { return BUILDS[this.def.main || this.def.role]; }
   get nick() { return this.pl ? this.pl.nick : this.name; }
   get alive() { return this.dead <= 0; }
   itemStat(k) { return U.sum(this.items, it => ITEMS[it][k] || 0) + (this.elix || 0) * (ELIXIR[k] || 0); }
@@ -306,16 +305,16 @@ class Game {
     if (p.effects) p.effects(this, h, c);
     const buff = this.teamBuffs(h.team);
     // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
-    const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech'));
+    const casc = 1 + 0.25 * info.cascade * (sm(0.04, h, 'mech')) * (1 + 4 * h.itemStat('cascPow'));
     const inFight = h.ev && h.ev.sides && this.enemiesIn(h).length > 0;
     const allies = this.alliesIn(h).length;
     const gm = (sm(0.012, h, 'mech')) * this.pressureFactor(h)
       * (inFight && this.persist.includes(h.ev) ? sm(0.012, h, 'calm') : 1)   // хладнокровие в затяжных боях
       * (allies >= 2 ? sm(0.012, h, 'team') : 1);                              // слаженность с союзниками
     for (const k in c.m) c.m[k] *= gm;
-    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech'), 0.01, 0.6))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
+    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech') + h.itemStat('crit'), 0.01, 0.8))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
     c.m.mana *= sm(0.045, h, 'read');
-    c.m.gold *= sm(0.02, h, 'farm');
+    c.m.gold *= sm(0.02, h, 'farm') * (1 + h.itemStat('goldPow'));
     const healPow = 1 + this.itemsOf(h, 'healPow');
     const shieldPow = 1 + this.itemsOf(h, 'shieldPow');
     const visPow = 1 + this.itemsOf(h, 'visPow');
@@ -447,7 +446,7 @@ class Game {
     const st = ev.structure;
     const tm = this.teams[st.team];
     const baron = this.teams[h.team].baron > 0 ? 1.8 : 1;
-    const d = Math.round(amt * 0.9 * baron);
+    const d = Math.round(amt * 0.9 * baron * (1 + h.itemStat('towerPow')));
     h.dmg += d; h.sdmg += d;
     this.ui.projectileTo(h, { kind: 'structure', ev }, '#ffd166');
     this.ui.npcHit(ev, d);
@@ -532,7 +531,7 @@ class Game {
   /* ---------------- Бой ---------------- */
   dealDamage(src, tgt, amt, kind = 'phys') {
     if (!tgt || !tgt.alive || amt <= 0) return 0;
-    let arm = tgt.armor + this.teamBuffs(tgt.team).arm;
+    let arm = (tgt.armor + this.teamBuffs(tgt.team).arm) * (1 - Math.min(0.6, src ? src.itemStat('pen') : 0));
     if (kind === 'magic') arm *= 0.5;
     if (kind === 'true') arm = 0;
     let d = amt * HERO_DMG * 100 / (100 + arm) * (1 + 0.008 * Math.max(0, sd(tgt, 'agr')));
@@ -544,6 +543,8 @@ class Game {
     tgt.shield -= abs; d -= abs;
     tgt.hp -= d;
     if (src) src.dmg += d + abs;
+    const th = kind === 'phys' && src && src !== tgt ? tgt.itemStat('thorns') : 0;
+    if (th > 0 && src.alive) { src.hp -= (d + abs) * th; tgt.dmg += (d + abs) * th; if (src.hp <= 0) this.kill(tgt, src); }
     this.ui.damage(tgt, Math.round(d + abs), abs > 0 && d < 1);
     if (tgt.hp <= 0) this.kill(src, tgt);
     return d + abs;
@@ -551,7 +552,7 @@ class Game {
 
   dodges(src, tgt) {
     if (!src || !tgt || src.team === tgt.team) return false;
-    const ok = U.chance(U.clamp(0.06 + 0.025 * (sd(tgt, 'rea') - sd(src, 'mech')), 0, 0.45));
+    const ok = U.chance(U.clamp(0.06 + 0.025 * (sd(tgt, 'rea') - sd(src, 'mech')) + tgt.itemStat('dodge'), 0, 0.55));
     if (ok) { this.ui.float(tgt, 'УВОРОТ!', '#9fe8ff'); tgt.dodged = (tgt.dodged || 0) + 1; }
     return ok;
   }
@@ -758,8 +759,7 @@ class Game {
     for (const h of this.heroes) {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
-      const next = h.build[h.buildIdx];
-      const rich = (next && h.items.length < 6 ? h.gold >= ITEMS[next].cost : h.gold >= 900) && (hpR < 0.92 || U.chance(0.5));
+      const rich = h.gold >= AI.shopTarget(this, h) && (hpR < 0.92 || U.chance(0.5));
       if (hpR < 0.3 - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
@@ -1055,8 +1055,8 @@ class Game {
         this.addGold(h, 32);
         const passiveXp = (h.ev.type === 'lane' || h.ev.type === 'jungle') ? 55 : 35;
         this.gainXp(h, passiveXp);
-        h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (0.015 + tb.regen));
-        h.mana = Math.min(h.maxMana, h.mana + 6 + tb.mana);
+        h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (0.015 + tb.regen + h.itemStat('regen')));
+        h.mana = Math.min(h.maxMana, h.mana + 6 + tb.mana + h.itemStat('manaRegen'));
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
         if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
@@ -1103,25 +1103,20 @@ class Game {
 
   atBase(h, respawn) {
     h.hp = h.maxHp; h.mana = h.maxMana;
-    const bought = [];
-    while (h.buildIdx < h.build.length && h.items.length < 6) {
-      const id = h.build[h.buildIdx];
-      if (h.gold < ITEMS[id].cost) break;
-      h.gold -= ITEMS[id].cost;
-      h.items.push(id);
-      h.buildIdx++;
-      bought.push(id);
+    const acts = AI.shop(this, h);
+    const bought = [], sold = [];
+    for (const a of acts) {
+      if (a.sell) { const i = h.items.indexOf(a.sell); if (i >= 0) { h.items.splice(i, 1); h.gold += a.refund; sold.push(a.sell); } }
+      if (a.buy && h.gold >= ITEMS[a.buy].cost) { h.gold -= ITEMS[a.buy].cost; h.items.push(a.buy); bought.push(a.buy); }
     }
-    // полный комплект — лишнее золото идёт на эликсиры силы
-    while (h.items.length >= 6 || h.buildIdx >= h.build.length) {
-      if (h.gold < 600) break;
-      h.gold -= 600; h.elix = (h.elix || 0) + 1; bought.push('elixir');
-    }
-    if (bought.length) {
+    // полный инвентарь и улучшать нечего — лишнее золото идёт на эликсиры силы
+    while (h.items.length >= 6 && h.gold >= 600 && !acts.length) { h.gold -= 600; h.elix = (h.elix || 0) + 1; bought.push('elixir'); }
+    if (bought.length || sold.length) {
       h.recalc();
       h.hp = h.maxHp;
-      this.ui.shop(h, bought);
-      this.ui.log(`🛒 ${this.tag(h)} покупает: ${bought.map(i => i === 'elixir' ? '🧪 Эликсир силы' : ITEMS[i].icon + ' ' + ITEMS[i].name).join(', ')}.`);
+      if (bought.length) this.ui.shop(h, bought);
+      const nm = i => i === 'elixir' ? '🧪 Эликсир силы' : ITEMS[i].icon + ' ' + ITEMS[i].name;
+      this.ui.log(`🛒 ${this.tag(h)} ${sold.length ? 'продаёт ' + sold.map(nm).join(', ') + ' и ' : ''}покупает: ${bought.map(nm).join(', ') || '—'}.`);
     }
   }
 

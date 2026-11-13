@@ -193,4 +193,95 @@ const AI = {
     }
     return { pl: best.pl, role: best.pl.role, def: best.def, team: t, reason: this.draftReason(best.pl, best.pl.role, best.def, mine) };
   },
+
+  /* ---------- Закупка предметов ----------
+     Любой герой может купить любой предмет. Ценность предмета = сумма его свойств × важность свойства
+     для этого героя (набор умений, роль, теги), состава врагов и стадии игры. Тактика решает, насколько разумно
+     игрок закупается: сильный тактик берёт лучшее для ситуации и меняет слабые предметы на сильные,
+     слабый — покупает почти что попало. */
+  ITEM_UNIT: { atk: 95, arm: 16, hp: 1.8, sp: 21, mana: 2.5, ls: 4000, crit: 7000, pen: 6000, thorns: 3000, dodge: 5000, regen: 15000, manaRegen: 20, goldPow: 2500, towerPow: 2500, cascPow: 9000, shieldPow: 2200, healPow: 2200, visPow: 900 },
+  PROFILE: {
+    top: { atk: 0.9, sp: 0.3, hp: 1.0, arm: 1.0, mana: 0.2, ls: 0.8, crit: 0.3, pen: 0.5, thorns: 0.8, dodge: 0.6, regen: 1.0, manaRegen: 0.2, goldPow: 0.4, towerPow: 0.7, cascPow: 0.4, shieldPow: 0.2, healPow: 0.2, visPow: 0.1 },
+    jng: { atk: 1.0, sp: 0.3, hp: 0.8, arm: 0.8, mana: 0.2, ls: 0.8, crit: 0.6, pen: 0.8, thorns: 0.4, dodge: 0.6, regen: 0.6, manaRegen: 0.3, goldPow: 0.5, towerPow: 0.5, cascPow: 0.5, shieldPow: 0.1, healPow: 0.1, visPow: 0.6 },
+    mid: { atk: 0.2, sp: 1.3, hp: 0.5, arm: 0.4, mana: 0.8, ls: 0.1, crit: 0.2, pen: 1.0, thorns: 0.1, dodge: 0.7, regen: 0.3, manaRegen: 1.0, goldPow: 0.5, towerPow: 0.3, cascPow: 1.0, shieldPow: 0.1, healPow: 0.1, visPow: 0.3 },
+    adc: { atk: 1.4, sp: 0.1, hp: 0.4, arm: 0.3, mana: 0.1, ls: 1.0, crit: 1.4, pen: 1.0, thorns: 0.1, dodge: 0.6, regen: 0.2, manaRegen: 0.1, goldPow: 0.7, towerPow: 1.0, cascPow: 0.6, shieldPow: 0, healPow: 0, visPow: 0.1 },
+    sup: { atk: 0.1, sp: 0.8, hp: 0.8, arm: 0.7, mana: 0.6, ls: 0, crit: 0, pen: 0.2, thorns: 0.5, dodge: 0.4, regen: 0.4, manaRegen: 0.8, goldPow: 0.3, towerPow: 0.1, cascPow: 0.4, shieldPow: 1.4, healPow: 1.4, visPow: 1.4 },
+  },
+  heroProfile(G, h) {
+    const a = this.PROFILE[h.def.main || h.role], b = this.PROFILE[h.role], m = h.def.mod || {}, tags = h.def.tags || [];
+    const p = {};
+    for (const k in this.ITEM_UNIT) p[k] = (a[k] + b[k]) / 2;
+    p.atk *= m.atk || 1; p.sp *= m.sp || 1;
+    if (tags.includes('tank')) { p.hp += 0.4; p.arm += 0.4; p.thorns += 0.3; }
+    if (tags.includes('heal')) p.healPow += 0.6;
+    if (tags.includes('vision')) p.visPow += 0.4;
+    if (tags.includes('dps')) p.crit += 0.3;
+    if (tags.includes('sustain')) { p.ls += 0.4; p.regen += 0.3; }
+    // против кого играем: много физического урона у врагов — броня ценнее
+    const foes = G.teams[h.enemyTeam].heroes;
+    const phys = U.sum(foes, f => (['adc', 'top', 'jng'].includes(f.def.main) ? 1 : 0) + ((f.def.mod || {}).atk > 1 ? 0.3 : 0)) / foes.length;
+    p.arm *= 0.6 + phys; p.thorns *= 0.6 + phys;
+    // стадия игры: доход ценен рано, осада и легендарные предметы — поздно
+    p.goldPow *= Math.max(0, 1 - G.minute / 25);
+    p.towerPow *= G.minute > 15 ? 1.3 : 0.6;
+    return p;
+  },
+  itemValue(G, h, id, prof) {
+    const it = ITEMS[id]; prof = prof || this.heroProfile(G, h);
+    let v = 0;
+    for (const k in this.ITEM_UNIT) if (it[k]) v += it[k] * this.ITEM_UNIT[k] * prof[k];
+    if (it.tier === 4 && G.minute > 22) v *= 1.15;
+    if (it.tier === 1 && G.minute > 20) v *= 0.7;    // в поздней игре слоты дороже дешёвых предметов
+    return v;
+  },
+  canOwn(h, id) { const n = h.items.filter(x => x === id).length; return ITEMS[id].tier === 1 ? n < 2 : n < 1; },
+  /* Решения на базе: что продать и что купить */
+  shop(G, h) {
+    const smart = U.chance(U.clamp((iqOf(h, 'tactic') - 2) / 14, 0.05, 1));
+    const prof = this.heroProfile(G, h);
+    const val = id => this.itemValue(G, h, id, prof);
+    const score = id => { const v = val(id); return v / ITEMS[id].cost * Math.sqrt(v); };
+    const acts = [];
+    let gold = h.gold;
+    const inv = h.items.slice();
+    const allowed = id => inv.filter(x => x === id).length < (ITEMS[id].tier === 1 ? 2 : 1);
+    for (let guard = 0; guard < 8; guard++) {
+      const cands = Object.keys(ITEMS).filter(id => ITEMS[id].cost <= gold && allowed(id));
+      if (inv.length < 6) {
+        if (!cands.length) break;
+        let pick;
+        if (smart) {
+          const slotsLeft = 6 - inv.length;
+          const eff = id => val(id) / ITEMS[id].cost;
+          const okTier = id => ITEMS[id].tier < 4 || G.minute >= 18;
+          if (slotsLeft >= 3) {
+            // слотов много: берём лучшее из доступного по соотношению «польза/цена», но не мусор
+            const ok = cands.filter(id => okTier(id) && eff(id) >= 0.8);
+            if (!ok.length) break;
+            pick = U.maxBy(ok, id => val(id) * Math.sqrt(eff(id)));
+          } else {
+            // слотов мало: каждый на счету — копим на крупный предмет
+            const pool = Object.keys(ITEMS).filter(id => allowed(id) && okTier(id) && ITEMS[id].tier >= 2);
+            const goal = U.maxBy(pool, id => val(id) * Math.pow(eff(id), 0.6));
+            if (ITEMS[goal].cost <= gold) pick = goal; else break;
+          }
+        } else pick = U.pick(cands);
+        acts.push({ buy: pick }); inv.push(pick); gold -= ITEMS[pick].cost;
+      } else {
+        // полный инвентарь: заменить самый слабый предмет
+        const worst = smart ? U.minBy(inv, val) : U.pick(inv);
+        const refund = Math.round(ITEMS[worst].cost * 0.6);
+        const up = Object.keys(ITEMS).filter(id => ITEMS[id].cost <= gold + refund && !inv.includes(id) && ITEMS[id].cost > ITEMS[worst].cost);
+        if (!up.length) break;
+        const best = smart ? U.maxBy(up, val) : U.pick(up);
+        if (smart && val(best) < val(worst) * 1.35) break;
+        if (!smart && U.chance(0.5)) break;
+        acts.push({ sell: worst, refund }); inv.splice(inv.indexOf(worst), 1); gold += refund;
+        acts.push({ buy: best }); inv.push(best); gold -= ITEMS[best].cost;
+      }
+    }
+    return acts;
+  },
+  /* Сколько золота нужно, чтобы поход на базу имел смысл */
+  shopTarget(G, h) { return h.items.length < 6 ? (G.minute < 10 ? 450 : G.minute < 20 ? 1300 : 1900) : 2600; },
 };

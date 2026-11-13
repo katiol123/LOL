@@ -744,3 +744,11 @@ html, body, #app { overflow: clip; }
 /* окно профиля/клуба: кнопка «Назад» */
 .close.back { font-size: 13px; font-weight: 700; border: 1px solid var(--gold); border-radius: 6px; padding: 4px 10px; color: var(--gold2); background: rgba(16,24,44,.9); top: 12px; right: 14px; }
 .close.back:hover { background: rgba(200,170,110,.15); }
+
+/* справочник предметов */
+.it-wrap { grid-column: 1 / -1; }
+.it-tier h3 { font-family: var(--title); color: var(--gold); margin: 10px 0 6px; font-size: 15px; }
+.it-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.it-card { display: grid; grid-template-columns: 38px 1fr; gap: 8px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid rgba(200,170,110,.18); }
+.it-ic { width: 38px; height: 38px; display: grid; place-items: center; font-size: 22px; border-radius: 8px; background: #1a2440; }
+.it-card b { display: block; font-size: 13px; } .it-card small { color: #ffd76b; } .it-card p { margin: 3px 0 0; font-size: 11.5px; color: #c9cbd4; }

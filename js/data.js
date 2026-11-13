@@ -29,31 +29,62 @@ const BASE_STATS = {
   sup: { hp: 560, hpG: 80, atk: 12, atkG: 1.6, arm: 24, armG: 2.8, mana: 140, sp: 35, spG: 6 },
 };
 
+/* Предметы: любой герой может купить любой предмет. tier: 1 — дешёвые, 2 — средние, 3 — крупные, 4 — легендарные поздние.
+   Особые свойства: ls вампиризм, crit шанс крита ⚔ (совпадение 4+), pen пробивание брони, thorns отражение физ. урона,
+   dodge уклонение от умений, regen восстановление здоровья в минуту, manaRegen мана в минуту, goldPow доход от ●,
+   towerPow урон по строениям, cascPow сила каскадов, shieldPow/healPow сила щитов/лечения, visPow сила ◉. */
 const ITEMS = {
-  sword: { name: 'Длинный клинок', icon: '🗡', cost: 400, atk: 6 },
-  vest: { name: 'Кольчуга', icon: '🥋', cost: 350, arm: 14 },
-  ruby: { name: 'Рубин жизни', icon: '♥', cost: 400, hp: 160 },
-  tome: { name: 'Том чар', icon: '📘', cost: 435, sp: 22, mana: 30 },
-  cleaver: { name: 'Секира Раскола', icon: '🪓', cost: 1300, atk: 14, hp: 250 },
-  thirst: { name: 'Жаждущий клинок', icon: '🩸', cost: 1400, atk: 16, ls: 0.15 },
-  bastion: { name: 'Латы Бастиона', icon: '🏰', cost: 1300, arm: 38, hp: 250 },
-  titan: { name: 'Сердце Титана', icon: '💗', cost: 1500, hp: 650 },
-  abyss: { name: 'Посох Бездны', icon: '🔮', cost: 1500, sp: 65, mana: 40 },
-  crown: { name: 'Корона Мудреца', icon: '👑', cost: 1250, sp: 40, mana: 90 },
-  bow: { name: 'Лук Гиперзвука', icon: '🏹', cost: 1500, atk: 22 },
-  reaper: { name: 'Коса Жнеца', icon: '⚰', cost: 1650, atk: 26, hp: 150 },
-  aegis: { name: 'Эгида Союза', icon: '🔰', cost: 1100, arm: 24, hp: 200, shieldPow: 0.25 },
-  censer: { name: 'Кадило Света', icon: '🕯', cost: 1100, sp: 28, healPow: 0.3 },
-  ward: { name: 'Око Стража', icon: '👁', cost: 600, hp: 120, visPow: 0.5 },
+  // ---- уровень 1: дешёвые компоненты ----
+  dagger: { name: 'Кинжал новичка', icon: '🔪', cost: 250, tier: 1, atk: 3 },
+  cloth: { name: 'Стёганая куртка', icon: '🧥', cost: 220, tier: 1, arm: 8 },
+  amulet: { name: 'Амулет здоровья', icon: '📿', cost: 300, tier: 1, hp: 110 },
+  shard: { name: 'Осколок маны', icon: '💎', cost: 280, tier: 1, mana: 60, manaRegen: 4 },
+  charm: { name: 'Оберег удачи', icon: '🍀', cost: 350, tier: 1, crit: 0.05 },
+  lantern: { name: 'Фонарь следопыта', icon: '🏮', cost: 300, tier: 1, visPow: 0.25 },
+  purse: { name: 'Кошель торговца', icon: '👛', cost: 400, tier: 1, goldPow: 0.12 },
+  bandage: { name: 'Целебная повязка', icon: '🩹', cost: 300, tier: 1, regen: 0.012 },
+  sword: { name: 'Длинный клинок', icon: '🗡', cost: 400, tier: 1, atk: 6 },
+  vest: { name: 'Кольчуга', icon: '🥋', cost: 350, tier: 1, arm: 14 },
+  ruby: { name: 'Рубин жизни', icon: '♥', cost: 400, tier: 1, hp: 160 },
+  tome: { name: 'Том чар', icon: '📘', cost: 435, tier: 1, sp: 22, mana: 30 },
+  // ---- уровень 2: средние ----
+  ward: { name: 'Око Стража', icon: '👁', cost: 600, tier: 2, hp: 120, visPow: 0.5 },
+  boots: { name: 'Сапоги ловкача', icon: '👢', cost: 800, tier: 2, dodge: 0.06, hp: 80 },
+  spear: { name: 'Копьё пробивания', icon: '🔱', cost: 900, tier: 2, atk: 8, pen: 0.12 },
+  focus: { name: 'Фокусирующая линза', icon: '🔍', cost: 950, tier: 2, sp: 25, cascPow: 0.08 },
+  mirror: { name: 'Зеркальный щит', icon: '🪞', cost: 1000, tier: 2, arm: 22, thorns: 0.12 },
+  chalice: { name: 'Чаша прилива', icon: '🏆', cost: 1000, tier: 2, manaRegen: 12, sp: 15, healPow: 0.1 },
+  aegis: { name: 'Эгида Союза', icon: '🔰', cost: 1100, tier: 2, arm: 24, hp: 200, shieldPow: 0.25 },
+  censer: { name: 'Кадило Света', icon: '🕯', cost: 1100, tier: 2, sp: 28, healPow: 0.3 },
+  banner: { name: 'Знамя осады', icon: '🚩', cost: 1100, tier: 2, atk: 6, towerPow: 0.3 },
+  crown: { name: 'Корона Мудреца', icon: '👑', cost: 1250, tier: 2, sp: 40, mana: 90 },
+  // ---- уровень 3: крупные ----
+  cleaver: { name: 'Секира Раскола', icon: '🪓', cost: 1300, tier: 3, atk: 14, hp: 250 },
+  bastion: { name: 'Латы Бастиона', icon: '🏰', cost: 1300, tier: 3, arm: 38, hp: 250 },
+  thirst: { name: 'Жаждущий клинок', icon: '🩸', cost: 1400, tier: 3, atk: 16, ls: 0.15 },
+  titan: { name: 'Сердце Титана', icon: '💗', cost: 1500, tier: 3, hp: 650 },
+  abyss: { name: 'Посох Бездны', icon: '🔮', cost: 1500, tier: 3, sp: 65, mana: 40 },
+  bow: { name: 'Лук Гиперзвука', icon: '🏹', cost: 1500, tier: 3, atk: 22 },
+  reaper: { name: 'Коса Жнеца', icon: '⚰', cost: 1650, tier: 3, atk: 26, hp: 150 },
+  stormblade: { name: 'Клинок Грома', icon: '⚡', cost: 1800, tier: 3, atk: 18, crit: 0.1 },
+  wall: { name: 'Крепостная стена', icon: '🧱', cost: 1900, tier: 3, arm: 45, hp: 300 },
+  grimoire: { name: 'Гримуар бездны', icon: '📕', cost: 1900, tier: 3, sp: 55, pen: 0.15 },
+  // ---- уровень 4: легендарные поздние ----
+  serpent: { name: 'Сердце древнего змея', icon: '🐉', cost: 3200, tier: 4, hp: 700, arm: 20, regen: 0.025 },
+  stars: { name: 'Венец звёздного пламени', icon: '🌟', cost: 3300, tier: 4, sp: 90, mana: 120, cascPow: 0.15 },
+  eclipse: { name: 'Затмение', icon: '🌑', cost: 3400, tier: 4, atk: 32, crit: 0.15, ls: 0.1 },
 };
+const ITEM_EFFECTS = {
+  atk: v => `+${v} к атаке`, arm: v => `+${v} брони`, hp: v => `+${v} здоровья`, sp: v => `+${v} к силе умений`, mana: v => `+${v} маны`,
+  ls: v => `вампиризм ${Math.round(v * 100)}%`, crit: v => `+${Math.round(v * 100)}% шанс крита ⚔`, pen: v => `пробивание брони ${Math.round(v * 100)}%`,
+  thorns: v => `отражает ${Math.round(v * 100)}% физ. урона`, dodge: v => `+${Math.round(v * 100)}% уклонения от умений`, regen: v => `+${(v * 100).toFixed(1)}% здоровья в минуту`,
+  manaRegen: v => `+${v} маны в минуту`, goldPow: v => `+${Math.round(v * 100)}% золота от ●`, towerPow: v => `+${Math.round(v * 100)}% урона по строениям`,
+  cascPow: v => `каскады сильнее на ${Math.round(v * 100)}%`, shieldPow: v => `щиты сильнее на ${Math.round(v * 100)}%`, healPow: v => `лечение сильнее на ${Math.round(v * 100)}%`,
+  visPow: v => `◉ сильнее на ${Math.round(v * 100)}%`,
+};
+const itemDesc = id => Object.entries(ITEMS[id]).filter(([k]) => ITEM_EFFECTS[k]).map(([k, v]) => ITEM_EFFECTS[k](v)).join(', ');
+const ITEM_TIER_NAMES = ['', 'Простой', 'Средний', 'Крупный', 'Легендарный'];
 const ELIXIR = { atk: 4, hp: 70, sp: 9, arm: 3 };
-const BUILDS = {
-  top: ['sword', 'ruby', 'cleaver', 'vest', 'bastion', 'titan', 'reaper', 'thirst'],
-  jng: ['sword', 'vest', 'thirst', 'ruby', 'cleaver', 'bastion', 'reaper', 'titan'],
-  mid: ['tome', 'ruby', 'crown', 'abyss', 'vest', 'abyss', 'titan', 'bastion'],
-  adc: ['sword', 'sword', 'thirst', 'bow', 'vest', 'reaper', 'bow', 'bastion'],
-  sup: ['ward', 'tome', 'aegis', 'censer', 'ruby', 'bastion', 'titan', 'crown'],
-};
 
 const DRAGONS = [
   { id: 'fire', name: 'Огненный дракон', icon: '🔥', color: '#ff6a3d', buff: '+8% урона от ⚔', soul: 'Душа пламени: +25% урона от ⚔' },
