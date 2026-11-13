@@ -5,7 +5,7 @@ const XP_NEED = l => 90 + 30 * l;
 const TOWER_HP = [1100, 1300, 1500];
 const NEXUS_HP = 2600;
 const ATK_MUL = 2.6;
-const HERO_DMG = 1.35;
+const HERO_DMG = 1.45;
 const LANES = ['top', 'mid', 'bot'];
 const EV_INFO = {
   lane: { name: 'Фарм линии', color: '#58d68d', icon: '🗡', desc: '⚔ делится: 55% — миньонам (золото, толкание волны), 45% — сопернику по линии.' },
@@ -309,7 +309,7 @@ class Game {
       this.addMana(h, amt, true);
     }
     if (counts[T_GOLD] > 0) {
-      const amt = Math.round(counts[T_GOLD] * 11 * c.m.gold * casc);
+      const amt = Math.round(counts[T_GOLD] * 13 * c.m.gold * casc);
       this.addGold(h, amt);
       this.ui.burstTo(h, 'gold', '#ffc93c', amt);
     }
@@ -425,7 +425,7 @@ class Game {
       const gm = h.def.passive.campGold || 1;
       const gold = Math.round(npc.gold * gm);
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
-      h.gank += 18;
+      h.gank += 8;
       this.ui.float(h, `${npc.icon} +${gold}💰`, '#ffc93c');
       ev.npc = this.newCamp(h);
     } else if (npc.kind === 'dragon') {
@@ -628,7 +628,7 @@ class Game {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
       const next = BUILDS[h.role][h.buildIdx];
-      const rich = (next ? h.gold >= ITEMS[next].cost : h.gold >= 900) && hpR < 0.92;
+      const rich = (next ? h.gold >= ITEMS[next].cost : h.gold >= 900) && (hpR < 0.92 || U.chance(0.5));
       if (hpR < 0.3 || h.mana < 20 && hpR < 0.6 || rich) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
@@ -707,7 +707,7 @@ class Game {
       if (tm.pressure < threshold) continue;
       const crew = roles.map(r => this.hero(t, r)).filter(h => this.free(h) && h.hp / h.maxHp > 0.4);
       if (crew.length < (isBaron ? 3 : 2)) continue;
-      const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 3, dtype: npc.type });
+      const ev = this.mkEv(npc.kind, { lane: null, att: t, npc, left: 4, dtype: npc.type });
       crew.forEach(h => this.join(ev, h));
       tm.pressure -= threshold * 0.7;
       const et = this.enemyOf(t);
@@ -884,7 +884,7 @@ class Game {
       if (!npc.alive && this.minute >= npc.spawnAt) {
         npc.alive = true;
         if (npc.kind === 'dragon') {
-          npc.max = npc.hp = Math.round(700 + this.minute * 70);
+          npc.max = npc.hp = Math.round(600 + this.minute * 60);
           npc.atk = 35 + this.minute * 4;
           if (this.teams.blue.soul || this.teams.red.soul) { npc.spawnAt = 999; npc.alive = false; continue; }
           this.ui.log(`🐉 Появился <b>${npc.type.name}</b>!`, 'sys');

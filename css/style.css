@@ -464,3 +464,31 @@ b.skn { color: var(--gold2); }
   #killfeed { top: 120px; }
   .banner h2, .banner.major h2 { font-size: 24px; }
 }
+
+/* ======================= Доработки (раунд 2) ======================= */
+#feature-wrap { position: relative; }
+#combo { position: absolute; top: 6px; right: 6px; left: auto; bottom: auto; transform: none; font-size: 26px; padding: 4px 14px; border-radius: 22px; background: rgba(5,8,16,.88); border: 1px solid rgba(255,255,255,.18); -webkit-text-stroke: 1px rgba(0,0,0,.6); z-index: 4; }
+#combo.show { animation: combo3 1s ease; }
+@keyframes combo3 { 0% { opacity: 0; transform: scale(.5); } 20% { opacity: 1; transform: scale(var(--cs, 1.1)); } 35% { transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+#feature-head { padding-right: 160px; }
+#feature-skills .fsk b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; font-size: 11px; }
+#feature-skills .fsk small { -webkit-line-clamp: 1; }
+#log { -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); }
+.hero-card.flash::after { background: none; box-shadow: inset 0 0 0 2px #ff4d5e, inset 0 0 18px rgba(255,60,60,.45); animation: redflash .22s forwards; border-radius: 10px; }
+#game-grid.quake { animation: quake .45s; }
+@keyframes quake { 15% { transform: translate(-4px, 2px); } 30% { transform: translate(4px, -3px); } 45% { transform: translate(-3px, -1px); } 60% { transform: translate(2px, 2px); } 80% { transform: translate(-1px, 0); } }
+.award .aw-v { font-family: var(--title); font-size: 20px; color: var(--gold2); margin-top: 2px; }
+.award b.tag { font-size: 14px; }
+@media (max-height: 820px) and (min-width: 901px) {
+  .hc-stats { display: none; }
+  .bar.mp { height: 6px; } .bar.mp span { display: none; }
+  .hc-info { gap: 2px; }
+  .ev-chip { font-size: 9.5px; padding: 0 6px; }
+  .sk { width: 20px; height: 20px; font-size: 11px; }
+  .items .it { width: 14px; height: 14px; font-size: 9px; }
+  .hc-row .kda-mini { display: inline; }
+}
+
+#feature-head .fh-name { min-width: 0; }
+#feature-head .fh-name small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#feature-box { overflow: hidden; }

@@ -102,7 +102,7 @@ const HEROES = [
       effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) c.after.push(() => G.selfBoardQuiet(h, b => b.pick(g => b.plain(g), 1).map(k => (b.convert([k], b.at(k).t, U.pick(['h', 'v'])), k)))); },
     },
     q: {
-      name: 'Вихрь', icon: '🌀', cost: 60, cd: 3, need: 'none',
+      name: 'Вихрь', icon: '🌀', cost: 70, cd: 4, need: 'none',
       desc: 'Подрывает ряд или столбец своего поля, где больше всего ⚔.',
       async cast(G, h) {
         const b = h.board;
@@ -116,14 +116,14 @@ const HEROES = [
       async cast(G, h, t) {
         await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 5), T_ATK));
         const n = h.board.count(T_ATK);
-        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 2, 'phys', '#5fd3c6');
+        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 1.5, 'phys', '#5fd3c6');
         await G.settle(h, true);
       },
     },
   },
   {
     id: 'morven', name: 'Морвен', title: 'Кровавый Шип', role: 'top', emoji: '🩸', color: '#c2304a',
-    mod: { hp: 1.15, atk: 1.08 },
+    mod: { hp: 1.15, atk: 1.15 },
     lore: 'Рыцарь проклятого сада, питающийся чужой жизнью.',
     passive: { name: 'Жажда крови', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
@@ -135,6 +135,7 @@ const HEROES = [
     r: {
       name: 'Кровавая жатва', icon: '🩸', cost: 100, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Поглощает все ✚ на своём поле: каждый наносит цели урон и лечит Морвена.',
+      ai: (G, h) => h.board.count(T_HEAL) >= 3,
       async cast(G, h, t) {
         const keys = h.board.keysOf(T_HEAL);
         const n = keys.length;
@@ -150,7 +151,7 @@ const HEROES = [
     id: 'xar', name: 'Ксар', title: 'Теневой Охотник', role: 'jng', emoji: '🗡', color: '#6b4fa3',
     mod: { atk: 1.1, hp: 0.92 },
     lore: 'Убийца из сумеречных чащ. Его не видно, пока не стало слишком поздно.',
-    passive: { name: 'Охотничий инстинкт', desc: 'Шкала ганга заполняется на 50% быстрее.', effects(G, h, c) { c.gankMul *= 1.5; } },
+    passive: { name: 'Охотничий инстинкт', desc: 'Шкала ганга заполняется от ◉ на 80% быстрее.', effects(G, h, c) { c.gankMul *= 1.8; } },
     q: {
       name: 'Дымовая завеса', icon: '🌫', cost: 40, cd: 2, need: 'enemy',
       desc: 'Покрывает туманом 10 клеток поля цели: ИИ врага не видит камни под туманом.',
@@ -236,7 +237,7 @@ const HEROES = [
       async cast(G, h, t) {
         await G.enemyBoard(h, t, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 12)), '#bdf3ff');
         const n = t.board.keys(g => g.ice).length;
-        await G.skillDamage(h, t, n * G.sp(h, 8, 0.12), 'magic', '#7fd6ff');
+        await G.skillDamage(h, t, n * G.sp(h, 12, 0.15), 'magic', '#7fd6ff');
       },
     },
   },
@@ -246,7 +247,7 @@ const HEROES = [
     lore: 'Безумный фокусник, для которого взрыв — лучшая шутка.',
     passive: { name: 'Пиромания', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 25, 0.25); } },
     q: {
-      name: 'Фейерверк', icon: '🎆', cost: 45, cd: 2, need: 'none',
+      name: 'Фейерверк', icon: '🎆', cost: 50, cd: 3, need: 'none',
       desc: 'Создаёт 2 бомбы на своём поле.',
       async cast(G, h) { await G.selfBoard(h, b => b.pick(g => b.plain(g), 2).map(k => (b.convert([k], b.at(k).t, 'bomb'), k))); },
     },
@@ -328,10 +329,10 @@ const HEROES = [
     r: {
       name: 'Выстрел за горизонт', icon: '🎯', cost: 100, cd: 5, lvl: 6, need: 'global',
       desc: 'Глобальный чистый урон по врагу с наименьшим здоровьем — в любой точке карты.',
-      ai: (G, h) => G.allEnemies(h).some(e => e.hp / e.maxHp < 0.5),
+      ai: (G, h) => G.allEnemies(h).some(e => e.hp / e.maxHp < 0.4),
       async cast(G, h) {
         const t = U.minBy(G.allEnemies(h), e => e.hp);
-        if (t) await G.skillDamage(h, t, G.sp(h, 120, 0.6) + h.power * 5, 'true', '#ffcf6b');
+        if (t) await G.skillDamage(h, t, G.sp(h, 100, 0.5) + h.power * 4, 'true', '#ffcf6b');
       },
     },
   },
@@ -353,21 +354,21 @@ const HEROES = [
       name: 'Залп рассвета', icon: '🌅', cost: 110, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Урон всем врагам в событии, а каждый союзник в событии получает бомбу ⚔ на поле.',
       async cast(G, h) {
-        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 50, 0.4) + h.power * 2.2, 'phys', '#ffb4c4');
+        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 50, 0.4) + h.power * 1.8, 'phys', '#ffb4c4');
         for (const a of G.alliesIn(h)) await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g), 1), T_ATK, 'bomb'), '#ffb4c4');
       },
     },
   },
   {
     id: 'korvin', name: 'Корвин', title: 'Механист', role: 'adc', emoji: '⚙', color: '#9aa7b8',
-    mod: { atk: 1.12, hp: 1.05 },
+    mod: { atk: 1.18, hp: 1.15, arm: 1.15 },
     lore: 'Изобретатель, сражающийся армией самодельных устройств.',
-    passive: { name: 'Инженерия', desc: '● золото приносит на 35% больше, а ⚔ бьют на 10% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.1; } },
+    passive: { name: 'Инженерия', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
     q: {
       name: 'Капкан', icon: '🪤', cost: 45, cd: 2, need: 'enemy',
       desc: 'Бьёт цель капканом, сковывает 4 камня на её поле и ставит линейную бомбу на своё поле.',
       async cast(G, h, t) {
-        await G.skillDamage(h, t, G.sp(h, 40, 0.4) + h.power * 1.5, 'phys', '#cfd8e3');
+        await G.skillDamage(h, t, G.sp(h, 40, 0.4) + h.power * 2.2, 'phys', '#cfd8e3');
         await G.enemyBoard(h, t, b => b.freeze(b.pick(g => !g.ice && g.t !== T_STONE, 4)), '#cfd8e3');
         await G.selfBoard(h, b => { const ks = b.pick(g => b.plain(g), 1); ks.forEach(k => b.convert([k], b.at(k).t, 'h')); return ks; });
       },
@@ -389,22 +390,23 @@ const HEROES = [
     id: 'auriel', name: 'Ауриэль', title: 'Светлая Жрица', role: 'sup', emoji: '🕊', color: '#fff0a8',
     mod: { sp: 1.1 },
     lore: 'Жрица рассвета, чья молитва поднимает павших на ноги.',
-    passive: { name: 'Милосердие', desc: '✚ также лечат самого раненого союзника в событии на 60%.', effects(G, h, c) { c.healAlly += 0.6; } },
+    passive: { name: 'Милосердие', desc: '✚ также лечат самого раненого союзника в событии (100%).', effects(G, h, c) { c.healAlly += 1.0; } },
     q: {
       name: 'Благословение', icon: '🙏', cost: 40, cd: 1, need: 'none',
       desc: 'Сразу лечит самого раненого союзника в событии и превращает 5 камней на его поле в ✚.',
       ai: (G, h) => G.alliesIn(h).some(a => a.hp / a.maxHp < 0.75),
       async cast(G, h) {
         const a = U.minBy(G.alliesIn(h), x => x.hp / x.maxHp);
-        G.healHero(h, a, G.sp(h, 60, 0.6));
+        G.healHero(h, a, G.sp(h, 90, 0.7));
         await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_HEAL, 5), T_HEAL), '#fff0a8');
       },
     },
     r: {
       name: 'Небесный свет', icon: '☀', cost: 110, cd: 5, lvl: 6, need: 'none',
-      desc: 'Лечит всех союзников на карте и очищает их поля от булыжников, льда и тумана.',
+      desc: 'Обжигает врагов в событии светом, лечит всех союзников на карте и очищает их поля от булыжников, льда и тумана.',
       ai: (G, h) => U.sum(G.allTeam(h), a => 1 - a.hp / a.maxHp) > 0.7,
       async cast(G, h) {
+        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 70, 0.6), 'magic', '#fff3a0');
         for (const a of G.allTeam(h)) {
           G.healHero(h, a, G.sp(h, 120, 1.2));
           await G.allyBoard(h, a, b => b.cleanse(null), '#fff7c2', true);
@@ -416,13 +418,13 @@ const HEROES = [
     id: 'garrok', name: 'Гаррок', title: 'Цепной Страж', role: 'sup', emoji: '⛓', color: '#6f8fa8',
     mod: { hp: 1.15, arm: 1.2 },
     lore: 'Тюремщик из подземных бастионов, чей крюк достаёт любого.',
-    passive: { name: 'Защитник', desc: '🛡 также дают щит самому раненому союзнику в событии (60%).', effects(G, h, c) { c.shieldAlly += 0.6; } },
+    passive: { name: 'Защитник', desc: '🛡 также дают щит самому раненому союзнику в событии (40%).', effects(G, h, c) { c.shieldAlly += 0.4; } },
     q: {
-      name: 'Крюк', icon: '🪝', cost: 50, cd: 3, need: 'enemy',
-      desc: 'Выдёргивает 4 ⚔ с поля цели (там остаются булыжники) и переносит их на своё поле.',
+      name: 'Крюк', icon: '🪝', cost: 55, cd: 3, need: 'enemy',
+      desc: 'Выдёргивает 3 ⚔ с поля цели (там остаются булыжники) и переносит их на своё поле.',
       ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_ATK) >= 3; },
       async cast(G, h, t) {
-        const ks = t.board.pick(g => g.t === T_ATK && !g.sp, 4);
+        const ks = t.board.pick(g => g.t === T_ATK && !g.sp, 3);
         await G.enemyBoard(h, t, b => b.convert(ks, T_STONE), '#6f8fa8');
         await G.selfBoard(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, ks.length), T_ATK));
       },

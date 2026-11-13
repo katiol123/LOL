@@ -248,8 +248,7 @@ const UI = {
     const head = $('#feature-head');
     head.style.setProperty('--hc', h.def.color);
     head.innerHTML = `<div class="portrait" style="--hc:${h.def.color};border-color:${h.team === 'blue' ? 'var(--blue)' : 'var(--red)'}">${h.def.emoji}</div>
-      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>${ROLES[h.role].name} · ${h.def.title} · ур. ${h.lvl}</small></div>
-      <div class="fh-ev"><small style="color:var(--muted)">Поле героя</small><br><b>${h.team === 'blue' ? 'Синие' : 'Красные'}</b></div>`;
+      <div class="fh-name"><b style="color:${h.team === 'blue' ? '#7cc4ff' : '#ff8c95'}">${h.name}</b><small>${h.team === 'blue' ? 'Синие' : 'Красные'} · ${ROLES[h.role].name} · ${h.def.title} · ур. ${h.lvl}</small></div>`;
     head.animate([{ transform: 'translateX(-8px)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }], { duration: 260, easing: 'ease-out' });
     $('#feature').animate([{ filter: 'brightness(1.35)', transform: 'scale(0.985)' }, { filter: 'none', transform: 'none' }], { duration: 260, easing: 'ease-out' });
     this.skKey = '';
@@ -262,8 +261,8 @@ const UI = {
     if (key === this.skKey) return;
     this.skKey = key;
     const p = h.def.passive;
-    const box = k => { const s = h.def[k], v = st(k); return `<div class="fsk ${v === 'ready' ? 'ready' : v === 'locked' ? 'locked' : ''}" title="${U.esc(s.desc)}"><div class="si">${s.icon}${v.startsWith('cd') ? `<i>${v.slice(2)}</i>` : v === 'locked' ? '<i>6</i>' : ''}</div><div><b>${k.toUpperCase()} · ${s.name}</b><small>${s.cost} маны · ${v === 'ready' ? 'готово' : v === 'mana' ? 'мало маны' : v === 'locked' ? 'с 6 уровня' : 'перезарядка'}</small></div></div>`; };
-    $('#feature-skills').innerHTML = `<div class="fsk" title="${U.esc(p.desc)}"><div class="si">✧</div><div><b>${p.name}</b><small>${p.desc}</small></div></div>${box('q')}${box('r')}`;
+    const box = k => { const s = h.def[k], v = st(k); return `<div class="fsk ${v === 'ready' ? 'ready' : v === 'locked' ? 'locked' : ''}" title="${U.esc(s.desc)}"><div class="si">${s.icon}${v.startsWith('cd') ? `<i>${v.slice(2)}</i>` : v === 'locked' ? '<i>6</i>' : ''}</div><div><b>${s.name}</b><small>${k.toUpperCase()} · ${s.cost} маны · ${v === 'ready' ? 'готово' : v === 'mana' ? 'мало маны' : v === 'locked' ? 'с 6 ур.' : 'перезарядка'}</small></div></div>`; };
+    $('#feature-skills').innerHTML = `<div class="fsk" title="${U.esc(p.desc)}"><div class="si">✧</div><div><b>${p.name}</b><small>Пассивное умение</small></div></div>${box('q')}${box('r')}`;
   },
 
   renderEvent() {
@@ -330,7 +329,7 @@ const UI = {
 
   /* ---------- Координаты ---------- */
   heroSrc(h) {
-    if (h === this.view && $('#screen-game').classList.contains('active')) { const r = $('#feature').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
+    if (h === this.view && $('#screen-game').classList.contains('active')) { const r = $('#feature').getBoundingClientRect(); return { rect: r }; }
     const c = this.cards.get(h.id); if (!c) return null;
     const r = c.mini.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2];
   },
@@ -398,9 +397,18 @@ const UI = {
       const c = this.cards.get(t.id).c; c.classList.remove('hit', 'flash'); void c.offsetWidth; c.classList.add('hit', 'flash');
     });
   },
-  projectile(src, tgt, color, big) { FX.shot(this.heroSrc(src), this.heroDst(tgt), color, big); },
-  projectileTo(h, o, color) { FX.shot(this.heroSrc(h), this.evPoint(o.ev), color, false); },
-  projectileFrom(o, h, color) { FX.shot(this.evPoint(o.ev), this.heroDst(h), color, true); },
+  edgeFrom(src, dst) {
+    if (!src || !src.rect) return src;
+    const r = src.rect, cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (!dst) return [cx, cy];
+    const dx = dst[0] - cx, dy = dst[1] - cy;
+    const k = Math.min(Math.abs((r.width / 2 + 4) / (dx || 1e-6)), Math.abs((r.height / 2 + 4) / (dy || 1e-6)));
+    return [cx + dx * Math.min(1, k), cy + dy * Math.min(1, k)];
+  },
+  shot(src, dst, color, big) { if (innerWidth < 900) return; FX.shot(this.edgeFrom(src, dst), dst, color, big); },
+  projectile(src, tgt, color, big) { this.shot(this.heroSrc(src), this.heroDst(tgt), color, big); },
+  projectileTo(h, o, color) { this.shot(this.heroSrc(h), this.evPoint(o.ev), color, false); },
+  projectileFrom(o, h, color) { this.shot(this.evPoint(o.ev), this.heroDst(h), color, true); },
   npcHit(ev, d) {
     later(330, () => {
       const p = this.evPoint(ev);
@@ -413,10 +421,10 @@ const UI = {
     if (h !== this.view) return;
     const r = this.cards.get(h.id);
     let p;
-    if (kind === 'gold') { const b = r.gold.getBoundingClientRect(); p = [b.left + b.width / 2, b.top + b.height / 2]; }
+    if (kind === 'gold') { const b = r.gold.getBoundingClientRect(); p = b.width ? [b.left + b.width / 2, b.top + b.height / 2] : this.heroDst(h); }
     else if (kind === 'mana') { const b = r.mpFill.parentElement.getBoundingClientRect(); p = [b.left + b.width / 2, b.top + b.height / 2]; }
     else if (kind === 'vision') { const m = $('#minimap').getBoundingClientRect(); const q = Minimap.heroPos(h, m.width); p = q ? [m.left + q[0], m.top + q[1]] : null; }
-    FX.shot(this.heroSrc(h), p, color, false);
+    this.shot(this.heroSrc(h), p, color, false);
     if (kind === 'gold' && amt) later(400, () => { this.floatAt(p, `+${amt}`, '#ffd76b', 'small'); sfx('coin'); });
   },
   combo(h, n) {
@@ -445,6 +453,7 @@ const UI = {
   banner(title, sub, team, small) {
     const col = team === 'blue' ? '#3fa7ff' : team === 'red' ? '#ff4d5e' : '#c8aa6e';
     sfx(small ? 'whoosh' : 'banner');
+    if (!small) { const sg = $('#game-grid'); sg.classList.remove('quake'); void sg.offsetWidth; sg.classList.add('quake'); }
     if (!small) { const v = $('#vignette'); v.className = team === 'blue' || team === 'red' ? team : ''; void v.offsetWidth; v.classList.add('on'); v.style.animationDuration = (1.8 / Math.max(0.7, Math.min(3, Clock.speed))) + 's'; }
     const b = el('div', 'banner' + (small ? ' small' : ' major'), `<h2>${title}</h2><p>${sub || ''}</p>`);
     b.style.setProperty('--bc', col);
