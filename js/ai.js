@@ -140,43 +140,140 @@ const AI = {
   },
   arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team'), 0.05, 0.95)); },
 
-  /* ---------- Драфт: оценка героя для игрока ----------
-     пригодность к роли, мастерство, нехватка в составе (танк, лекарь, контроль), перехват коронного героя соперника */
-  draftScore(pl, role, def, mine, enemyPlayers, rng = Math.random) {
+  /* ---------- Драфт ----------
+     Драфтит капитан команды. Его скрытый интеллект (командное мышление + тактика) и «Чтение игры»
+     определяют, сколько нюансов он учитывает: нужды состава, мету, контрпики, связки, угрозы от соперников.
+     Каждое решение раскладывается на причины, которые показываются на экране драфта. */
+  captainOf(list) {
+    return list.find(p => p.captain) || U.maxBy(list, p => ((p.iq && p.iq.team) || 10) + ((p.iq && p.iq.tactic) || 10) + 0.3 * ((p.stats && p.stats.read) || 10));
+  },
+  draftIq(cap) {
+    if (!cap) return 10;
+    const iq = cap.iq || {};
+    return U.clamp(((iq.team || 10) + (iq.tactic || 10)) / 2 + 0.2 * (((cap.stats && cap.stats.read) || 10) - 10), 1, 22);
+  },
+  metaOf(id) { return (typeof HERO_META !== 'undefined' && HERO_META[id]) || null; },
+  patchOf(id) { return patchMod(id, 'stat'); },
+  /* Связки и контрпики выверены на симуляциях (tests/draft-fit.js и замеры составов):
+     в этой игре решает постоянный урон, танк держит стрелка, против лечения и танков есть явные ответы. */
+  SYNERGY: [
+    ['tank', 'dps', 'танк прикроет стрелка'],
+    ['control', 'dps', 'контроль даёт стрелку бить безнаказанно'],
+    ['dps', 'dps', 'два источника постоянного урона'],
+    ['vision', 'dps', 'обзор держит стрелка в безопасности'],
+  ],
+  COUNTER: [
+    ['heal', 'burst', 'против лекарей нужен взрывной урон'],
+    ['tank', 'dps', 'танков пробивает постоянный урон'],
+    ['sustain', 'dps', 'живучих перебивает постоянный урон'],
+  ],
+  /* Оценка героя для игрока: число + причины. ctx: { D — грамотность капитана, enemyPicks, pickNo } */
+  draftEval(pl, role, def, mine, enemyPlayers, rng = Math.random, ctx = {}) {
+    const D = ctx.D != null ? ctx.D : 10, ck = U.clamp((D - 2) / 12, 0, 1.3), aw = U.clamp((D - 2) / 12, 0.1, 1.3);
+    const parts = [];
+    const add = (v, ic, t, cls) => { if (v) parts.push({ v, ic, t, cls }); return v; };
     const fit = def.fit[role];
-    let s = [-7, -1.5, 6.5, 9][fit];
+    let s = add([-7, -1.5, 6.5, 9][fit], fit >= 3 ? '🎯' : fit === 2 ? '✓' : '⚠', fit >= 3 ? 'родная роль' : fit === 2 ? 'хорошо подходит на роль' : 'не по профилю', fit >= 2 ? 'fit' : 'bad');
     const m = masteryOf(pl, def.id);
-    s += m * 0.9;
+    s += add(m * 0.9, '✦', m >= 15 ? `коронный герой игрока (✦${m})` : m >= 8 ? `высокое мастерство (✦${m})` : `знакомый герой (✦${m})`, 'mastery');
     const tags = mine.flatMap(d => d.tags);
-    const c = (pl.iq && pl.iq.team) || 10, ck = U.clamp((c - 2) / 12, 0, 1.3);
-    const need = { tank: 2.5 * ck, heal: 1.8 * ck, control: 1.2 * ck };
+    const need = { tank: [1.0, 'команде нужна передовая'], vision: [0.6, 'не хватает обзора'] };
     for (const t of def.tags) {
-      if (need[t] && !tags.includes(t)) s += need[t];
-      if (tags.filter(x => x === t).length >= 2) s -= 1.5;
+      if (need[t] && !tags.includes(t)) s += add(need[t][0] * ck, '🧩', need[t][1], 'comp');
     }
-    const steal = Math.max(0, ...enemyPlayers.map(p => masteryOf(p, def.id)));
-    if (steal >= 15) s += 3 * ck;
-    return s + rng() * (3.5 + (20 - c) * 0.35);
+    // постоянный урон — главное в составе
+    const dpsN = tags.filter(t => t === 'dps').length;
+    if (def.tags.includes('dps')) s += add((dpsN === 0 ? 3.2 : dpsN === 1 ? 1.6 : 0) * ck, '⚔', dpsN === 0 ? 'составу нужен постоянный урон' : 'второй источник урона', 'comp');
+    // перебор однотипных: два лекаря, три контроля, много взрывного урона — составы, которые проигрывают
+    if (def.tags.includes('heal') && tags.includes('heal')) s += add(-2.5 * (0.4 + ck), '⧉', 'второй лекарь — мало урона', 'bad');
+    if (def.tags.includes('control') && tags.filter(t => t === 'control').length >= 2) s += add(-1.6 * (0.4 + ck), '⧉', 'контроля уже в избытке', 'bad');
+    if (def.tags.includes('burst') && tags.filter(t => t === 'burst').length >= 2) s += add(-1.2 * (0.4 + ck), '⧉', 'взрывного урона уже в избытке', 'bad');
+    if (def.tags.includes('utility') && tags.includes('utility')) s += add(-1.0 * (0.4 + ck), '⧉', 'вторая поддержка — мало урона', 'bad');
+    if (mine.length >= 3 && !tags.some(t => t === 'dps' || t === 'burst') && def.tags.some(t => t === 'dps' || t === 'burst')) s += add(2 * ck, '⚔', 'составу не хватает урона', 'comp');
+    // связки с уже взятыми союзниками
+    for (const [a, b, txt] of this.SYNERGY) {
+      if ((def.tags.includes(a) && tags.includes(b)) || (def.tags.includes(b) && tags.includes(a))) { s += add(1.0 * ck, '🔗', txt, 'syn'); break; }
+    }
+    // контрпик: ответ на героев соперника
+    const eTags = (ctx.enemyPicks || []).flatMap(d => d.tags);
+    for (const [their, ours, txt] of this.COUNTER) {
+      if (eTags.includes(their) && def.tags.includes(ours)) { s += add(1.4 * ck, '🛡', `контрпик: ${txt}`, 'counter'); break; }
+    }
+    // перехват коронного героя соперника
+    const thief = U.maxBy(enemyPlayers, p => masteryOf(p, def.id));
+    const steal = thief ? masteryOf(thief, def.id) : 0;
+    if (steal >= 15) s += add(3 * ck, '✋', `перехват: коронный герой ${thief.nick} (✦${steal})`, 'steal');
+    else if (steal >= 10 && D >= 13) s += add(1.2 * ck, '✋', `не отдать ${thief.nick} (✦${steal})`, 'steal');
+    // мета и патч: умный капитан смотрит на винрейт, слабый — на популярность
+    const mt = this.metaOf(def.id);
+    if (mt) {
+      if (D >= 9) { if (Math.abs(mt.score) > 0.012) s += add(mt.score * 70 * aw, mt.score > 0 ? '📈' : '📉', mt.score > 0 ? `мета ${mt.tier}-тир · винрейт ${Math.round(mt.wr * 100)}%` : `вне меты (${mt.tier}-тир)`, mt.score > 0 ? 'meta' : 'bad'); }
+      else if (mt.pr > 0.5) s += add(1.5, '🔥', 'популярный герой', 'meta');
+      const pd = mt.lastDelta || 0;
+      const pk = mt.lastKey && mt.lastKey !== 'stat' ? ` (${{ q: 'Q', r: 'ульта', p: 'пассивка' }[mt.lastKey]})` : '';
+      if (pd >= 0.02 && D >= 7) s += add(1.2 * aw, '⬆', `усилен в патче ${mt.patch}${pk}`, 'patch');
+      if (pd <= -0.02 && D >= 7) s += add(-1.2 * aw, '⬇', `ослаблен в патче ${mt.patch}${pk}`, 'bad');
+    }
+    // гибкий пик в начале драфта прячет роли от соперника
+    if ((ctx.pickNo || 0) < 3 && D >= 12) { const flex = ROLE_ORDER.filter(r => def.fit[r] >= 2).length; if (flex >= 3) s += add(1.0 * ck, '🔀', 'гибкий пик: скрывает роль', 'flex'); }
+    const noise = rng() * (3.5 + (20 - D) * 0.35);
+    s += noise;
+    if (noise > 5) parts.push({ v: noise * 0.4, ic: '💭', t: 'интуиция капитана', cls: 'gut' });
+    return { s, parts };
   },
-  draftReason(pl, role, def, mine) {
-    const fit = def.fit[role], m = masteryOf(pl, def.id);
-    if (fit >= 3) return m >= 15 ? 'коронный герой' : m ? `родная роль, мастерство ${m}` : 'родная роль';
-    if (m >= 8) return `не по профилю (${FIT_NAMES[fit]}), но мастерство ${m}`;
-    const tags = mine.flatMap(d => d.tags);
-    const t = def.tags.find(x => ['tank', 'heal', 'control'].includes(x) && !tags.includes(x));
-    if (t) return `не по профилю, но команде нужен ${TAG_NAMES[t]}`;
-    return `играбельный вариант (${FIT_NAMES[fit]})`;
+  draftScore(pl, role, def, mine, enemyPlayers, rng = Math.random, ctx = {}) { return this.draftEval(pl, role, def, mine, enemyPlayers, rng, ctx).s; },
+  /* Главные причины: сначала содержательные (мета, связки, угрозы…), «подходит на роль» и «интуиция» — в конце */
+  topReasons(parts, n = 3) {
+    const rank = p => p.v * (p.cls === 'fit' ? 0.1 : p.cls === 'gut' ? 0.15 : 1);
+    return parts.filter(p => p.v > 0).sort((a, b) => rank(b) - rank(a)).slice(0, n).concat(parts.filter(p => p.v < -1).slice(0, 1));
   },
-  /* Полный драфт без интерфейса: возвращает составы { blue: [{def, role, pl, reason}], red: [...] } */
+  draftReason(pl, role, def, mine) { return this.topReasons(this.draftEval(pl, role, def, mine, [], () => 0).parts, 1).map(p => p.t).join(', '); },
+  BAN_ORDER: ['blue', 'red', 'blue', 'red'],
+  PICK_ORDER: ['blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red'],
+  /* Полный драфт без интерфейса: баны капитанов, затем пики */
   draft(players, rng = Math.random) {
-    const order = ['blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red'];
-    const picks = { blue: [], red: [] }, taken = new Set();
+    const picks = { blue: [], red: [] }, bans = { blue: [], red: [] }, taken = new Set();
     const steps = [];
-    for (const t of order) {
+    for (const t of this.BAN_ORDER) { const b = this.draftBan(players, picks, taken, t, rng); bans[t].push(b); taken.add(b.def.id); steps.push(b); }
+    for (const t of this.PICK_ORDER) {
       const res = this.draftPick(players, picks, taken, t, rng);
       picks[t].push(res); taken.add(res.def.id); steps.push(res);
     }
-    return { picks, steps };
+    return { picks, steps, bans };
+  },
+  /* Бан: угроза от соперников (их мастерство и роли) + мета, минус то, что любят свои */
+  draftBan(players, picks, taken, t, rng = Math.random) {
+    const et = t === 'blue' ? 'red' : 'blue';
+    const cap = this.captainOf(players[t]), D = this.draftIq(cap), ck = U.clamp((D - 2) / 12, 0, 1.3), aw = U.clamp((D - 2) / 12, 0.1, 1.3);
+    let best = null;
+    for (const d of HEROES) {
+      if (taken.has(d.id)) continue;
+      const parts = [];
+      const add = (v, ic, tx, cls) => { if (v) parts.push({ v, ic, t: tx, cls }); return v; };
+      let s = 0;
+      // насколько соперник силён на этом герое
+      const thr = players[et].map(p => ({ p, v: (d.fit[p.role] >= 2 ? [0, 0, 3, 5][d.fit[p.role]] : -4) + masteryOf(p, d.id) * 0.9 }));
+      const top = U.maxBy(thr, x => x.v);
+      if (top && top.v > 6) {
+        const m = masteryOf(top.p, d.id);
+        s += add((top.v - 6) * (0.5 + 0.6 * ck), m >= 15 ? '👑' : '🎯', m >= 15 ? `коронный герой ${top.p.nick} (✦${m})` : m >= 6 ? `${top.p.nick} силён на нём (✦${m})` : `удобный герой для ${{ top: 'топера', jng: 'лесника', mid: 'мидера', adc: 'стрелка', sup: 'саппорта' }[top.p.role]} соперника ${top.p.nick}`, 'threat');
+      }
+      if (thr.filter(x => x.v > 8).length >= 2 && D >= 11) s += add(1.5 * ck, '♟', 'сразу двое соперников могут на нём играть', 'threat');
+      const mt = this.metaOf(d.id);
+      if (mt) {
+        if (D >= 9) { if (mt.score > 0.012) s += add(mt.score * 90 * aw, '📈', `мета ${mt.tier}-тир · винрейт ${Math.round(mt.wr * 100)}%`, 'meta'); }
+        else if (mt.pr > 0.45) s += add(mt.pr * 5, '🔥', 'все его берут', 'meta');
+        if ((mt.lastDelta || 0) >= 0.02 && D >= 8) s += add(1.5 * aw, '⬆', `только что усилен (патч ${mt.patch}${mt.lastKey && mt.lastKey !== 'stat' ? ', ' + { q: 'Q', r: 'ульта', p: 'пассивка' }[mt.lastKey] : ''})`, 'patch');
+      }
+      // не банить то, на чём играют свои
+      const love = Math.max(0, ...players[t].map(p => d.fit[p.role] >= 2 ? masteryOf(p, d.id) : 0));
+      if (love >= 6) s += add(-love * 0.45 * (0.4 + ck), '💙', 'на нём играет наш игрок', 'bad');
+      const noise = rng() * (2 + (20 - D) * 0.3);
+      s += noise;
+      if (noise > 4 && !parts.some(p => p.v > 2)) parts.push({ v: noise * 0.3, ic: '💭', t: D < 8 ? 'капитан банит наугад' : 'интуиция капитана', cls: 'gut' });
+      if (!best || s > best.s) best = { s, def: d, parts };
+    }
+    return { ban: true, team: t, def: best.def, cap, parts: this.topReasons(best.parts, 3), reason: this.topReasons(best.parts, 1).map(p => p.t).join(', ') };
   },
   draftPick(players, picks, taken, t, rng = Math.random) {
     const et = t === 'blue' ? 'red' : 'blue';
@@ -184,14 +281,17 @@ const AI = {
     const left = players[t].filter(p => !done.has(p));
     const enemyLeft = players[et].filter(p => !picks[et].some(x => x.pl === p));
     const mine = picks[t].map(p => p.def);
+    const cap = this.captainOf(players[t]), D = this.draftIq(cap);
+    const ctx = { D, enemyPicks: picks[et].map(p => p.def), pickNo: picks.blue.length + picks.red.length };
     let best = null;
     for (const pl of left) {
-      const cands = HEROES.filter(d => !taken.has(d.id)).map(d => ({ d, s: this.draftScore(pl, pl.role, d, mine, enemyLeft, rng) })).sort((a, b) => b.s - a.s);
+      const cands = HEROES.filter(d => !taken.has(d.id)).map(d => Object.assign({ d }, this.draftEval(pl, pl.role, d, mine, enemyLeft, rng, ctx))).sort((a, b) => b.s - a.s);
       // кто сильнее рискует потерять лучшего героя, тот выбирает раньше
       const urgency = cands[0].s - (cands[1] ? cands[1].s : 0) + cands[0].s * 0.3;
-      if (!best || urgency > best.urgency) best = { pl, def: cands[0].d, urgency };
+      if (!best || urgency > best.urgency) best = { pl, def: cands[0].d, parts: cands[0].parts, urgency };
     }
-    return { pl: best.pl, role: best.pl.role, def: best.def, team: t, reason: this.draftReason(best.pl, best.pl.role, best.def, mine) };
+    const parts = this.topReasons(best.parts, 4);
+    return { pl: best.pl, role: best.pl.role, def: best.def, team: t, cap, parts, reason: parts.map(p => p.t).join(', ') };
   },
 
   /* ---------- Закупка предметов ----------

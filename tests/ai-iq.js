@@ -3,7 +3,7 @@
    Запуск: node tests/ai-iq.js [матчей] [высокое] [низкое] */
 const { fork } = require('child_process');
 const N = +(process.argv[2] || 400), HI = +(process.argv[3] || 16), LO = +(process.argv[4] || 6);
-const CASES = (process.env.CASES || 'board,tactic,team,all').split(',');
+const CASES = (process.env.CASES || 'board,tactic,team,draft,all').split(',');
 if (process.env.IQ_CASE) {
   const { load } = require('./harness');
   const ctx = load();
@@ -13,7 +13,11 @@ if (process.env.IQ_CASE) {
     let win = 0;
     for (let i = 0; i < N; i++) {
       const hi = ctx.teamOf({}), lo = ctx.teamOf({});
-      hi.forEach(p => p.iq = iqFor(HI)); lo.forEach(p => p.iq = iqFor(LO));
+      if (c === 'draft') {
+        // только капитан (он драфтит) отличается; остальные игроки одинаковые
+        hi.forEach(p => p.iq = iqFor(10)); lo.forEach(p => p.iq = iqFor(10));
+        hi[2].captain = lo[2].captain = true; hi[2].iq = { board: 10, tactic: HI, team: HI }; lo[2].iq = { board: 10, tactic: LO, team: LO };
+      } else { hi.forEach(p => p.iq = iqFor(HI)); lo.forEach(p => p.iq = iqFor(LO)); }
       const side = i % 2 === 0;
       const g = await ctx.playMatch(side ? hi : lo, side ? lo : hi);
       if (g.winner === (side ? 'blue' : 'red')) win++;

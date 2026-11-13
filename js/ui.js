@@ -548,7 +548,7 @@ const Draft = {
       <div class="hd-portrait">${heroFull(d)}</div>
       <div>
         <h3>${d.name}</h3><div class="hd-title">${d.title} · ${d.tags.map(t => TAG_NAMES[t]).join(', ')}</div>
-        <div class="hd-fits">${fits}${ms ? `<span class="fit ms">Мастерство ${pl.nick}: ${ms}</span>` : ''}</div>
+        <div class="hd-fits">${fits}${ms ? `<span class="fit ms">Мастерство ${pl.nick}: ${ms}</span>` : ''}${(() => { const mt = AI.metaOf(d.id); return (mt ? `<span class="fit meta t${mt.tier}">Мета ${mt.tier}-тир</span>` : '') + Object.keys(PATCH_KEYS).map(k => { const v = patchMod(d.id, k); return v ? `<span class="fit ${v > 0 ? 'buff' : 'nerf'}">Патч · ${PATCH_KEYS[k]}: ${v > 0 ? '+' : ''}${Math.round(v * 100)}%</span>` : ''; }).join(''); })()}</div>
         <div class="hd-lore">${d.lore}</div>
         <div class="hd-stats"><span>❤ <b>${Math.round(s.hp * (m.hp || 1))}</b></span><span>⚔ <b>${(s.atk * (m.atk || 1)).toFixed(0)}</b></span><span>🛡 <b>${Math.round(s.arm * (m.arm || 1))}</b></span><span>✦ <b>${Math.round(s.sp * (m.sp || 1))}</b></span><span>◆ <b>${s.mana}</b></span></div>
         <div class="skill-line"><div class="si">✧<i>П</i></div><div><b>${d.passive.name}</b> <small>пассивное</small><br>${d.passive.desc}</div></div>
@@ -556,69 +556,98 @@ const Draft = {
         <div class="skill-line"><div class="si">${d.r.icon}<i>R</i></div><div><b>${d.r.name}</b> <small>${d.r.cost} маны · КД ${d.r.cd} · с 6 ур.</small><br>${d.r.desc}</div></div>
       </div></div>`;
   },
+  /* Плашки причин решения капитана */
+  chips(parts, n = 4) {
+    return (parts || []).slice(0, n).map((p, i) => `<span class="rchip c-${p.cls}" style="animation-delay:${i * 0.12}s"><i>${p.ic}</i>${U.esc(p.t)}</span>`).join('');
+  },
+  decision(step, names, kind) {
+    const t = step.team, who = kind === 'ban' ? `капитан ${U.esc(step.cap ? step.cap.nick : '')}` : `${U.esc(step.pl.nick)} · ${ROLES[step.role].name}`;
+    return `<div class="dcall ${kind} ${t}"><div class="dc-face">${heroFace(step.def)}</div><div class="dc-main"><div class="dc-k">${kind === 'ban' ? '⛔ БАН' : '✔ ПИК'} · ${U.esc(names[t])}</div><div class="dc-h">${step.def.name} <small>${who}</small></div><div class="dc-why">${this.chips(step.parts, 4)}</div></div></div>`;
+  },
+  metaBadge(d) {
+    const m = AI.metaOf(d.id);
+    return (m ? `<span class="tier-badge t${m.tier}" title="Мета: ${m.tier}-тир">${m.tier}</span>` : '') + (m && m.lastDelta ? `<span class="patch-arrow ${m.lastDelta > 0 ? 'up' : 'dn'}" title="${m.lastDelta > 0 ? 'Усилен' : 'Ослаблен'} в патче ${m.patch}">${m.lastDelta > 0 ? '▲' : '▼'}</span>` : '');
+  },
   /* players: { blue: [5 игроков], red: [...] }, meta: { names, colors } */
   async run(players, meta = {}) {
     const names = meta.names || { blue: 'Синие', red: 'Красные' };
     const colors = meta.colors || { blue: ['#1e5f9e', '#d9e6f5'], red: ['#9e2235', '#ffcf8a'] };
-    $('.draft-team.blue').textContent = names.blue; $('.draft-team.red').textContent = names.red;
+    const caps = { blue: AI.captainOf(players.blue), red: AI.captainOf(players.red) };
+    for (const t of ['blue', 'red']) {
+      const D = AI.draftIq(caps[t]);
+      const grade = D >= 15 ? 'гений драфта' : D >= 12 ? 'грамотный драфт' : D >= 9 ? 'средний драфт' : D >= 6 ? 'слабый драфт' : 'драфт наугад';
+      $('.draft-team.' + t).innerHTML = `${U.esc(names[t])}<small class="dcap">Ⓒ ${U.esc(caps[t].nick)} · ${grade}</small>`;
+    }
     const pool = $('#draft-pool'); pool.innerHTML = '';
     const cards = new Map();
     for (const d of ROLE_ORDER.flatMap(r => HEROES.filter(h => h.main === r))) {
-      const c = el('div', 'pool-card', `<div class="pe">${heroFull(d)}</div><div class="pn">${d.name}</div><div class="pr">${ROLE_ORDER.filter(r => d.fit[r] >= 2).map(r => ROLES[r].short).join(' · ')}</div>`);
+      const c = el('div', 'pool-card', `<div class="pe">${heroFull(d)}</div><div class="pn">${d.name}</div><div class="pr">${ROLE_ORDER.filter(r => d.fit[r] >= 2).map(r => ROLES[r].short).join(' · ')}</div>${this.metaBadge(d)}`);
       c.style.setProperty('--hc', d.color);
       c.addEventListener('click', () => { $('#draft-detail').innerHTML = this.heroCard(d); });
       pool.appendChild(c); cards.set(d.id, c);
     }
-    $('#draft-detail').innerHTML = '<p style="color:var(--muted)">Игроки выбирают героев. Любой герой подходит на любую роль, но звёзды показывают, где он силён. Нажмите на героя, чтобы изучить его.</p>';
+    $('#draft-detail').innerHTML = '<p style="color:var(--muted)">Капитаны банят и выбирают героев. Под каждым решением — причины, которые учёл капитан: чем он грамотнее, тем больше нюансов (мета, контрпики, связки, угрозы соперника). Нажмите на героя, чтобы изучить его.</p>';
     const slots = { blue: new Map(), red: new Map() };
+    const banRows = {};
     for (const t of ['blue', 'red']) {
       const col = $('#picks-' + t); col.innerHTML = '';
+      banRows[t] = el('div', 'ban-row', AI.BAN_ORDER.filter(x => x === t).map(() => '<span class="ban-slot"></span>').join(''));
+      col.appendChild(banRows[t]);
       for (const p of players[t]) {
-        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
+        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}${p === caps[t] ? ' <span class="capt">C</span>' : ''}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
         col.appendChild(s); slots[t].set(p, s);
       }
     }
-    const order = ['blue', 'red', 'red', 'blue', 'blue', 'red', 'red', 'blue', 'blue', 'red'];
-    $('#draft-order').innerHTML = order.map(t => `<div class="po ${t}"></div>`).join('');
+    const seq = [...AI.BAN_ORDER.map(t => ({ t, ban: true })), ...AI.PICK_ORDER.map(t => ({ t, ban: false }))];
+    $('#draft-order').innerHTML = seq.map(x => `<div class="po ${x.t} ${x.ban ? 'ban' : ''}"></div>`).join('');
     const po = [...document.querySelectorAll('#draft-order .po')];
-    const picks = { blue: [], red: [] };
+    const picks = { blue: [], red: [] }, bans = { blue: [], red: [] };
     const taken = new Set();
-    for (let i = 0; i < order.length; i++) {
-      const t = order[i];
+    for (let i = 0; i < seq.length; i++) {
+      const { t, ban } = seq[i];
       po.forEach((x, j) => { x.classList.toggle('cur', j === i); x.classList.toggle('done', j < i); });
-      $('#draft-phase').textContent = `${names[t]} выбирают`;
+      $('#draft-phase').textContent = `${names[t]} ${ban ? 'банят' : 'выбирают'}`;
       $('#draft-phase').style.color = t === 'blue' ? 'var(--blue)' : 'var(--red)';
-      const pick = AI.draftPick(players, picks, taken, t);
-      const slot = slots[t].get(pick.pl);
-      slot.classList.add('picking');
-      $('#draft-sub').textContent = `${pick.pl.nick} (${ROLES[pick.role].name}) выбирает героя…`;
-      const browse = U.shuffle(HEROES.filter(h => !taken.has(h.id) && h !== pick.def)).slice(0, 3);
+      const step = ban ? AI.draftBan(players, picks, taken, t) : AI.draftPick(players, picks, taken, t);
+      const slot = ban ? null : slots[t].get(step.pl);
+      if (slot) slot.classList.add('picking');
+      $('#draft-sub').textContent = ban ? `Капитан ${caps[t].nick} выбирает бан…` : `${step.pl.nick} (${ROLES[step.role].name}) выбирает героя…`;
+      const browse = U.shuffle(HEROES.filter(h => !taken.has(h.id) && h !== step.def)).slice(0, 3);
       for (const b of browse) { const c = cards.get(b.id); c.classList.add('hover'); sfx('draft', { n: U.ri(8) }); await wait(160); c.classList.remove('hover'); }
-      const cc = cards.get(pick.def.id);
+      const cc = cards.get(step.def.id);
       cc.classList.add('hover');
-      $('#draft-detail').innerHTML = this.heroCard(pick.def, pick.pl);
-      await wait(420);
+      $('#draft-detail').innerHTML = this.decision(step, names, ban ? 'ban' : 'pick') + this.heroCard(step.def, step.pl);
+      await wait(ban ? 900 : 700);
       cc.classList.remove('hover');
       sfx('lockin');
-      cc.classList.add('taken');
-      cc.dataset.team = names[t].toUpperCase();
-      cc.style.setProperty('--tc', t === 'blue' ? '#1e6fa8' : '#a82a36');
-      taken.add(pick.def.id);
-      picks[t].push(pick);
-      slot.classList.remove('picking'); slot.classList.add('done');
-      const pp = slot.querySelector('.pp');
-      pp.innerHTML = heroFace(pick.def);
-      pp.style.background = `radial-gradient(circle at 35% 30%, ${pick.def.color}, #0b0f1d 85%)`;
-      const ms = masteryOf(pick.pl, pick.def.id), off = pick.def.fit[pick.role] < 3;
-      slot.querySelector('.pn').innerHTML = `<b>${U.esc(pick.pl.nick)}</b><span class="ph">${pick.def.name}</span><small>${ROLES[pick.role].short} ${fitStars(pick.def.fit[pick.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why ${off ? 'off' : ''}" title="${U.esc(pick.reason)}">${off ? '⚠ не по профилю' : ms >= 15 ? '★ коронный герой' : ''}</em>`;
-      slot.title = pick.reason;
-      await wait(380);
+      taken.add(step.def.id);
+      if (ban) {
+        cc.classList.add('banned');
+        cc.dataset.team = 'БАН · ' + names[t].toUpperCase();
+        bans[t].push(step);
+        const bs = banRows[t].querySelector('.ban-slot:not(.on)');
+        bs.classList.add('on'); bs.innerHTML = heroFace(step.def); bs.title = `${step.def.name}: ${step.reason}`;
+      } else {
+        cc.classList.add('taken');
+        cc.dataset.team = names[t].toUpperCase();
+        cc.style.setProperty('--tc', t === 'blue' ? '#1e6fa8' : '#a82a36');
+        picks[t].push(step);
+        slot.classList.remove('picking'); slot.classList.add('done');
+        const pp = slot.querySelector('.pp');
+        pp.innerHTML = heroFace(step.def);
+        pp.style.background = `radial-gradient(circle at 35% 30%, ${step.def.color}, #0b0f1d 85%)`;
+        const ms = masteryOf(step.pl, step.def.id);
+        slot.querySelector('.pn').innerHTML = `<b>${U.esc(step.pl.nick)}${step.pl === caps[t] ? ' <span class="capt">C</span>' : ''}</b><span class="ph">${step.def.name}</span><small>${ROLES[step.role].short} ${fitStars(step.def.fit[step.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why">${this.chips(step.parts, 1)}</em>`;
+        slot.title = step.reason;
+      }
+      await wait(ban ? 450 : 380);
     }
     po.forEach(x => { x.classList.remove('cur'); x.classList.add('done'); });
     $('#draft-phase').textContent = 'Составы утверждены';
     $('#draft-phase').style.color = 'var(--gold)';
     $('#draft-sub').textContent = 'Загрузка Ущелья Кристаллов…';
     await wait(1100);
+    picks.bans = bans;
     return picks;
   },
 };

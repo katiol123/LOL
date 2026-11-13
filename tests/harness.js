@@ -27,7 +27,8 @@ function load(extra) {
     RATING_METRICS, neutralPlayer, NOOP_UI, makePlayer, effStat, masteryOf, playerOvr,
     createLeague: typeof createLeague !== 'undefined' ? createLeague : null, rosterOf: typeof rosterOf !== 'undefined' ? rosterOf : null,
     simFixture: typeof simFixture !== 'undefined' ? simFixture : null, leagueTable: typeof leagueTable !== 'undefined' ? leagueTable : null,
-    clubById: typeof clubById !== 'undefined' ? clubById : null });`, ctx);
+    clubById: typeof clubById !== 'undefined' ? clubById : null, doubleRoundRobin: typeof doubleRoundRobin !== 'undefined' ? doubleRoundRobin : null,
+    applyPatch: typeof applyPatch !== 'undefined' ? applyPatch : null, patchDue: typeof patchDue !== 'undefined' ? patchDue : null, heroWr: typeof heroWr !== 'undefined' ? heroWr : null, applyLeagueMeta: typeof applyLeagueMeta !== 'undefined' ? applyLeagueMeta : null });`, ctx);
   if (extra) vm.runInContext(extra, ctx);
   return ctx;
 }

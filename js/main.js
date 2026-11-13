@@ -111,6 +111,7 @@ const App = {
     const L = createLeague();
     const [a, b] = U.shuffle(L.clubs.slice()).slice(0, 2);
     Campaign.L = L;
+    applyLeagueMeta(null);   // быстрый матч — без патчей кампании
     await this.playMatch({ blue: rosterOf(L, a), red: rosterOf(L, b) }, {
       names: { blue: a.name, red: b.name }, colors: { blue: clubColors(a), red: clubColors(b) }, quick: true,
     });
@@ -134,7 +135,7 @@ const App = {
     await new Promise(r => setTimeout(r, 100));
     $('#screen-vs').classList.add('go');
     await new Promise(r => setTimeout(r, 3400));
-    this.game = new Game(picks.blue, picks.red, UI, { names: meta.names, colors: meta.colors });
+    this.game = new Game(picks.blue, picks.red, UI, { names: meta.names, colors: meta.colors, bans: picks.bans });
     await this.show('screen-game');
     UI.init(this.game);
     requestAnimationFrame(() => UI.resize());

@@ -37,7 +37,7 @@ class Hero {
     this.gold = 500; this.totalGold = 500;
     this.k = 0; this.d = 0; this.a = 0; this.dmg = 0; this.healed = 0; this.cs = 0;
     this.cd = { q: 0, r: 0 };
-    this.stunned = 0; this.dead = 0; this.ev = null; this.gank = 0;
+    this.stunned = 0; this.dead = 0; this.ev = null; this.gank = 0; this.roam = 0; this.roams = 0;
     this.mem = {}; this.streak = 0;
     this.recalc();
     this.hp = this.maxHp; this.mana = this.maxMana * 0.6; this.shield = 0;
@@ -56,8 +56,11 @@ class Hero {
     this.power = (b.atk + L * b.atkG) * (m.atk || 1) + this.itemStat('atk');
     this.armor = (b.arm + L * b.armG) * (m.arm || 1) + this.itemStat('arm');
     this.maxMana = Math.round(b.mana + L * 8 + this.itemStat('mana'));
-    this.sp = (b.sp + L * b.spG) * (m.sp || 1) + this.itemStat('sp') + (this.souls || 0) * 8;
-    this.armor += (this.scrap || 0) * 4; this.power += (this.scrap || 0) * 3;
+    this.sp = (b.sp + L * b.spG) * (m.sp || 1) + this.itemStat('sp') + (this.souls || 0) * 8 * (1 + patchMod(this.def.id, 'p'));
+    const sk = (this.scrap || 0) * (1 + patchMod(this.def.id, 'p')); this.armor += sk * 4; this.power += sk * 3;
+    // правки баланса из патча кампании
+    const pd = patchMod(this.def.id, 'stat');
+    if (pd) { this.maxHp = Math.round(this.maxHp * (1 + pd)); this.power *= 1 + pd; this.sp *= 1 + pd; }
     this.lifesteal = this.itemStat('ls');
     if (this.hp != null) this.hp = Math.min(this.maxHp, Math.max(1, Math.round(this.maxHp * ratio)));
   }
@@ -123,6 +126,8 @@ class Game {
     if (ev) { ev.focus = ev.focus || {}; if (!ev.focus[h.team] || !ev.focus[h.team].alive) ev.focus[h.team] = t; }
     return t;
   }
+  /* Числовое значение пассивки с учётом патча */
+  pv(h, key) { return (h.def.passive[key] || 0) * (1 + patchMod(h.def.id, 'p')); }
   sp(h, base, ratio) { return base + h.sp * ratio + h.lvl * 4; }
   teamBuffs(t) {
     const tm = this.teams[t]; const b = { atk: 1, arm: 0, regen: 0, mana: 0 };
@@ -222,7 +227,8 @@ class Game {
     this.ui.cast(h, s, key);
     this.ui.log(`${this.tag(h)} применяет <b class="skn">${s.icon} ${s.name}</b>${t && s.need === 'enemy' ? ` на ${this.tag(t)}` : ''}.`);
     await wait(650);
-    await s.cast(this, h, t);
+    h.castMul = 1 + patchMod(h.def.id, key);
+    try { await s.cast(this, h, t); } finally { h.castMul = 1; }
     await wait(200);
     return true;
   }
@@ -315,13 +321,22 @@ class Game {
     if (!h.alive) return;
     const c = { counts, info, m: { atk: 1, def: 1, heal: 1, mana: 1, gold: 1, vis: 1 }, after: [], lifesteal: h.lifesteal, gankMul: 1, bombDmg: 0, label: null, manaFlat: 0, healAlly: 0, shieldAlly: 0, visShield: 0 };
     const p = h.def.passive;
-    if (p.effects) p.effects(this, h, c);
+    if (p.effects) {
+      // правка пассивки в патче масштабирует её вклад
+      const pm = patchMod(h.def.id, 'p');
+      const NUM = ['lifesteal', 'gankMul', 'bombDmg', 'manaFlat', 'healAlly', 'shieldAlly', 'visShield'];
+      const b0 = pm ? { m: Object.assign({}, c.m), n: NUM.map(k => c[k]) } : null;
+      p.effects(this, h, c);
+      if (pm) { for (const k in c.m) c.m[k] = b0.m[k] + (c.m[k] - b0.m[k]) * (1 + pm); NUM.forEach((k, i) => { c[k] = b0.n[i] + (c[k] - b0.n[i]) * (1 + pm); }); }
+    }
+    // правка умения в патче: камни, разряженные во время умения, тоже сильнее/слабее
+    if (h.castMul && h.castMul !== 1) for (const k in c.m) c.m[k] *= h.castMul;
     // «Похоронный марш» (Ноктюрн): совпадения союзников в его событии копят куплеты, каждый усиливает их камни
     const bard = h.ev && h.ev.sides && h.ev.sides[h.team].find(x => x.alive && x.def.passive.march);
     if (bard) {
       bard.marchHits = (bard.marchHits || 0) + 1;
       if (bard.marchHits >= 3 && (bard.verses || 0) < 3) { bard.marchHits = 0; bard.verses = (bard.verses || 0) + 1; this.ui.float(bard, `🎻 куплет ${bard.verses}`, '#e0c3ff'); }
-      for (const k in c.m) c.m[k] *= 1 + 0.05 * (bard.verses || 0);
+      for (const k in c.m) c.m[k] *= 1 + 0.05 * (1 + patchMod(bard.def.id, 'p')) * (bard.verses || 0);
     }
     const buff = this.teamBuffs(h.team);
     // Механика: каскады и общая точность; Хладнокровие: штраф под давлением
@@ -436,7 +451,7 @@ class Game {
   hitNpc(h, ev, amt) {
     const npc = ev.npc;
     if (!npc || npc.hp <= 0) return;
-    const mul = h.def.passive.npcMul || 1;
+    const mul = 1 + ((h.def.passive.npcMul || 1) - 1) * (1 + patchMod(h.def.id, 'p'));
     const d = Math.round(amt * mul);
     npc.hp -= d;
     h.dmg += d;
@@ -499,7 +514,7 @@ class Game {
     const tm = this.teams[h.team];
     if (h.def.passive.scrap) { h.scrap++; h.recalc(); this.ui.float(h, `⚙ металлолом ${h.scrap}`, '#d9a066'); }
     if (npc.kind === 'camp') {
-      const gm = h.def.passive.campGold || 1;
+      const gm = 1 + ((h.def.passive.campGold || 1) - 1) * (1 + patchMod(h.def.id, 'p'));
       const gold = Math.round(npc.gold * gm * (sm(0.05, h, 'farm')));
       this.addGold(h, gold); this.gainXp(h, npc.xp); h.cs += 4;
       h.gank += 8;
@@ -561,12 +576,12 @@ class Game {
     const ambushed = ev && ev.att && ev.att !== tgt.team && (ev.type === 'gank' || ev.type === 'dragon' || ev.type === 'baron' || ev.type === 'siege');
     d *= U.clamp(1 - (ambushed ? 0.02 : 0.01) * sd(tgt, 'map'), 0.3, 1.7);
     // уязвимость рядом с врагом, у которого она в пассивке (Ундина), и якорь (+20% урона)
-    if (kind === 'phys' && ev && ev.sides && ev.sides[tgt.enemyTeam].some(x => x.alive && x.def.passive.vuln)) d *= 1 + ev.sides[tgt.enemyTeam].find(x => x.alive && x.def.passive.vuln).def.passive.vuln;
+    if (kind === 'phys' && ev && ev.sides && ev.sides[tgt.enemyTeam].some(x => x.alive && x.def.passive.vuln)) d *= 1 + this.pv(ev.sides[tgt.enemyTeam].find(x => x.alive && x.def.passive.vuln), 'vuln');
     if (tgt.anchored > 0) d *= 1.2;
     // защитник (Кассиан) перехватывает часть урона, который получают союзники в его событии
     if (!noRedirect && ev && ev.sides) {
       const guard = ev.sides[tgt.team].find(x => x !== tgt && x.alive && x.def.passive.phalanx);
-      if (guard) { const part = d * guard.def.passive.phalanx; d -= part; this.takeRaw(src, guard, part); }
+      if (guard) { const part = d * Math.min(0.6, this.pv(guard, 'phalanx')); d -= part; this.takeRaw(src, guard, part); }
     }
     const abs = Math.min(tgt.shield, d);
     tgt.shield -= abs; d -= abs;
@@ -595,6 +610,7 @@ class Game {
     return d;
   }
   async skillDamage(src, tgt, amt, kind, color) {
+    if (src && src.castMul) amt *= src.castMul;
     if (!tgt || !tgt.alive) return 0;
     this.ui.projectile(src, tgt, color || '#fff', true);
     await wait(380);
@@ -604,6 +620,7 @@ class Game {
 
   healHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
+    if (src && src.castMul) amt *= src.castMul;
     if (src !== tgt) amt *= sm(0.08, src, 'team');
     const before = tgt.hp;
     tgt.hp = Math.min(tgt.maxHp, tgt.hp + amt);
@@ -617,6 +634,7 @@ class Game {
   }
   shieldHero(src, tgt, amt, quiet) {
     if (!tgt.alive || amt <= 0) return;
+    if (src && src.castMul) amt *= src.castMul;
     if (src !== tgt) amt *= sm(0.08, src, 'team');
     tgt.shield = Math.min(tgt.maxHp * 0.7, tgt.shield + amt);
     src.shielded = (src.shielded || 0) + amt;
@@ -689,7 +707,7 @@ class Game {
     this.tryTilt(tgt, assists.length ? 1 : 2, 'гибели');
     // абордаж (Клешнир): убийца или помощник крадёт часть золота жертвы
     const pirate = [src, ...assists].find(x => x.def.passive.plunder);
-    if (pirate) { const g = Math.round(tgt.gold * pirate.def.passive.plunder); if (g > 0) { tgt.gold -= g; this.addGold(pirate, g); this.ui.float(pirate, `🏴‍☠️ +${g}💰`, '#ffc93c'); } }
+    if (pirate) { const g = Math.round(tgt.gold * Math.min(0.6, this.pv(pirate, 'plunder'))); if (g > 0) { tgt.gold -= g; this.addGold(pirate, g); this.ui.float(pirate, `🏴‍☠️ +${g}💰`, '#ffc93c'); } }
     // мультикиллы за раунд
     src.mem.roundKills = (src.mem.roundKillsRound === this.round ? src.mem.roundKills : 0) + 1;
     src.mem.roundKillsRound = this.round;
@@ -875,6 +893,11 @@ class Game {
       const j = this.hero(t, 'jng');
       if (this.free(j) && j.gank >= 100) this.startGank(j);
     }
+    // 6б. Роумы мидера и саппорта
+    if (this.minute >= 4) for (const t of U.shuffle(['blue', 'red'])) for (const r of U.shuffle(['mid', 'sup'])) {
+      const h = this.hero(t, r);
+      if (this.free(h) && h.roam >= 100) this.tryRoam(h);
+    }
 
     // 7. Обычные занятия: линии, лес, свободная осада
     for (const l of LANES) {
@@ -955,10 +978,25 @@ class Game {
     }
   }
 
-  startGank(j) {
+  /* Роум: мидер или саппорт оставляет линию и идёт на соседнюю. Командное мышление решает,
+     вовремя ли уходить (своя линия не продавлена, напарник не при смерти), куда идти и позвать ли лесника. */
+  tryRoam(h) {
+    const smart = U.chance(U.clamp((iqOf(h, 'team') - 2) / 14, 0.05, 1));
+    if (smart) {
+      const lane = this.lanes[h.lane];
+      const push = h.team === 'blue' ? lane.push : -lane.push;      // >0 — волна давит на врага
+      const mate = this.teams[h.team].heroes.find(x => x !== h && x.lane === h.lane && x.alive);
+      const unsafe = push < -0.35 || (mate && mate.hp / mate.maxHp < 0.35) || h.hp / h.maxHp < 0.5;
+      if (unsafe) { h.roam = 70; return; }
+    }
+    this.startGank(h, { roam: true, smart });
+  }
+
+  startGank(j, opt = {}) {
     const et = j.enemyTeam;
     const options = [];
     for (const l of LANES) {
+      if (opt.roam && l === j.lane) continue;
       const victims = this.teams[et].heroes.filter(h => this.free(h) && h.lane === l);
       if (!victims.length) continue;
       const lane = this.lanes[l];
@@ -967,22 +1005,34 @@ class Game {
       const score = 30 + hurt * 60 + over * 25 - lane.ward[et] * 6 + U.rand(15) - (victims.length - 1) * 8;
       options.push({ l, victims, score });
     }
-    if (!options.length) return;
-    // Командное мышление лесника: выбрать самую выгодную линию для ганга (слабый — почти наугад)
-    const best = U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1)) ? U.maxBy(options, o => o.score) : U.pick(options);
-    j.gank = 0;
+    if (!options.length) { if (opt.roam) j.roam = 60; return; }
+    // Командное мышление: выбрать самую выгодную линию (слабый — почти наугад)
+    const best = (opt.roam ? opt.smart : U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1))) ? U.maxBy(options, o => o.score) : U.pick(options);
+    // умный роумер не идёт туда, где ловить нечего, — подождёт момента получше
+    if (opt.roam && opt.smart && best.score < 36) { j.roam = 75; return; }
+    if (opt.roam) { j.roam = 0; j.roams++; } else j.gank = 0;
     const lane = this.lanes[best.l];
-    const ev = this.mkEv('gank', { lane: best.l, att: j.team, left: 2 });
+    const ev = this.mkEv('gank', { lane: best.l, att: j.team, left: 2, roam: !!opt.roam });
     this.join(ev, j);
+    // умный роумер зовёт своего лесника, если тот свободен и готов к гангу
+    let duo = null;
+    if (opt.roam && opt.smart) {
+      const jg = this.hero(j.team, 'jng');
+      if (this.free(jg) && jg.gank >= 35 && U.chance(U.clamp(0.25 + 0.04 * sd(jg, 'team'), 0.05, 0.9))) { this.join(ev, jg); jg.gank = 0; duo = jg; }
+    }
     this.heroes.filter(h => h.team === j.team && this.free(h) && h.lane === best.l).forEach(h => this.join(ev, h));
     best.victims.forEach(h => this.join(ev, h));
     const bestMap = Math.max(...best.victims.map(v => sd(v, 'map')));
-    const spotChance = U.clamp(lane.ward[et] * 0.13 + 0.03 * (bestMap - sd(j, 'agr')), 0, 0.9);
+    let spotChance = U.clamp(lane.ward[et] * 0.13 + 0.03 * (bestMap - sd(j, 'agr')), 0, 0.9);
+    // роум заметнее ганга: уход с линии видят. Умный роумер уходит под прикрытием волны и тумана, неумелый — у всех на виду
+    if (opt.roam) spotChance = U.clamp(spotChance + (opt.smart ? 0.05 : 0.3), 0, 0.9);
     const spotted = U.chance(spotChance);
-    let msg = `⚡ ${this.tag(j)} гангает <b>${best.l.toUpperCase()}</b>!`;
+    let msg = opt.roam ? `🏃 ${this.tag(j)} уходит с линии и роумит на <b>${best.l.toUpperCase()}</b>!${duo ? ` Вместе с ним приходит ${this.tag(duo)}.` : ''}` : `⚡ ${this.tag(j)} гангает <b>${best.l.toUpperCase()}</b>!`;
     if (spotted) {
       ev.left = 1;
       for (const v of best.victims) this.shieldHero(v, v, v.maxHp * 0.25);
+      // раскрытый роум: жертвы встречают роумера заранее подготовленным ударом
+      if (opt.roam) for (const v of best.victims) this.dealDamage(v, j, v.power * 2.2 + v.sp * 0.6, 'phys');
       msg += ` Варды ${this.teams[et].name.toLowerCase()} раскрыли ганг — жертвы успели подготовиться (щит).`;
     }
     ev.late = [];
@@ -1007,7 +1057,7 @@ class Game {
     this.persist.push(ev);
     this.ui.log(msg, j.team);
     sfx('gank');
-    this.ui.banner('ГАНГ!', `${j.name} → ${best.l.toUpperCase()}`, j.team, true);
+    this.ui.banner(opt.roam ? 'РОУМ!' : 'ГАНГ!', `${j.name} → ${best.l.toUpperCase()}`, j.team, true);
   }
 
   endPersist(ev) {
@@ -1103,6 +1153,8 @@ class Game {
         h.shield *= 0.55;
         if (h.ev.type === 'recall') this.atBase(h);
         if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
+        // мидер и саппорт копят желание сходить на соседнюю линию (роум); быстрее — у агрессивных
+        if ((h.role === 'mid' || h.role === 'sup') && h.ev.lane === h.lane && ['lane', 'siege', 'defend'].includes(h.ev.type)) h.roam += Math.max(3, (h.role === 'mid' ? 14 : 12) + 1.2 * sd(h, 'agr'));
       } else {
         h.dead--;
         if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }

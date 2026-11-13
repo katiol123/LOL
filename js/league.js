@@ -36,9 +36,11 @@ function createLeague(seed = Math.floor(Math.random() * 1e9)) {
       L.players[p.id] = p;
       club.roster[role] = p.id;
     }
+    pickCaptain(L, club);
     L.clubs.push(club);
   });
   assignMastery(rng, Object.values(L.players));
+  L.patch = newPatchState('1.0', {}, [], {});
   L.schedule = doubleRoundRobin(L.clubs.map(c => c.id), rng);
   return L;
 }
@@ -98,6 +100,7 @@ function joinClub(L, human, clubId) {
   L.players[human.id] = human;
   club.roster[human.role] = human.id;
   L.humanId = human.id; L.humanClub = club.id;
+  pickCaptain(L, club);
   return old;
 }
 
@@ -106,6 +109,7 @@ function joinClub(L, human, clubId) {
 function applyGame(L, fixture, game, homeSide) {
   const homeWon = game.winner === homeSide;
   const rec = { winner: homeWon ? 'home' : 'away', min: game.minute, kills: { home: game.teams[homeSide].kills, away: game.teams[homeSide === 'blue' ? 'red' : 'blue'].kills }, players: [] };
+  recordHeroStats(L, game);
   for (const h of game.heroes) {
     const p = h.pl; if (!p || !L.players[p.id]) continue;
     p.ratings.push(h.rating); if (p.ratings.length > 12) p.ratings.shift();
@@ -177,13 +181,108 @@ async function simFixture(L, fixture, ui) {
   for (let gi = fixture.games.length; gi < 2; gi++) {
     const homeSide = gi === 0 ? 'blue' : 'red';
     const players = { [homeSide]: rosterOf(L, home), [homeSide === 'blue' ? 'red' : 'blue']: rosterOf(L, away) };
-    const { picks } = AI.draft(players);
-    const g = new Game(picks.blue, picks.red, ui, { names: { [homeSide]: home.name, [homeSide === 'blue' ? 'red' : 'blue']: away.name } });
+    const { picks, bans } = AI.draft(players);
+    const g = new Game(picks.blue, picks.red, ui, { bans, names: { [homeSide]: home.name, [homeSide === 'blue' ? 'red' : 'blue']: away.name } });
     await g.run();
     computeRatings(g);
     applyGame(L, fixture, g, homeSide);
   }
   finishFixture(L, fixture);
+}
+
+/* ---------- Капитан ----------
+   Капитан драфтит за команду: им становится игрок с лучшим командным мышлением, тактикой и чтением игры. */
+function pickCaptain(L, club) {
+  const ps = rosterOf(L, club);
+  for (const p of ps) p.captain = false;
+  const cap = AI.captainOf(ps.map(p => Object.assign({}, p, { captain: false })));
+  const real = ps.find(p => p.id === cap.id);
+  real.captain = true; club.captain = real.id;
+  return real;
+}
+
+/* ---------- Патчи и мета ----------
+   Каждые 10 туров выходит патч: герои со слишком высоким винрейтом ослабляются, слишком слабые — усиливаются.
+   После патча складывается мета: ожидаемая сила героя = винрейт прошлого патча (сглаженный) + эффект правки. */
+const PATCH_EVERY = 10;
+const PATCH_WR_PER_PCT = 1.1;   // ≈ сколько п.п. винрейта даёт 1% силы героя (замер на тестах)
+function newPatchState(name, mods, notes, meta) {
+  return { name, mods: Object.assign({}, mods), notes, meta, stats: {}, games: 0 };
+}
+function recordHeroStats(L, game) {
+  if (!L.patch) return;
+  const st = L.patch.stats;
+  L.patch.games++;
+  for (const h of game.heroes) {
+    const s = st[h.def.id] = st[h.def.id] || { g: 0, w: 0, b: 0 };
+    s.g++; if (h.team === game.winner) s.w++;
+  }
+  const bans = game.opts && game.opts.bans;
+  if (bans) for (const t of ['blue', 'red']) for (const b of bans[t] || []) { const s = st[b.def.id] = st[b.def.id] || { g: 0, w: 0, b: 0 }; s.b++; }
+}
+/* Сглаженный винрейт: к результатам героя добавляются 24 «средние» игры, чтобы случайные серии не дёргали баланс */
+function heroWr(s) { return s ? (s.w + 12) / (s.g + 24) : 0.5; }
+function patchDue(L) { return L.tour > 0 && L.tour % PATCH_EVERY === 0 && (!L.patch || L.patch.atTour !== L.season * 100 + L.tour); }
+function applyPatch(L) {
+  const old = L.patch || newPatchState('1.0', {}, [], {});
+  const games = Math.max(1, old.games);
+  const k = L.tour >= L.schedule.length ? 0 : Math.round(L.tour / PATCH_EVERY);
+  const name = L.tour >= L.schedule.length ? `${L.season + 1}.0` : `${L.season}.${k}`;
+  const rng = U.seeded((L.seed * 7 + L.season * 1009 + L.tour * 31) >>> 0);
+  const mods = {};
+  for (const id in old.mods) mods[id] = typeof old.mods[id] === 'number' ? { stat: old.mods[id] } : Object.assign({}, old.mods[id]);
+  const notes = [], meta = {};
+  for (const d of HEROES) {
+    const s = old.stats[d.id] || { g: 0, w: 0, b: 0 };
+    const wr = heroWr(s);
+    let eff = 0, key = null, delta = 0;
+    if (s.g >= 12 && Math.abs(wr - 0.5) > 0.03) {
+      // нужная правка в «силе героя»: перекос винрейта с запасом на случайность, от 2 до 6%
+      let need = -U.clamp((wr - 0.5) * 70 / PATCH_WR_PER_PCT, -6, 6) / 100;
+      if (Math.abs(need) < 0.02) need = 0.02 * Math.sign(need);
+      // в ~30% случаев правят не базовые характеристики, а Q, ульту или пассивку (часть набора — шаг крупнее)
+      key = rng() < 0.7 ? 'stat' : ['q', 'r', 'p'][Math.floor(rng() * 3)];
+      const mult = key === 'stat' ? 1 : key === 'p' ? 2.5 : 3;
+      const cap = key === 'stat' ? 0.25 : 0.45;
+      const m = mods[d.id] = mods[d.id] || {};
+      const before = m[key] || 0;
+      m[key] = U.clamp(Math.round((before + need * mult) * 100) / 100, -cap, cap);
+      delta = Math.round((m[key] - before) * 100) / 100;
+      eff = delta / mult;
+      if (delta) {
+        const skill = key === 'q' ? d.q.name : key === 'r' ? d.r.name : key === 'p' ? d.passive.name : null;
+        notes.push({ id: d.id, key, skill, delta, eff, wr: s.w / Math.max(1, s.g), g: s.g, total: m[key] });
+      } else key = null;
+    }
+    // мета: ожидаемый винрейт в новом патче
+    const score = (wr - 0.5) + eff * PATCH_WR_PER_PCT;
+    const pr = (s.g + s.b) / games;     // доля игр, где героя взяли или забанили
+    meta[d.id] = { score: Math.round(score * 1000) / 1000, wr, g: s.g, pr: Math.round(pr * 100) / 100, lastDelta: Math.round(eff * 1000) / 1000, lastKey: key, patch: name };
+  }
+  const order = Object.entries(meta).sort((a, b) => b[1].score - a[1].score);
+  order.forEach(([id, m], i) => { m.rank = i + 1; m.tier = m.score >= 0.04 ? 'S' : m.score >= 0.015 ? 'A' : m.score > -0.015 ? 'B' : m.score > -0.04 ? 'C' : 'D'; });
+  notes.sort((a, b) => a.eff - b.eff);
+  L.patchHistory = L.patchHistory || [];
+  L.patchHistory.push({ name: old.name, games: old.games, stats: old.stats });
+  if (L.patchHistory.length > 8) L.patchHistory.shift();
+  L.patch = newPatchState(name, mods, notes, meta);
+  L.patch.atTour = L.season * 100 + L.tour;
+  L.patch.prev = old.name;
+  applyLeagueMeta(L);
+  return L.patch;
+}
+/* Включить патч и мету лиги в игре (null — сбросить для быстрых матчей) */
+function applyLeagueMeta(L) {
+  HERO_PATCH = {}; HERO_META = {};
+  if (!L || !L.patch) return;
+  Object.assign(HERO_PATCH, L.patch.mods);
+  Object.assign(HERO_META, L.patch.meta);
+}
+/* Совместимость со старыми сохранениями */
+function upgradeLeague(L) {
+  if (!L.patch) L.patch = newPatchState('1.0', {}, [], {});
+  for (const c of L.clubs) if (!c.captain || !L.players[c.captain]) pickCaptain(L, c);
+  return L;
 }
 
 /* ---------- Сохранение ---------- */

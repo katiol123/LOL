@@ -36,7 +36,7 @@ function playerRow(L, p, opts = {}) {
   const club = p.club && clubById(L, p.club);
   return `<div class="prow ${p.human ? 'me' : ''}" data-pid="${p.id}">
     ${faceHTML(p, club ? clubColors(club) : null, 'pr-face')}
-    <div class="pr-name"><b>${U.esc(p.nick)}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
+    <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
     <div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>
     <div class="pr-form" style="color:${formColor(p)}" title="Форма: средняя оценка за 5 матчей ${playerFormAvg(p).toFixed(2)}">${formArrow(p)}</div>
     ${opts.last ? `<div class="pr-last">${ratingChips(p, 3)}</div>` : ''}
@@ -171,12 +171,13 @@ const Campaign = {
     if (!v) { this.closeAll(); return; }
     const body = $('#profile-body');
     if (v.type === 'club') body.innerHTML = this.clubDetailHTML(clubById(this.L, v.id), false);
+    else if (v.type === 'patch') body.innerHTML = this.patchHTML(true);
     else body.innerHTML = this.playerHTML(v.id);
     this.bindRows(body);
     const prev = this.modal[this.modal.length - 2];
     const btn = $('#profile-close');
     if (prev) {
-      const name = prev.type === 'club' ? clubById(this.L, prev.id).name : (this.L.players[prev.id] || {}).nick;
+      const name = prev.type === 'patch' ? `Патч ${this.L.patch.name}` : prev.type === 'club' ? clubById(this.L, prev.id).name : (this.L.players[prev.id] || {}).nick;
       btn.textContent = '← Назад'; btn.title = `Вернуться: ${name}`; btn.classList.add('back');
     } else { btn.textContent = '✕'; btn.title = 'Закрыть'; btn.classList.remove('back'); }
     $('#profile').classList.add('open');
@@ -211,6 +212,8 @@ const Campaign = {
   /* =================== Центр лиги =================== */
   async openHub() {
     App.setSpeed(1);
+    upgradeLeague(this.L);
+    applyLeagueMeta(this.L);
     this.renderHub();
     await App.show('screen-hub');
   },
@@ -239,6 +242,9 @@ const Campaign = {
       $('#hub-watch').onclick = () => this.playTour(true);
       $('#hub-sim').onclick = () => this.playTour(false);
     }
+    // патч и мета
+    $('#hub-meta').innerHTML = this.patchHTML(false);
+    $('#hub-meta').onclick = () => this.openView({ type: 'patch', id: this.L.patch.name });
     // мой игрок
     $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
     // состав
@@ -329,8 +335,10 @@ const Campaign = {
     await this.simRest(watch ? f : null);
     L.tour++;
     L.newsOut = '';
+    const patched = patchDue(L) ? applyPatch(L) : null;
     saveLeague(L);
     await this.openHub();
+    if (patched) setTimeout(() => this.openView({ type: 'patch', id: patched.name }), 900);
   },
   async simRest(skip) {
     const L = this.L;
@@ -347,6 +355,32 @@ const Campaign = {
       }
     } finally { Clock.headless = wasHeadless; $('#hub-progress').hidden = true; }
   },
+  /* Патч: список правок и мета (тир-лист). full — для окна, иначе компактная панель хаба */
+  patchHTML(full) {
+    const L = this.L, P = L.patch;
+    const next = Math.ceil((L.tour + 1) / PATCH_EVERY) * PATCH_EVERY;
+    const pct = v => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
+    const hd = id => HEROES.find(h => h.id === id);
+    const what = n => !n.key || n.key === 'stat' ? 'сила' : `${{ q: 'Q', r: 'R', p: 'пассивка' }[n.key]} «${n.skill}»`;
+    const note = n => { const d = hd(n.id); return `<div class="pn-row ${n.delta > 0 ? 'buff' : 'nerf'} ${n.key && n.key !== 'stat' ? 'skill' : ''}"><span class="pn-face">${heroFace(d)}</span><b>${d.name}</b><span class="pn-d">${n.delta > 0 ? '▲' : '▼'} ${U.esc(what(n))} ${pct(n.delta)}</span>${full ? `<small>винрейт ${Math.round(n.wr * 100)}% в ${n.g} играх · ${n.key && n.key !== 'stat' ? 'меняется урон, лечение и щиты умения' : 'здоровье, атака и сила умений'} · итого ${pct(n.total)}</small>` : ''}</div>`; };
+    const tiers = ['S', 'A', 'B', 'C', 'D'];
+    const metaList = Object.entries(P.meta || {});
+    const tierRows = metaList.length ? tiers.map(t => {
+      const hs = metaList.filter(([, m]) => m.tier === t).sort((a, b) => b[1].score - a[1].score);
+      if (!hs.length || (!full && !['S', 'A'].includes(t))) return '';
+      return `<div class="tier"><span class="tl t${t}">${t}</span><div class="th">${hs.map(([id, m]) => { const d = hd(id); return `<span class="tface" title="${d.name}: ожидаемый винрейт ${Math.round((0.5 + m.score) * 100)}% · брали/банили в ${Math.round(m.pr * 100)}% игр${m.lastKey ? ' · правка: ' + (m.lastKey === 'stat' ? 'сила' : { q: 'Q', r: 'R', p: 'пассивка' }[m.lastKey]) + (m.lastDelta > 0 ? ' ▲' : ' ▼') : ''}">${heroFace(d)}${m.lastDelta ? `<i class="${m.lastDelta > 0 ? 'up' : 'dn'}">${m.lastDelta > 0 ? '▲' : '▼'}</i>` : ''}${full ? `<em>${d.name}</em>` : ''}</span>`; }).join('')}</div></div>`;
+    }).join('') : `<p class="cd-note">Мета ещё не сложилась: первый патч выйдет после ${PATCH_EVERY}-го тура, когда наберётся статистика.</p>`;
+    // текущая статистика патча (живые винрейты)
+    const live = Object.entries(P.stats || {}).filter(([, s]) => s.g >= 4).sort((a, b) => heroWr(b[1]) - heroWr(a[1]));
+    const liveHTML = full && live.length ? `<div class="cr-label">Статистика текущего патча (${P.games} игр)</div><div class="pn-live">${live.map(([id, s]) => { const d = hd(id), wr = s.w / s.g; return `<div class="lv"><span class="pn-face">${heroFace(d)}</span><b>${d.name}</b><span class="bar"><i style="width:${wr * 100}%;background:${wr > 0.53 ? 'var(--green, #45e07a)' : wr < 0.47 ? '#ff5468' : '#8aa0c8'}"></i></span><span>${Math.round(wr * 100)}%</span><small>${s.g} игр · ${s.b} банов</small></div>`; }).join('')}</div>` : '';
+    if (!full) return `<div class="panel-title">Патч ${P.name} · мета <span class="pt-more">подробнее →</span></div>
+      ${P.notes.length ? `<div class="pn-list">${P.notes.slice(0, 2).map(note).join('')}${P.notes.length > 4 ? '' : ''}${P.notes.slice(-2).filter(n => !P.notes.slice(0, 2).includes(n)).map(note).join('')}</div>` : ''}
+      ${tierRows}<p class="cd-note">${L.tour >= L.schedule.length ? 'Следующий патч — к новому сезону.' : `Следующий патч — после ${next}-го тура.`} Капитаны учитывают мету при пиках и банах — чем умнее капитан, тем точнее.</p>`;
+    return `<div class="patch-full"><h2>Патч ${P.name}</h2>
+      <p class="muted">${P.prev ? `Правки по итогам патча ${P.prev}: герои со слишком высоким винрейтом ослаблены, слабые — усилены. Обычно меняется сила героя (здоровье, атака, сила умений), примерно в трети случаев — отдельное умение: Q, ульта или пассивка.` : 'Стартовый патч сезона: правок нет.'}</p>
+      ${P.notes.length ? `<div class="cr-label">Изменения</div><div class="pn-list">${P.notes.map(note).join('')}</div>` : P.prev ? '<p class="cd-note">Баланс в порядке — правок нет.</p>' : ''}
+      <div class="cr-label">Мета (ожидаемая сила героев в этом патче)</div>${tierRows}${liveHTML}</div>`;
+  },
   newSeason() {
     const L = this.L;
     L.season++; L.tour = 0; L.results = [];
@@ -358,6 +392,7 @@ const Campaign = {
   continueSaved() {
     const L = loadLeague();
     if (!L) return;
+    upgradeLeague(L);
     this.L = L; this.human = L.players[L.humanId];
     this.openHub();
   },

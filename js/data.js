@@ -126,14 +126,14 @@ const HEROES = [
   },
   {
     id: 'runeknight', name: 'Торвальд', title: 'Рунный страж', role: 'top', emoji: '🛡', color: '#4a6fa5', img: 'img/heroes/runeknight',
-    mod: { atk: 1.0, hp: 0.95 },
+    mod: { atk: 1.0, hp: 0.9, arm: 0.94 },
     lore: 'Закованный в латы страж с рунным мечом: каждая руна на клинке — клятва, которую он не нарушил.',
     passive: {
       name: 'Рунная сталь', desc: 'Совпадение из 4+ ⚔ создаёт на поле дополнительную линейную бомбу.',
       effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) c.after.push(() => G.selfBoardQuiet(h, b => b.pick(g => b.plain(g), 1).map(k => (b.convert([k], b.at(k).t, U.pick(['h', 'v'])), k)))); },
     },
     q: {
-      name: 'Рунный разрез', icon: '🗡', cost: 70, cd: 4, need: 'none',
+      name: 'Рунный разрез', icon: '🗡', cost: 70, cd: 5, need: 'none',
       desc: 'Подрывает ряд или столбец своего поля, где больше всего ⚔.',
       async cast(G, h) {
         const b = h.board;
@@ -147,7 +147,7 @@ const HEROES = [
       async cast(G, h, t) {
         await G.selfBoardQuiet(h, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_ATK, 5), T_ATK));
         const n = h.board.count(T_ATK);
-        await G.skillDamage(h, t, (8 + h.lvl * 1.5 + h.sp * 0.08) * n + h.power * 1.3, 'phys', '#5fd3c6');
+        await G.skillDamage(h, t, (4.5 + h.lvl * 0.9 + h.sp * 0.05) * n + h.power * 0.9, 'phys', '#5fd3c6');
         await G.settle(h, true);
       },
     },
@@ -294,7 +294,7 @@ const HEROES = [
   },
   {
     id: 'psiblade', name: 'Кзайра', title: 'Псионический клинок', role: 'mid', emoji: '🗡', color: '#9acd32', img: 'img/heroes/psiblade',
-    mod: { sp: 1.15, hp: 1.05 },
+    mod: { sp: 1.2, hp: 1.08 },
     lore: 'Воительница из иного мира с клинком, заряженным силой разума. Она питается чужой магией.',
     passive: {
       name: 'Поглощение разума', desc: 'Каждое совпадение ◆ крадёт 6 маны у цели.',
@@ -303,10 +303,9 @@ const HEROES = [
     q: {
       name: 'Ментальный разрез', icon: '🧠', cost: 50, cd: 2, need: 'enemy',
       desc: 'Наносит урон и даёт Кзайре щит; все ◆ на поле цели обращаются в булыжники; Кзайра крадёт по 4 маны за каждый.',
-      ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_MANA) >= 3; },
       async cast(G, h, t) {
         const n = t.board.keysOf(T_MANA).length;
-        await G.skillDamage(h, t, G.sp(h, 40, 0.5), 'magic', '#a070ff');
+        await G.skillDamage(h, t, G.sp(h, 65, 0.75), 'magic', '#a070ff');
         G.shieldHero(h, h, G.sp(h, 50, 0.5));
         await G.enemyBoard(h, t, b => b.convert(b.keysOf(T_MANA).filter(k => !b.at(k).sp), T_STONE), '#7a3cff');
         const s = Math.min(t.mana, n * 4); t.mana -= s; G.addMana(h, s);
@@ -318,7 +317,7 @@ const HEROES = [
       async cast(G, h, t) {
         const ks = []; for (let y = 2; y <= 4; y++) for (let x = 2; x <= 4; x++) ks.push(y * N + x);
         await G.enemyBoard(h, t, b => b.convert(ks, T_STONE), '#7a3cff');
-        await G.skillDamage(h, t, G.sp(h, 190, 1.2), 'magic', '#a070ff');
+        await G.skillDamage(h, t, G.sp(h, 240, 1.55), 'magic', '#a070ff');
       },
     },
   },
@@ -349,7 +348,7 @@ const HEROES = [
   /* ======== СТРЕЛКИ ======== */
   {
     id: 'dwarfhunter', name: 'Бранд', title: 'Гномий охотник', role: 'adc', emoji: '🎯', color: '#8b5a2b', img: 'img/heroes/dwarfhunter',
-    mod: { atk: 1.1 },
+    mod: { atk: 1.1, hp: 0.94, arm: 0.94 },
     lore: 'Гном-следопыт с тяжёлым арбалетом. Болт из него пробивает и щит, и стену.',
     passive: { name: 'Тяжёлый болт', desc: 'Совпадения из 4+ ⚔ наносят ×1.6 урона.', effects(G, h, c) { if (c.info.atkRuns.some(l => l >= 4)) { c.m.atk *= 1.6; c.label = 'КРИТ!'; } } },
     q: {
@@ -685,3 +684,11 @@ const HERO_FIT = {
 const FIT_NAMES = ['плохо', 'терпимо', 'хорошо', 'родная роль'];
 const TAG_NAMES = { tank: 'танк', heal: 'лекарь', control: 'контроль', burst: 'взрывной урон', dps: 'постоянный урон', utility: 'поддержка', vision: 'обзор', sustain: 'живучесть' };
 for (const h of HEROES) { h.fit = HERO_FIT[h.id].fit; h.tags = HERO_FIT[h.id].tags; h.main = h.role; }
+
+/* Патч и мета текущей кампании: изменение силы героев (доля, например −0.04) и оценка меты.
+   Вне кампании пусты. Заполняются из лиги функцией applyLeagueMeta. */
+var HERO_PATCH = {};
+var HERO_META = {};
+/* Правка героя в патче: stat — сила героя (здоровье, атака, сила умений), q/r — сила умений, p — пассивка */
+function patchMod(id, key) { const m = HERO_PATCH[id]; if (!m) return 0; if (typeof m === 'number') return key === 'stat' ? m : 0; return m[key] || 0; }
+const PATCH_KEYS = { stat: 'сила героя', q: 'умение Q', r: 'ульта', p: 'пассивка' };
