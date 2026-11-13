@@ -53,7 +53,8 @@ function faceSVG(F, o = {}) {
   parts.push(`<path d="M8 100 C10 86 20 80 30 78 L33 100Z" fill="${shade(jersey, 0.75)}"/><path d="M92 100 C90 86 80 80 70 78 L67 100Z" fill="${shade(jersey, 0.75)}"/>`);
   parts.push(`<rect x="${cx - 8}" y="${bot - 8}" width="16" height="16" rx="5" fill="${shade(skin, 0.85)}"/>`);
   parts.push(`<path d="M41 76 L50 86 L59 76" fill="${shade(skin, 0.85)}" stroke="${jersey2}" stroke-width="2.4" stroke-linejoin="round"/>`);
-  parts.push(`<rect x="63" y="84" width="10" height="3" rx="1.5" fill="${jersey2}" opacity=".9"/>`);
+  if (o.emblem) parts.push(`<text x="68" y="94" font-size="9" text-anchor="middle">${o.emblem}</text>`);
+  else parts.push(`<rect x="63" y="84" width="10" height="3" rx="1.5" fill="${jersey2}" opacity=".9"/>`);
   // уши и голова
   parts.push(`<ellipse cx="${cx - rx + 0.5}" cy="${cy + 3}" rx="3.6" ry="6" fill="${shade(skin, 0.92)}"/><ellipse cx="${cx + rx - 0.5}" cy="${cy + 3}" rx="3.6" ry="6" fill="${shade(skin, 0.92)}"/>`);
   parts.push(`<path d="${head}" fill="${skin}"/>`);

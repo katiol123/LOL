@@ -676,3 +676,29 @@ html, body, #app { overflow: clip; }
 #end-title { font-size: clamp(28px, 4.6vw, 58px); text-align: center; }
 .hud-name { max-width: 30vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
 @media (max-width: 900px) { html { overflow: auto; } body, #app { overflow: visible; } }
+
+/* ===== Визуал, круг 1 по слою игроков ===== */
+#killfeed { top: 74px; }
+#end-table { grid-template-columns: 1fr; width: min(1100px, 100%); }
+.et table td, .et table th { white-space: nowrap; }
+.et table td:first-child { white-space: normal; min-width: 210px; }
+.et td small.muted { white-space: nowrap; }
+.pick-slot .pn { min-width: 0; line-height: 1.2; }
+.pick-slot .pn b { font-family: var(--font); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.pick-slot .pn .ph { display: block; font-family: var(--title); font-size: 13px; color: var(--gold2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-slot .pn small { white-space: nowrap; }
+.pick-slot .why { font-size: 11px; white-space: nowrap; }
+.vs-card b, .award b.tag, .prof-l h2 { font-family: var(--font); font-weight: 800; }
+.hero-badge { left: auto; right: -8px; top: -6px; }
+.hc-name .tilt-badge { position: static; display: inline; font-size: 11px; color: #ff8a5c; }
+.floater { padding: 0 5px; border-radius: 6px; background: rgba(5,8,16,.62); -webkit-text-stroke: .3px rgba(0,0,0,.6); }
+.swatches { display: grid; grid-template-columns: repeat(6, 18px); }
+#cr-hero-list, #cl-list { -webkit-mask-image: linear-gradient(to bottom, #000 88%, transparent); mask-image: linear-gradient(to bottom, #000 88%, transparent); padding-bottom: 24px; }
+#cr-hero-list { max-height: 58vh; }
+#cl-detail { display: flex; flex-direction: column; }
+#cl-detail .title-actions { position: sticky; bottom: 0; padding: 10px 0 2px; background: linear-gradient(transparent, var(--panel) 30%); margin-top: auto; }
+.cd-out { margin-top: 3px; }
+.prof { grid-template-columns: 320px 1fr; }
+.prof-ovr { white-space: nowrap; font-size: 12px; }
+.hub-actions .btn { white-space: nowrap; }
+.end-wrap, .title-wrap { justify-content: safe center; }

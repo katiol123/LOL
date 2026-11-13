@@ -91,8 +91,10 @@ const UI = {
     $('#col-blue').innerHTML = ''; $('#col-red').innerHTML = '';
     $('#log').innerHTML = ''; $('#killfeed').innerHTML = '';
     for (const h of game.heroes) this.buildCard(h);
-    $('.hud-team.blue .hud-name').textContent = game.teams.blue.name;
-    $('.hud-team.red .hud-name').textContent = game.teams.red.name;
+    const mine = t => game.heroes.some(h => h.team === t && h.pl && h.pl.human);
+    $('.hud-team.blue .hud-name').textContent = (mine('blue') ? '★ ' : '') + game.teams.blue.name;
+    $('.hud-team.red .hud-name').textContent = (mine('red') ? '★ ' : '') + game.teams.red.name;
+    $('.hud-team.blue .hud-name').title = mine('blue') ? 'Ваш клуб' : ''; $('.hud-team.red .hud-name').title = mine('red') ? 'Ваш клуб' : '';
     Minimap.pos.clear();
     this.resize();
     this.view = game.heroes[0];
@@ -105,8 +107,8 @@ const UI = {
     c.innerHTML = `
       <div class="hc-info">
         <div class="hc-top">
-          <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${h.def.emoji}</span><span class="lvl">1</span><span class="tilt-badge" title="Тильт">😤</span></div>
-          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}</b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Герой не по профилю роли: ${FIT_NAMES[h.fit]}">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
+          <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${h.def.emoji}</span><span class="lvl">1</span></div>
+          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Герой не по профилю роли: ${FIT_NAMES[h.fit]}">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>
@@ -489,7 +491,7 @@ const UI = {
   tilt(h) {
     const r = this.cards.get(h.id); if (!r) return;
     r.c.classList.toggle('tilted', h.tilt > 0);
-    r.c.querySelector('.tilt-badge').textContent = h.tilt > 0 ? '😤' + (h.tilt > 1 ? h.tilt : '') : '';
+    r.c.querySelector('.tilt-badge').textContent = h.tilt > 0 ? ' 😤' + (h.tilt > 1 ? '×' + h.tilt : '') : '';
     this.float(h, h.tilt > 0 ? `ТИЛЬТ ${h.tilt}` : 'спокоен', h.tilt > 0 ? '#ff8a5c' : '#9fe8ff');
     if (h.tilt > 0) sfx('tilt');
   },
@@ -513,7 +515,7 @@ const UI = {
 /* Лицо игрока в цветах клуба (или стороны) */
 function faceHTML(p, colors, cls = '') {
   if (!p || !p.face) return `<div class="face-wrap ${cls}"><div class="face-blank">?</div></div>`;
-  return `<div class="face-wrap ${cls}">${faceSVG(p.face, { jersey: colors && colors[0] || '#2b4c7e', jersey2: colors && colors[1] || '#e8c66e' })}</div>`;
+  return `<div class="face-wrap ${cls}">${faceSVG(p.face, { jersey: colors && colors[0] || '#2b4c7e', jersey2: colors && colors[1] || '#e8c66e', emblem: colors && colors[2] })}</div>`;
 }
 const fitStars = f => '★'.repeat(f) + '☆'.repeat(3 - f);
 
@@ -587,7 +589,9 @@ const Draft = {
       const pp = slot.querySelector('.pp');
       pp.textContent = pick.def.emoji;
       pp.style.background = `radial-gradient(circle at 35% 30%, ${pick.def.color}, #0b0f1d 85%)`;
-      slot.querySelector('.pn').innerHTML = `<b>${U.esc(pick.pl.nick)} · ${pick.def.name}</b><small>${ROLES[pick.role].icon} ${ROLES[pick.role].name} ${fitStars(pick.def.fit[pick.role])}</small><em class="why ${pick.def.fit[pick.role] < 3 ? 'off' : ''}">${pick.reason}</em>`;
+      const ms = masteryOf(pick.pl, pick.def.id), off = pick.def.fit[pick.role] < 3;
+      slot.querySelector('.pn').innerHTML = `<b>${U.esc(pick.pl.nick)}</b><span class="ph">${pick.def.name}</span><small>${ROLES[pick.role].short} ${fitStars(pick.def.fit[pick.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why ${off ? 'off' : ''}" title="${U.esc(pick.reason)}">${off ? '⚠ не по профилю' : ms >= 15 ? '★ коронный герой' : ''}</em>`;
+      slot.title = pick.reason;
       await wait(380);
     }
     po.forEach(x => { x.classList.remove('cur'); x.classList.add('done'); });

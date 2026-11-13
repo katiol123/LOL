@@ -164,7 +164,7 @@ const App = {
       <td><span class="rbadge" style="background:${ratingColor(h.rating)}">${h.rating.toFixed(1)}</span>${gains[h.pl.id] ? `<span class="gain" title="Мастерство на герое выросло за высокую оценку"> ✦+${gains[h.pl.id]}</span>` : ''}</td>
       <td>${h.lvl}</td><td>${h.k}/${h.d}/${h.a}</td><td>${Math.round(h.dmg)}</td><td>${Math.round(h.healed + (h.shielded || 0))}</td><td>${Math.round(h.vis || 0)}</td><td>${h.totalGold}</td><td>${h.items.map(i => `<span title="${ITEMS[i].name}">${ITEMS[i].icon}</span>`).join('') || '—'}</td></tr>`;
     $('#end-table').innerHTML = ['blue', 'red'].map(t => `
-      <div class="panel et ${t} ${t === w ? 'win' : ''}"><h3>${U.esc(G.teams[t].name)}${t === w ? ' — победа' : ''}</h3>
+      <div class="panel et ${t} ${t === w ? 'win' : ''}"><h3>${U.esc(G.teams[t].name)}${G.teams[t].heroes.some(h => h.pl && h.pl.human) ? ' <span class="you">ВАШ КЛУБ</span>' : ''}${t === w ? ' — победа' : ''}</h3>
       <table><tr><th>Игрок</th><th>Оценка</th><th>Ур.</th><th>У/С/П</th><th>Урон</th><th>Леч./щит</th><th>Обзор</th><th>Золото</th><th>Предметы</th></tr>
       ${G.teams[t].heroes.map(row).join('')}</table></div>`).join('');
     const aw = [
@@ -202,7 +202,7 @@ const App = {
     c.beginPath(); c.moveTo(pad, mid); c.lineTo(W - pad, mid); c.stroke(); c.setLineDash([]);
     c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '9px Inter, sans-serif'; c.fillText('0', pad + 2, mid - 3);
     if (hist.length > 1) { c.fillStyle = 'rgba(255,255,255,.35)'; for (let m = 5; m < hist.length; m += 5) { const xx = pad + (W - pad * 2) * m / (hist.length - 1); c.fillRect(xx, mid - 3, 1, 6); c.fillText(m + 'м', xx + 2, mid + 12); } }
-    if (hist.length < 2) { c.fillStyle = '#8c93a8'; c.font = '11px Inter, sans-serif'; c.fillText('График появится после первой минуты', pad + 4, mid - 6); return; }
+    if (hist.length < 2) { c.clearRect(0, 0, W, H); c.fillStyle = '#8c93a8'; c.font = '11px Inter, sans-serif'; c.fillText('График появится после первой минуты', pad + 4, mid - 6); return; }
     const x = i => pad + (W - pad * 2) * i / (hist.length - 1);
     const y = v => mid - (H / 2 - pad) * v / max;
     for (const [sign, col] of [[1, 'rgba(63,167,255,'], [-1, 'rgba(255,77,94,']]) {

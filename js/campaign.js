@@ -13,7 +13,7 @@ const PRESETS = {
   'Агрессор': { agr: 14, rea: 14, mech: 11, farm: 10, calm: 8, read: 8, map: 8, team: 7 },
 };
 const statColor = v => (v >= 16 ? '#5fe08a' : v >= 13 ? '#a8e05f' : v >= 9 ? '#e0d25f' : v >= 6 ? '#e0a05f' : '#ff6b6b');
-const clubColors = c => [c.color, c.color2];
+const clubColors = c => [c.color, c.color2, c.emblem];
 
 /* ---------- Общие блоки ---------- */
 function statBars(stats, opts = {}) {
@@ -211,7 +211,8 @@ const Campaign = {
     $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба</div>${rosterOf(L, club).map(p => playerRow(L, p, { last: true })).join('')}`;
     // результаты прошлого тура
     const lastTour = L.tour - 1;
-    $('#hub-results').innerHTML = `<div class="panel-title">${lastTour >= 0 ? `Результаты тура ${lastTour + 1}` : 'Результаты появятся после первого тура'}</div>` + (lastTour >= 0 ? L.schedule[lastTour].map(x => {
+    const cal = L.schedule.slice(L.tour, L.tour + 5).map((t, i) => { const x = t.find(f => f.home === club.id || f.away === club.id); const o = clubById(L, x.home === club.id ? x.away : x.home); return `<div class="res"><span>Тур ${L.tour + i + 1}</span><b>${x.home === club.id ? 'дома' : 'в гостях'}</b><span>${o.emblem} ${o.name}</span></div>`; }).join('');
+    $('#hub-results').innerHTML = `<div class="panel-title">${lastTour >= 0 ? `Результаты тура ${lastTour + 1}` : 'Календарь: ближайшие соперники'}</div>` + (lastTour < 0 ? cal : '') + (lastTour >= 0 ? L.schedule[lastTour].map(x => {
       const h = clubById(L, x.home), a = clubById(L, x.away);
       const mine = x.home === club.id || x.away === club.id;
       return `<div class="res ${mine ? 'mine' : ''}"><span>${h.emblem} ${h.tag}</span><b>${x.score[0]} : ${x.score[1]}</b><span>${a.tag} ${a.emblem}</span></div>`;
