@@ -11,7 +11,7 @@ const CLUB_DEFS = [
   { name: 'Ледяные Фениксы', tag: 'ЛФН', color: '#1f7a99', color2: '#c8f2ff', emblem: '🔥' },
   { name: 'Золотые Скорпионы', tag: 'ЗСК', color: '#a87b12', color2: '#2a1c06', emblem: '🦂' },
   { name: 'Изумрудные Змеи', tag: 'ИЗМ', color: '#1f7a4d', color2: '#c6f7d8', emblem: '🐍' },
-  { name: 'Небесные Ястребы', tag: 'НЯС', color: '#3d7fd1', color2: '#ffffff', emblem: '🪶' },
+  { name: 'Небесные Ястребы', tag: 'НЯС', color: '#3d7fd1', color2: '#ffffff', emblem: '🌪' },
   { name: 'Огненные Саламандры', tag: 'ОСЛ', color: '#c4461f', color2: '#ffe0a3', emblem: '🦎' },
   { name: 'Лунные Тигры', tag: 'ЛТГ', color: '#2c3e75', color2: '#f5d76e', emblem: '🐯' },
   { name: 'Пурпурные Вороны', tag: 'ПВР', color: '#7a2c7a', color2: '#e0b3ff', emblem: '🐦' },
@@ -333,6 +333,8 @@ function applyLeagueMeta(L) {
 }
 /* Совместимость со старыми сохранениями */
 function upgradeLeague(L) {
+  // эмблемы и цвета клубов — из справочника (в старых сохранениях могли остаться значки, которые не везде отображаются)
+  for (const c of L.clubs) { const d = CLUB_DEFS.find(x => x.name === c.name); if (d) c.emblem = d.emblem; }
   if (typeof upgradeFinance !== 'undefined') { upgradeFinance(L); syncFacilities(L); }
   if (!L.perksDone) { const r = U.seeded(L.seed + 555); for (const p of Object.values(L.players)) if (!p.perks) p.perks = rollPerks(r); L.perksDone = true; }
   if (!L.patch) L.patch = newPatchState('1.0', {}, [], {});

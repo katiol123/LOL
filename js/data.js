@@ -42,7 +42,7 @@ const ITEMS = {
   charm: { name: 'Оберег удачи', icon: '🍀', cost: 350, tier: 1, crit: 0.05 },
   lantern: { name: 'Фонарь следопыта', icon: '🏮', cost: 300, tier: 1, visPow: 0.25 },
   purse: { name: 'Кошель торговца', icon: '👛', cost: 400, tier: 1, goldPow: 0.12 },
-  bandage: { name: 'Целебная повязка', icon: '🩹', cost: 300, tier: 1, regen: 0.012 },
+  bandage: { name: 'Целебная повязка', icon: '➕', cost: 300, tier: 1, regen: 0.012 },
   sword: { name: 'Длинный клинок', icon: '🗡', cost: 400, tier: 1, atk: 6 },
   vest: { name: 'Кольчуга', icon: '🥋', cost: 350, tier: 1, arm: 14 },
   ruby: { name: 'Рубин жизни', icon: '♥', cost: 400, tier: 1, hp: 160 },
@@ -57,16 +57,16 @@ const ITEMS = {
   boots: { name: 'Сапоги ловкача', icon: '👢', cost: 800, tier: 2, dodge: 0.06, hp: 80 },
   spear: { name: 'Копьё пробивания', icon: '🔱', cost: 900, tier: 2, atk: 8, pen: 0.12 },
   focus: { name: 'Фокусирующая линза', icon: '🔍', cost: 950, tier: 2, sp: 25, cascPow: 0.08 },
-  mirror: { name: 'Зеркальный щит', icon: '🪞', cost: 900, tier: 2, arm: 30, thorns: 0.15 },
+  mirror: { name: 'Зеркальный щит', icon: '✨', cost: 900, tier: 2, arm: 30, thorns: 0.15 },
   chalice: { name: 'Чаша прилива', icon: '🏆', cost: 1000, tier: 2, manaRegen: 12, sp: 15, healPow: 0.1 },
   aegis: { name: 'Эгида Союза', icon: '🔰', cost: 1100, tier: 2, arm: 24, hp: 200, shieldPow: 0.25 },
   censer: { name: 'Кадило Света', icon: '🕯', cost: 1100, tier: 2, sp: 28, healPow: 0.3 },
   banner: { name: 'Знамя осады', icon: '🚩', cost: 1100, tier: 2, atk: 6, towerPow: 0.3 },
   crown: { name: 'Корона Мудреца', icon: '👑', cost: 1250, tier: 2, sp: 40, mana: 90 },
   // ---- уровень 3: крупные ----
-  cleaver: { name: 'Секира Раскола', icon: '🪓', cost: 1300, tier: 3, atk: 14, hp: 250 },
+  cleaver: { name: 'Секира Раскола', icon: '⚒', cost: 1300, tier: 3, atk: 14, hp: 250 },
   bastion: { name: 'Латы Бастиона', icon: '🏰', cost: 1300, tier: 3, arm: 38, hp: 250 },
-  thirst: { name: 'Жаждущий клинок', icon: '🩸', cost: 1400, tier: 3, atk: 16, ls: 0.15 },
+  thirst: { name: 'Жаждущий клинок', icon: '💢', cost: 1400, tier: 3, atk: 16, ls: 0.15 },
   titan: { name: 'Сердце Титана', icon: '💗', cost: 1500, tier: 3, hp: 760, regen: 0.006 },
   abyss: { name: 'Посох Бездны', icon: '🔮', cost: 1500, tier: 3, sp: 65, mana: 40 },
   bow: { name: 'Лук Гиперзвука', icon: '🏹', cost: 1500, tier: 3, atk: 22 },
@@ -76,7 +76,7 @@ const ITEMS = {
   grimoire: { name: 'Гримуар бездны', icon: '📕', cost: 1900, tier: 3, sp: 55, pen: 0.15 },
   // ответ на физический урон: против составов из стрелков и бойцов
   spikes: { name: 'Колючий панцирь', icon: '🦔', cost: 1650, tier: 3, arm: 75, hp: 200, thorns: 0.35 },
-  stoneskin: { name: 'Плащ каменной кожи', icon: '🪨', cost: 1750, tier: 3, arm: 50, hp: 300, physRed: 0.3 },
+  stoneskin: { name: 'Плащ каменной кожи', icon: '🗿', cost: 1750, tier: 3, arm: 50, hp: 300, physRed: 0.3 },
   // ответы на другие перекосы состава: магию, лечение, контроль
   mantle: { name: 'Мантия чародея', icon: '🧙', cost: 1500, tier: 3, hp: 250, magRed: 0.25, manaRegen: 6 },
   blight: { name: 'Клинок скверны', icon: '🦠', cost: 1200, tier: 2, atk: 10, antiHeal: 0.4 },
@@ -169,18 +169,18 @@ const HEROES = [
     },
   },
   {
-    id: 'berserk', name: 'Ульв', title: 'Ярый берсерк', role: 'top', emoji: '🪓', color: '#a0522d', img: 'img/heroes/berserk',
+    id: 'berserk', name: 'Ульв', title: 'Ярый берсерк', role: 'top', emoji: '⚒', color: '#a0522d', img: 'img/heroes/berserk',
     mod: { hp: 1.15, atk: 1.15 },
     lore: 'Северный воин с двумя топорами: чем глубже его раны, тем страшнее он в бою.',
     passive: { name: 'Упоение битвой', desc: '35% урона от ⚔ восстанавливает ему здоровье.', effects(G, h, c) { c.lifesteal += 0.35; } },
     q: {
-      name: 'Рваные раны', icon: '🩸', cost: 50, cd: 2, need: 'enemy',
+      name: 'Рваные раны', icon: '💢', cost: 50, cd: 2, need: 'enemy',
       desc: 'Все ✚ на поле врага превращаются в булыжники — враг теряет лечение.',
       ai: (G, h) => { const t = G.target(h); return t && t.board.count(T_HEAL) >= 3; },
       async cast(G, h, t) { await G.enemyBoard(h, t, b => b.convert(b.keysOf(T_HEAL).filter(k => !b.at(k).sp), T_STONE), '#c2304a'); },
     },
     r: {
-      name: 'Ярость берсерка', icon: '🪓', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Ярость берсерка', icon: '⚒', cost: 100, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Поглощает все ✚ на своём поле: каждый наносит цели урон и лечит Ульва.',
       ai: (G, h) => h.board.count(T_HEAL) >= 3,
       async cast(G, h, t) {
@@ -411,7 +411,7 @@ const HEROES = [
     lore: 'Крыса-проныра с парой кинжалов. Обожает золото, ставит капканы и метает ножи из-за угла.',
     passive: { name: 'Нюх на золото', desc: '● золото приносит на 35% больше, а ⚔ бьют на 18% сильнее.', effects(G, h, c) { c.m.gold *= 1.35; c.m.atk *= 1.18; } },
     q: {
-      name: 'Капкан', icon: '🪤', cost: 45, cd: 2, need: 'enemy',
+      name: 'Капкан', icon: '⛓', cost: 45, cd: 2, need: 'enemy',
       desc: 'Бьёт цель капканом, сковывает 4 камня на её поле и ставит линейную бомбу на своё поле.',
       async cast(G, h, t) {
         await G.skillDamage(h, t, G.sp(h, 40, 0.4) + h.power * 2.2, 'phys', '#cfd8e3');
@@ -681,7 +681,7 @@ const HEROES = [
       },
     },
     r: {
-      name: 'Неудержимый натиск', icon: '🪓', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Неудержимый натиск', icon: '⚒', cost: 100, cd: 5, lvl: 6, need: 'enemy',
       desc: 'На 2 минуты становится неудержимым (контроль не действует) и бьёт всех врагов в событии — тем сильнее, чем больше у него недостающего здоровья.',
       async cast(G, h) {
         h.unstoppable = 3; G.ui.float(h, '🐂 НЕУДЕРЖИМ', '#ffb36b');
@@ -717,7 +717,7 @@ const HEROES = [
     lore: 'Легионер верхом на грифоне. С высоты он видит каждую драку на карте — и успевает к любой.',
     passive: { name: 'Небесный дозор', desc: 'Если он свободен, а союзники где-то дерутся, может перелететь к ним в начале минуты (решает командное мышление).', skyward: true },
     q: {
-      name: 'Пике', icon: '🪶', cost: 45, cd: 2, need: 'enemy',
+      name: 'Пике', icon: '⤵', cost: 45, cd: 2, need: 'enemy',
       desc: 'Пикирует на самого раненого врага в событии, минуя передовую; урон проходит сквозь щиты.',
       async cast(G, h) {
         const e = G.enemiesIn(h); if (!e.length) return;
@@ -764,13 +764,13 @@ const HEROES = [
       async cast(G, h) { G.molt(h); G.shieldHero(h, h, G.sp(h, 50, 0.5)); },
     },
     r: {
-      name: 'Мимикрия', icon: '🪞', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      name: 'Мимикрия', icon: '✨', cost: 100, cd: 5, lvl: 6, need: 'enemy',
       desc: 'Копирует последнее умение Q, которое применил враг в его событии (или Q цели), и применяет его со своей силой.',
       async cast(G, h, t) {
         const src = (h.ev && h.ev.lastQ && h.ev.lastQ[h.enemyTeam]) || t.def;
         if (!src || src.id === 'reptile') return;
-        G.ui.float(h, `🪞 ${src.q.name}`, '#b9f0a0');
-        G.ui.log(`🪞 ${G.tag(h)} копирует «${src.q.name}» у ${src.name}!`, h.team);
+        G.ui.float(h, `✨ ${src.q.name}`, '#b9f0a0');
+        G.ui.log(`✨ ${G.tag(h)} копирует «${src.q.name}» у ${src.name}!`, h.team);
         await src.q.cast(G, h, G.target(h) || t);
       },
     },

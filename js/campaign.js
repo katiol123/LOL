@@ -37,7 +37,7 @@ function playerRow(L, p, opts = {}) {
   return `<div class="prow ${p.human ? 'me' : ''}" data-pid="${p.id}">
     ${faceHTML(p, club ? clubColors(club) : null, 'pr-face')}
     <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}${perkHTML(p)}${(() => { const at = typeof mgmtAttitude !== 'undefined' && L.clubs[0].mgmt ? mgmtAttitude(L, p) : null; return at && at !== ATTITUDES.ok ? ` <span class="att-i ${at.cls}" title="Руководство: ${at.name}">${at.icon}</span>` : ''; })()}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
-    <div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>
+    ${opts.form ? (() => { const fb = playerFormBonus(p), v = U.clamp(playerOvr(p) + fb, 1, 25); return `<div class="pr-ovr ${fb > 0.05 ? 'up' : fb < -0.05 ? 'down' : ''}" title="Среднее 8 характеристик с учётом текущей формы: ${v.toFixed(1)} (без формы ${playerOvr(p).toFixed(1)}, форма ${fb >= 0 ? '+' : ''}${fb.toFixed(1)})">${v.toFixed(1)}</div>`; })() : `<div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>`}
     <div class="pr-form" style="color:${formColor(p)}" title="Форма: средняя оценка за 5 матчей ${playerFormAvg(p).toFixed(2)}">${formArrow(p)}</div>
     ${opts.last ? `<div class="pr-last" title="Оценки за последние игры (1–10)">${ratingChips(p, 3)}</div>` : ''}
   </div>`;
@@ -134,7 +134,7 @@ const Campaign = {
       <small>${c.tag} · рейтинг клуба <b>${clubOvr(L, c).toFixed(1)}</b> · средняя форма ${clubForm(L, c).toFixed(2)}</small></div></div>
       <div class="cd-grid"><div><div class="cr-label">Средние характеристики состава <small>(черта — среднее по лиге)</small></div>${statBars(avg, { cmp: leagueAvg })}
       <p class="cd-note">${strong.length ? '💪 Сильные стороны: ' + strong.join(', ') + '. ' : ''}${weak.length ? '⚠ Слабые: ' + weak.join(', ') + '.' : ''}</p></div>
-      <div>${c.mgmt ? this.clubFinHTML(c) : ''}<div class="cr-label">Состав</div>${rosterOf(L, c).filter(Boolean).map(p => `<div class="cd-pl ${replaced === p ? 'out' : ''}">${playerRow(L, p, { last: true })}<div class="cd-ms">${masteryList(p, 4)}</div>${replaced === p ? '<div class="cd-out">Покинет игру, если вы выберете этот клуб</div>' : ''}</div>`).join('')}</div></div>
+      <div>${c.mgmt ? this.clubFinHTML(c) : ''}<div class="cr-label">Состав</div>${rosterOf(L, c).filter(Boolean).map(p => `<div class="cd-pl ${replaced === p ? 'out' : ''}">${playerRow(L, p, { last: true, form: true })}<div class="cd-ms">${masteryList(p, 4)}</div>${replaced === p ? '<div class="cd-out">Покинет игру, если вы выберете этот клуб</div>' : ''}</div>`).join('')}</div></div>
       ${choosing ? `<div class="title-actions"><button class="btn" id="cl-back">← Назад к игроку</button><button class="btn primary big" id="cl-sign">✍ Подписать контракт с «${c.name}»</button></div>` : ''}`;
   },
   showClub(id, choosing) {
@@ -275,7 +275,7 @@ const Campaign = {
     $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}<div class="muted" style="margin:4px 0">💼 Личный счёт: <b>${money(me.wallet || 0)}</b>${me.contract ? ` · зарплата ${money(me.contract.salary)}/сезон до конца сезона ${me.contract.until}` : ' · без контракта'}</div>${me.trainerActive ? '<div class="cd-note">🏋 Личный тренер нанят на этот сезон: в межсезонье шанс роста выше.</div>' : `<button class="btn small" id="hub-trainer" ${(me.wallet || 0) < TRAINER_COST ? 'disabled' : ''} title="Повышает вашу успешность в зачёте развития этого сезона">🏋 Личный тренер на сезон — ${money(TRAINER_COST)}</button>`}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
     if ($('#hub-trainer')) $('#hub-trainer').onclick = () => { if ((me.wallet || 0) < TRAINER_COST) return; me.wallet -= TRAINER_COST; me.trainerActive = true; saveLeague(L); this.renderHub(); };
     // состав
-    $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба</div>${rosterOf(L, club).map(p => playerRow(L, p, { last: true })).join('')}`;
+    $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба <small class="muted" style="font-size:10px;letter-spacing:0">· сила с учётом формы</small></div>${rosterOf(L, club).filter(Boolean).map(p => playerRow(L, p, { last: true, form: true })).join('')}`;
     // результаты прошлого тура
     const lastTour = L.tour - 1;
     const cal = L.schedule.slice(L.tour, L.tour + 5).map((t, i) => { const x = t.find(f => f.home === club.id || f.away === club.id); const o = clubById(L, x.home === club.id ? x.away : x.home); return `<div class="res"><span>Тур ${L.tour + i + 1}</span><b>${x.home === club.id ? 'дома' : 'в гостях'}</b><span>${o.emblem} ${o.name}</span></div>`; }).join('');

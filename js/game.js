@@ -599,7 +599,7 @@ class Game {
           const own = Math.max(...this.alliesIn(h).map(clutch));
           if (U.chance(U.clamp(0.12 + 0.03 * (clutch(best) - own), 0.02, 0.55))) {
             taker = best;
-            this.ui.log(`🫳 ${this.tag(best)} перехватывает последний удар у ${this.tag(h)} — эпик украден! (Реакция)`, best.team);
+            this.ui.log(`✋ ${this.tag(best)} перехватывает последний удар у ${this.tag(h)} — эпик украден! (Реакция)`, best.team);
             this.ui.banner('КРАЖА!', `${best.nick} забирает последний удар`, best.team, true);
             for (const x of this.alliesIn(h)) this.tryTilt(x, 1, 'украденного эпика');
           }
@@ -692,7 +692,7 @@ class Game {
 
   newCamp(h) {
     const camps = [
-      { name: 'Каменные големы', icon: '🪨' }, { name: 'Волчья стая', icon: '🐺' }, { name: 'Призрачные вороны', icon: '🐦' },
+      { name: 'Каменные големы', icon: '🗿' }, { name: 'Волчья стая', icon: '🐺' }, { name: 'Призрачные вороны', icon: '🐦' },
       { name: 'Синий страж', icon: '💠' }, { name: 'Красный страж', icon: '🔴' }, { name: 'Жабоглот', icon: '🐸' },
     ];
     const c = U.pick(camps);

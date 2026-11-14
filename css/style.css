@@ -976,3 +976,4 @@ html, body, #app { overflow: clip; }
 .club-card, .club-card:hover { transform: none !important; transition: box-shadow .2s !important; }
 #cl-list, #cl-detail, #cl-detail .cd-grid { scrollbar-gutter: stable; }
 #cl-detail .title-actions { animation: none !important; }
+.pr-ovr.up { color: #6ff59a; } .pr-ovr.down { color: #ff8a98; }
