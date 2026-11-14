@@ -868,7 +868,7 @@ class Game {
 
   /* ---------------- Тильт ---------------- */
   tryTilt(h, amount, why) {
-    const chance = U.clamp(0.45 - 0.035 * sd(h, 'calm'), 0.05, 0.9) * (hasPerk(h, 'stress') ? 0.5 : 1);
+    const chance = U.clamp(0.45 - 0.035 * sd(h, 'calm'), 0.05, 0.9) * (hasPerk(h, 'stress') ? 0.5 : 1) * (1 - 0.08 * ((h.pl && h.pl.fac && h.pl.fac.psych) || 0));   // психолог клуба
     if (!U.chance(chance)) return;
     const before = h.tilt;
     h.tilt = Math.min(3, h.tilt + amount);

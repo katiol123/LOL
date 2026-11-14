@@ -36,7 +36,7 @@ function playerRow(L, p, opts = {}) {
   const club = p.club && clubById(L, p.club);
   return `<div class="prow ${p.human ? 'me' : ''}" data-pid="${p.id}">
     ${faceHTML(p, club ? clubColors(club) : null, 'pr-face')}
-    <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}${perkHTML(p)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
+    <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}${perkHTML(p)}${(() => { const at = typeof mgmtAttitude !== 'undefined' && L.clubs[0].mgmt ? mgmtAttitude(L, p) : null; return at && at !== ATTITUDES.ok ? ` <span class="att-i ${at.cls}" title="Руководство: ${at.name}">${at.icon}</span>` : ''; })()}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
     <div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>
     <div class="pr-form" style="color:${formColor(p)}" title="Форма: средняя оценка за 5 матчей ${playerFormAvg(p).toFixed(2)}">${formArrow(p)}</div>
     ${opts.last ? `<div class="pr-last">${ratingChips(p, 3)}</div>` : ''}
@@ -133,7 +133,7 @@ const Campaign = {
       <small>${c.tag} · рейтинг клуба <b>${clubOvr(L, c).toFixed(1)}</b> · средняя форма ${clubForm(L, c).toFixed(2)}</small></div></div>
       <div class="cd-grid"><div><div class="cr-label">Средние характеристики состава <small>(черта — среднее по лиге)</small></div>${statBars(avg, { cmp: leagueAvg })}
       <p class="cd-note">${strong.length ? '💪 Сильные стороны: ' + strong.join(', ') + '. ' : ''}${weak.length ? '⚠ Слабые: ' + weak.join(', ') + '.' : ''}</p></div>
-      <div><div class="cr-label">Состав</div>${rosterOf(L, c).map(p => `<div class="cd-pl ${replaced === p ? 'out' : ''}">${playerRow(L, p, { last: true })}<div class="cd-ms">${masteryList(p, 4)}</div>${replaced === p ? '<div class="cd-out">Покинет игру, если вы выберете этот клуб</div>' : ''}</div>`).join('')}</div></div>
+      <div>${c.mgmt ? this.clubFinHTML(c) : ''}<div class="cr-label">Состав</div>${rosterOf(L, c).filter(Boolean).map(p => `<div class="cd-pl ${replaced === p ? 'out' : ''}">${playerRow(L, p, { last: true })}<div class="cd-ms">${masteryList(p, 4)}</div>${replaced === p ? '<div class="cd-out">Покинет игру, если вы выберете этот клуб</div>' : ''}</div>`).join('')}</div></div>
       ${choosing ? `<div class="title-actions"><button class="btn" id="cl-back">← Назад к игроку</button><button class="btn primary big" id="cl-sign">✍ Подписать контракт с «${c.name}»</button></div>` : ''}`;
   },
   showClub(id, choosing) {
@@ -172,12 +172,16 @@ const Campaign = {
     const body = $('#profile-body');
     if (v.type === 'club') body.innerHTML = this.clubDetailHTML(clubById(this.L, v.id), false);
     else if (v.type === 'patch') body.innerHTML = this.patchHTML(true);
+    else if (v.type === 'agents') body.innerHTML = this.agentsHTML();
+    else if (v.type === 'news') body.innerHTML = this.newsHTML(v.id);
+    else if (v.type === 'facilities') body.innerHTML = this.facHTML();
+    else if (v.type === 'contract') { body.innerHTML = this.contractHTML(); this.bindContract(body); }
     else body.innerHTML = this.playerHTML(v.id);
     this.bindRows(body);
     const prev = this.modal[this.modal.length - 2];
     const btn = $('#profile-close');
     if (prev) {
-      const name = prev.type === 'patch' ? `Патч ${this.L.patch.name}` : prev.type === 'club' ? clubById(this.L, prev.id).name : (this.L.players[prev.id] || {}).nick;
+      const name = ['agents', 'news', 'facilities', 'contract'].includes(prev.type) ? 'назад' : prev.type === 'patch' ? `Патч ${this.L.patch.name}` : prev.type === 'club' ? clubById(this.L, prev.id).name : (this.L.players[prev.id] || {}).nick;
       btn.textContent = '← Назад'; btn.title = `Вернуться: ${name}`; btn.classList.add('back');
     } else { btn.textContent = '✕'; btn.title = 'Закрыть'; btn.classList.remove('back'); }
     $('#profile').classList.add('open');
@@ -188,9 +192,10 @@ const Campaign = {
   closeAll() { this.modal = []; $('#profile').classList.remove('open'); },
   showClubModal(id) { this.openView({ type: 'club', id }); },
 
-  showProfile(pid) { if (this.L.players[pid] || (this.human && this.human.id === pid)) this.openView({ type: 'player', id: pid }); },
+  findPlayer(pid) { const L = this.L; return L.players[pid] || (L.free || []).find(p => p.id === pid) || (this.human && this.human.id === pid ? this.human : null); },
+  showProfile(pid) { if (this.findPlayer(pid)) this.openView({ type: 'player', id: pid }); },
   playerHTML(pid) {
-    const L = this.L, p = L.players[pid] || (this.human && this.human.id === pid ? this.human : null);
+    const L = this.L, p = this.findPlayer(pid);
     if (!p) return '';
     const club = p.club && clubById(L, p.club);
     const s = p.season;
@@ -199,7 +204,13 @@ const Campaign = {
         <h2>${U.esc(p.nick)}</h2><div class="muted">${U.esc(p.first)} ${U.esc(p.last)}${p.age ? ' · ' + p.age + ' лет' : ''}</div>
         <div>${ROLES[p.role].icon} ${ROLES[p.role].name}${club ? ` · ${club.emblem} ${club.name}` : ''}</div>
         ${(p.perks || []).length ? `<div class="perks">${perkHTML(p, true)}</div>` : '<div class="perks none">Особенностей менталитета нет</div>'}
+        ${p.lastDev && p.lastDev.delta ? `<div class="dev ${p.lastDev.delta > 0 ? 'pos' : 'neg'}">${p.lastDev.delta > 0 ? '📈' : '📉'} За межсезонье ${p.lastDev.season}→${p.lastDev.season + 1}: ${p.lastDev.delta > 0 ? '+' : ''}${p.lastDev.delta} к сумме характеристик</div>` : ''}
         <div class="prof-ovr">Рейтинг <b>${playerOvr(p).toFixed(1)}</b> · Форма <b style="color:${formColor(p)}">${formArrow(p)} ${playerFormAvg(p).toFixed(2)}</b> (${playerFormBonus(p) >= 0 ? '+' : ''}${playerFormBonus(p).toFixed(1)} ко всем)</div>
+        ${(() => { const at = mgmtAttitude(L, p); return at ? `<div class="att ${at.cls}">${at.icon} Руководство клуба: <b>${at.name}</b></div>` : ''; })()}
+        <div class="cr-label">Контракт и популярность</div>
+        <div class="fin-box">${p.contract ? `<div>📝 <b>${money(p.contract.salary)}</b> за сезон · до конца сезона ${p.contract.until}</div>` : `<div>🆓 <b>Свободный агент</b> · просит около ${money(playerDemand(p))} за сезон</div>`}
+          <div class="pop-row">⭐ Популярность <span class="bar"><i style="width:${Math.round(p.popularity || 0)}%"></i></span> <b>${Math.round(p.popularity || 0)}</b></div>
+          ${(p.ads || []).length ? `<div class="muted">📺 Реклама: ${p.ads.map(a => `${a.brand} (${money(a.perSeason)}/сезон)`).join(', ')}</div>` : '<div class="muted">📺 Рекламных сделок нет</div>'}</div>
         <div class="cr-label">Последние оценки</div><div>${ratingChips(p, 8)}</div>
         <div class="cr-label">Сезон</div><div class="muted">Игр ${s.games} · побед ${s.wins} · У/С/П ${s.k}/${s.d}/${s.a} · средняя оценка ${s.games ? (s.ratingSum / s.games).toFixed(2) : '—'} · MVP ${s.mvp}</div>
       </div>
@@ -224,10 +235,13 @@ const Campaign = {
     const table = leagueTable(L);
     const pos = table.findIndex(r => r.id === club.id) + 1;
     const over = L.tour >= L.schedule.length;
-    $('#hub-title').innerHTML = `<span class="hub-em" style="--cc:${club.color}">${club.emblem}</span><div><b>${club.name}</b><small>${L.name} · Сезон ${L.season} · ${over ? 'сезон завершён' : `тур ${L.tour + 1} из ${L.schedule.length}`} · место ${pos}</small></div>`;
+    $('#hub-title').innerHTML = L.humanFree ? `<span class="hub-em">🆓</span><div><b>Свободный агент</b><small>${L.name} · Сезон ${L.season} · тур ${L.tour + 1} из ${L.schedule.length} · бывший клуб: ${club.name}</small></div>` : `<span class="hub-em" style="--cc:${club.color}">${club.emblem}</span><div><b>${club.name}</b><small>${L.name} · Сезон ${L.season} · ${over ? 'сезон завершён' : `тур ${L.tour + 1} из ${L.schedule.length}`} · место ${pos}</small></div>`;
     // следующий матч
-    const f = nextFixture(L, club.id);
-    if (over) {
+    const f = L.humanFree ? null : nextFixture(L, club.id);
+    if (L.humanFree && !over) {
+      $('#hub-next').innerHTML = this.freeAgentHTML();
+      this.bindFreeAgent($('#hub-next'));
+    } else if (over) {
       const champ = clubById(L, table[0].id);
       $('#hub-next').innerHTML = `<div class="panel-title">Сезон завершён</div><div class="champ"><div class="cc-em big">${champ.emblem}</div><h2>Чемпион: ${champ.name}</h2><p>${champ.id === club.id ? '🏆 Ваш клуб — чемпион!' : `Ваш клуб занял ${pos}-е место.`}</p>
         <button class="btn primary" id="hub-newseason">Новый сезон с тем же игроком</button></div>`;
@@ -239,10 +253,18 @@ const Campaign = {
         <div class="nm">${side(home)}<div class="nm-vs">VS<small>серия из 2 игр<br>победа 3 · ничья 1</small></div>${side(away)}</div>
         ${L.newsOut ? `<p class="cd-note">📰 ${U.esc(L.newsOut)}</p>` : ''}
         <div class="title-actions"><button class="btn primary big" id="hub-watch">▶ Смотреть серию</button><button class="btn" id="hub-sim">⏩ Быстрый просчёт</button></div>
-        <p class="cd-note">Пока ваш игрок играет на автопилоте с вашими характеристиками; ручное управление героем добавим позже. Остальные серии тура просчитываются автоматически.</p>`;
+        <div class="cr-label">Другие серии тура — отметьте, какие посмотреть</div>
+        <div class="tour-list">${L.schedule[L.tour].map((x, i) => { if (x === f) return ''; const h = clubById(L, x.home), a = clubById(L, x.away);
+          return `<label class="tl-row"><input type="checkbox" data-fx="${i}" ${this.watchSet && this.watchSet.has(i) ? 'checked' : ''}><span>${h.emblem} ${h.name}</span><b>vs</b><span>${a.name} ${a.emblem}</span></label>`; }).join('')}</div>
+        <p class="cd-note">Отмеченные серии вы посмотрите целиком (драфт и игру) — до или после своей. Остальные просчитываются автоматически.</p>`;
+      this.watchSet = this.watchSet || new Set();
+      $('#hub-next').querySelectorAll('input[data-fx]').forEach(cb => cb.onchange = () => { const i = +cb.dataset.fx; if (cb.checked) this.watchSet.add(i); else this.watchSet.delete(i); });
       $('#hub-watch').onclick = () => this.playTour(true);
       $('#hub-sim').onclick = () => this.playTour(false);
     }
+    // финансы и руководство
+    $('#hub-fin').innerHTML = this.clubFinHTML(club, true);
+    $('#hub-fin').querySelectorAll('[data-view]').forEach(b => b.onclick = () => this.openView({ type: b.dataset.view, id: b.dataset.id || 'x' }));
     // патч и мета
     $('#hub-meta').innerHTML = this.patchHTML(false);
     $('#hub-meta').onclick = () => this.openView({ type: 'patch', id: this.L.patch.name });
@@ -313,27 +335,38 @@ const Campaign = {
   },
 
   /* Тур: своя серия (смотреть или просчитать) + все остальные серии */
+  /* Просмотр одной серии целиком (своей или чужой) */
+  async watchFixture(f, last) {
+    const L = this.L;
+    const home = clubById(L, f.home), away = clubById(L, f.away);
+    for (let gi = f.games.length; gi < 2; gi++) {
+      const homeSide = gi === 0 ? 'blue' : 'red', awaySide = homeSide === 'blue' ? 'red' : 'blue';
+      const players = { [homeSide]: rosterOf(L, home), [awaySide]: rosterOf(L, away) };
+      const meta = {
+        names: { [homeSide]: home.name, [awaySide]: away.name }, colors: { [homeSide]: clubColors(home), [awaySide]: clubColors(away) },
+        series: { idx: gi, homeName: home.name, awayName: away.name, homeSide, prev: f.games.map(g => g.winner) },
+        onResult: g => applyGame(L, f, g, homeSide),
+        continueLabel: gi === 0 ? 'Игра 2 серии →' : last ? 'Итоги тура →' : 'Следующая серия →',
+      };
+      await App.playMatch(players, meta);
+    }
+    finishFixture(L, f);
+  },
   async playTour(watch) {
     const L = this.L, club = this.myClub();
     this.prevTable = leagueTable(L).map(r => ({ id: r.id, pts: r.pts }));
-    const f = nextFixture(L, club.id);
-    if (!f) return;
-    if (watch) {
-      const home = clubById(L, f.home), away = clubById(L, f.away);
-      for (let gi = f.games.length; gi < 2; gi++) {
-        const homeSide = gi === 0 ? 'blue' : 'red', awaySide = homeSide === 'blue' ? 'red' : 'blue';
-        const players = { [homeSide]: rosterOf(L, home), [awaySide]: rosterOf(L, away) };
-        const meta = {
-          names: { [homeSide]: home.name, [awaySide]: away.name }, colors: { [homeSide]: clubColors(home), [awaySide]: clubColors(away) },
-          series: { idx: gi, homeName: home.name, awayName: away.name, homeSide, prev: f.games.map(g => g.winner) },
-          onResult: g => applyGame(L, f, g, homeSide),
-          continueLabel: gi === 0 ? 'Игра 2 серии →' : 'Итоги тура →',
-        };
-        await App.playMatch(players, meta);
-      }
-      finishFixture(L, f);
-    }
-    await this.simRest(watch ? f : null);
+    const f = L.humanFree ? null : nextFixture(L, club.id);
+    if (!f && !L.humanFree) return;
+    // какие серии смотреть: своя (если выбран просмотр) и отмеченные чужие
+    const list = L.schedule[L.tour].filter((x, i) => (x === f && watch) || (x !== f && this.watchSet && this.watchSet.has(i)));
+    for (let i = 0; i < list.length; i++) await this.watchFixture(list[i], i === list.length - 1);
+    this.watchSet = new Set();
+    await this.simRest(null);
+    const news = financeTour(L, L.schedule[L.tour]);
+    if ([10, 20].includes(L.tour + 1)) mgmtReview(L, news);
+    if (L.tour + 1 === 15) for (const c of L.clubs) mgmtInvest(L, c, news);
+    if (L.humanFree) humanOfferTick(L, news);
+    this.addNews(news, `Тур ${L.tour + 1}`);
     L.tour++;
     L.newsOut = '';
     const patched = patchDue(L) ? applyPatch(L) : null;
@@ -382,13 +415,114 @@ const Campaign = {
       ${P.notes.length ? `<div class="cr-label">Изменения</div><div class="pn-list">${P.notes.map(note).join('')}</div>` : P.prev ? '<p class="cd-note">Баланс в порядке — правок нет.</p>' : ''}
       <div class="cr-label">Мета (ожидаемая сила героев в этом патче)</div>${tierRows}${liveHTML}</div>`;
   },
-  newSeason() {
+  /* =================== Финансы, руководство, новости =================== */
+  addNews(list, label) {
     const L = this.L;
+    L.news = L.news || [];
+    if (list.length) L.news.unshift({ label, items: list });
+    if (L.news.length > 30) L.news.length = 30;
+  },
+  clubFinHTML(c, hub) {
+    const L = this.L, m = c.mgmt, st = MGMT_STYLES[m.style];
+    const last = (c.ledger || [])[c.ledger.length - 1];
+    const fac = Object.keys(FACILITIES).map(k => `<span class="fac ${facLevel(c, k) ? 'on' : ''}" title="${FACILITIES[k].name}: ${FACILITIES[k].desc}">${FACILITIES[k].icon}<b>${facLevel(c, k)}</b></span>`).join('');
+    const pay = payroll(L, c);
+    return `${hub ? '<div class="panel-title">Клуб: финансы и руководство</div>' : '<div class="cr-label">Руководство и финансы</div>'}
+      <div class="fin-box">
+        <div class="fin-top"><span>💰 Бюджет</span><b class="${c.budget < 0 ? 'neg' : ''}">${money(c.budget)}</b>${last ? `<small class="${last.net >= 0 ? 'pos' : 'neg'}">${last.net >= 0 ? '+' : ''}${money(last.net)} за тур</small>` : ''}</div>
+        <div class="muted">Спонсор «${c.sponsor.name}»: ${money(c.sponsor.perSeason)}/сезон · зарплаты ${money(pay)}/сезон</div>
+        <div class="mgmt">👔 <b>${m.name}</b> — «${st.name}» <small>(${st.desc})</small><br><span class="muted">Цель руководства: ${m.target <= 1 ? 'чемпионство' : `топ-${m.target}`}${m.strikes ? ' · ⚠ совет директоров недоволен' : ''}</span></div>
+        <div class="facs">${fac}</div>
+        ${hub ? `<div class="title-actions"><button class="btn small" data-view="news" data-id="all">📰 Новости</button><button class="btn small" data-view="agents">🆓 Свободные агенты</button><button class="btn small" data-view="facilities">🏗 Отделы клуба</button></div>` : ''}
+      </div>`;
+  },
+  agentsHTML() {
+    const L = this.L;
+    const list = (L.free || []).slice().sort((a, b) => playerOvr(b) - playerOvr(a));
+    return `<div class="patch-full"><h2>Свободные агенты</h2><p class="muted">Игроки без клуба. Руководство клубов берёт их, когда освобождается место: по своим предпочтениям (сила, молодость, цена, популярность) и деньгам.</p>
+      ${ROLE_ORDER.map(r => { const ps = list.filter(p => p.role === r); return ps.length ? `<div class="cr-label">${ROLES[r].icon} ${ROLES[r].name}</div>` + ps.map(p => `<div class="fa-row">${playerRow(L, p)}<small>${p.age} лет · просит ~${money(playerDemand(p))}</small></div>`).join('') : ''; }).join('')}</div>`;
+  },
+  newsHTML(which) {
+    const L = this.L, mine = this.myClub().id;
+    const blocks = which === 'last' ? (L.news || []).slice(0, 1) : (L.news || []);
+    return `<div class="patch-full"><h2>Новости</h2>${blocks.length ? blocks.map(b => `<div class="cr-label">${U.esc(b.label)}</div>` + b.items.map(n => `<div class="news-row ${n.club === mine ? 'mine' : ''}">${U.esc(n.text)}</div>`).join('')).join('') : '<p class="muted">Пока новостей нет.</p>'}</div>`;
+  },
+  facHTML() {
+    const c = this.myClub();
+    return `<div class="patch-full"><h2>Отделы клуба «${c.name}»</h2><p class="muted">Руководство само решает, во что вкладывать бюджет: это зависит от его курса («${MGMT_STYLES[c.mgmt.style].name}») и запаса денег. Каждый уровень стоит денег при постройке и требует содержания каждый сезон.</p>
+      ${Object.entries(FACILITIES).map(([k, f]) => `<div class="fac-row"><span class="fac-ic">${f.icon}</span><div><b>${f.name}</b> — уровень ${facLevel(c, k)} из 5<br><small class="muted">${f.desc}. Следующий уровень: ${facLevel(c, k) < 5 ? money(facCost(facLevel(c, k) + 1)) : '—'}, содержание ${money(facUpkeep(facLevel(c, k)))}/сезон</small></div></div>`).join('')}</div>`;
+  },
+  /* Переговоры игрока-человека о новом контракте */
+  contractHTML() {
+    const L = this.L, me = L.players[L.humanId], c = this.myClub();
+    if (!this.nego) this.nego = Object.assign(humanOffer(L, c, me), { asked: false, msg: '' });
+    const n = this.nego;
+    return `<div class="patch-full"><h2>Новый контракт</h2>
+      <p>Ваш контракт с «${c.name}» истекает. Руководство (${c.mgmt.name}, курс «${MGMT_STYLES[c.mgmt.style].name}») предлагает:</p>
+      <div class="offer-big">${money(n.salary)} <small>за сезон · на ${n.years} сезона</small></div>
+      <p class="muted">Ваша популярность ${Math.round(me.popularity)}, рыночная стоимость около ${money(playerValue(me))}.</p>
+      ${n.msg ? `<p class="cd-note">${n.msg}</p>` : ''}
+      <div class="title-actions"><button class="btn primary" id="ct-sign">✍ Подписать</button>${n.asked ? '' : '<button class="btn" id="ct-more">💬 Потребовать +15%</button>'}<button class="btn" id="ct-leave">🚪 Уйти в свободные агенты</button></div></div>`;
+  },
+  bindContract(root) {
+    const L = this.L, me = L.players[L.humanId], n = this.nego;
+    root.querySelector('#ct-sign').onclick = () => { me.contract = { salary: n.salary, until: L.season + n.years }; this.addNews([{ club: me.club, text: `🖊 ${me.nick} продлевает контракт с клубом: ${money(n.salary)} за сезон` }], 'Ваш контракт'); this.finishOffseason(); };
+    const more = root.querySelector('#ct-more');
+    if (more) more.onclick = () => {
+      n.asked = true;
+      const want = Math.round(n.salary * 1.15);
+      if (want <= n.max || Math.random() < me.popularity / 200) { n.salary = want; n.msg = '✅ Руководство соглашается на ваши условия.'; }
+      else n.msg = '❌ Руководство отказывается поднимать сумму: это их последнее слово.';
+      this.renderView();
+    };
+    root.querySelector('#ct-leave').onclick = () => {
+      const c = this.myClub();
+      if (c.roster[me.role] === me.id) c.roster[me.role] = null;
+      me.club = null; me.contract = null; me.captain = false; pickCaptain(L, c); L.humanFree = true; L.humanFreeTours = 0; L.humanOffers = [];
+      this.finishOffseason();
+    };
+  },
+  /* Игрок-человек — свободный агент: смотрит турнир и ждёт предложений */
+  freeAgentHTML() {
+    const L = this.L, offers = L.humanOffers || [];
+    return `<div class="panel-title">Вы — свободный агент · тур ${L.tour + 1}</div>
+      <p class="muted">Пока у вас нет клуба, вы смотрите турнир со стороны. Клубы присылают предложения — чем вы сильнее их игрока на вашей роли, тем охотнее. Предложение действует несколько туров.</p>
+      ${offers.length ? offers.map((o, i) => { const c = clubById(L, o.club); return `<div class="offer-row" style="--cc:${c.color}"><span class="cc-em">${c.emblem}</span><div><b>${c.name}</b><br><small class="muted">рейтинг ${clubOvr(L, c).toFixed(1)} · «${MGMT_STYLES[c.mgmt.style].name}»</small></div><div class="offer-sum">${money(o.salary)}<small>/сезон · ${o.years} с.</small></div><button class="btn primary small" data-hoffer="${i}">Подписать</button></div>`; }).join('') : '<p class="cd-note">📭 Предложений пока нет.</p>'}
+      <div class="title-actions"><button class="btn primary" id="hub-sim">⏩ Ждать: просчитать тур</button></div>
+      <div class="cr-label">Серии тура — отметьте, какие посмотреть</div>
+      <div class="tour-list">${L.schedule[L.tour].map((x, i) => { const h = clubById(L, x.home), a = clubById(L, x.away);
+        return `<label class="tl-row"><input type="checkbox" data-fx="${i}" ${this.watchSet && this.watchSet.has(i) ? 'checked' : ''}><span>${h.emblem} ${h.name}</span><b>vs</b><span>${a.name} ${a.emblem}</span></label>`; }).join('')}</div>`;
+  },
+  bindFreeAgent(root) {
+    const L = this.L, me = L.players[L.humanId];
+    this.watchSet = this.watchSet || new Set();
+    root.querySelectorAll('input[data-fx]').forEach(cb => cb.onchange = () => { const i = +cb.dataset.fx; if (cb.checked) this.watchSet.add(i); else this.watchSet.delete(i); });
+    root.querySelector('#hub-sim').onclick = () => this.playTour(false);
+    root.querySelectorAll('[data-hoffer]').forEach(b => b.onclick = () => {
+      const o = L.humanOffers[+b.dataset.hoffer];
+      const news = []; moveHuman(L, me, o.club, o.salary, o.years, news); syncFacilities(L);
+      L.humanOffers = []; L.humanFreeTours = 0;
+      this.addNews(news, 'Переход'); saveLeague(L); this.openHub();
+    });
+  },
+  newSeason() {
+    const L = this.L, me = L.players[L.humanId];
+    // контракт игрока-человека истёк — переговоры с руководством
+    if (me.contract && me.contract.until <= L.season && !L.humanFree) { this.nego = null; this.openView({ type: 'contract', id: 'x' }); return; }
+    this.finishOffseason();
+  },
+  finishOffseason() {
+    const L = this.L;
+    this.closeAll();
+    const news = offseason(L);
+    if (L.humanFree) humanOfferTick(L, news, 2.5);
+    this.addNews(news, `Межсезонье ${L.season}→${L.season + 1}`);
+    this.offseasonPending = false;
     L.season++; L.tour = 0; L.results = [];
     L.schedule = doubleRoundRobin(L.clubs.map(c => c.id), U.seeded(L.seed + L.season));
-    for (const p of Object.values(L.players)) p.season = { games: 0, wins: 0, k: 0, d: 0, a: 0, ratingSum: 0, mvp: 0 };
+    for (const p of [...Object.values(L.players), ...(L.free || [])]) p.season = { games: 0, wins: 0, k: 0, d: 0, a: 0, ratingSum: 0, mvp: 0 };
     saveLeague(L);
-    this.openHub();
+    this.openHub().then(() => setTimeout(() => this.openView({ type: 'news', id: 'last' }), 500));
   },
   continueSaved() {
     const L = loadLeague();

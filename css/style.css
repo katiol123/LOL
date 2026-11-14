@@ -855,3 +855,45 @@ html, body, #app { overflow: clip; }
 .perks.none { color: var(--muted); font-size: 12px; }
 .perk { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #e6d8ff; background: linear-gradient(90deg, rgba(150,100,255,.28), rgba(150,100,255,.08)); border: 1px solid rgba(185,140,255,.5); box-shadow: 0 0 10px rgba(150,100,255,.2); cursor: help; }
 .perk i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(185,140,255,.3); font-size: 12px; }
+
+/* ---------- Серии тура для просмотра ---------- */
+.tour-list { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 6px 0; max-height: 220px; overflow-y: auto; }
+.tl-row { display: grid; grid-template-columns: 18px 1fr 26px 1fr; gap: 6px; align-items: center; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 13px; cursor: pointer; }
+.tl-row:hover { background: rgba(255,255,255,.08); }
+.tl-row b { text-align: center; color: var(--muted); font-size: 11px; }
+.tl-row span:last-child { text-align: right; }
+.tl-row input { accent-color: var(--gold, #ffc93c); }
+
+/* ---------- Финансы, руководство, новости ---------- */
+.fin-box { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.fin-top { display: flex; align-items: baseline; gap: 8px; }
+.fin-top b { font-family: var(--title); font-size: 22px; color: var(--gold, #ffc93c); }
+.fin-top small.pos, .pos { color: #6ff59a; } .fin-top small.neg, b.neg, .neg { color: #ff8a98; }
+.mgmt { padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.04); }
+.facs { display: flex; gap: 6px; flex-wrap: wrap; }
+.fac { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 13px; cursor: help; }
+.fac.on { background: rgba(255,201,60,.14); color: #ffe08a; box-shadow: inset 0 0 0 1px rgba(255,201,60,.35); }
+.fac-row { display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; background: rgba(255,255,255,.04); margin: 6px 0; }
+.fac-ic { font-size: 24px; text-align: center; }
+.pop-row { display: flex; align-items: center; gap: 8px; }
+.pop-row .bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.pop-row .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb347, #ff6b9a); }
+.news-row { padding: 5px 8px; border-left: 3px solid rgba(255,255,255,.12); margin: 3px 0; font-size: 13px; }
+.news-row.mine { border-left-color: var(--gold, #ffc93c); background: rgba(255,201,60,.07); }
+.fa-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.fa-row small { color: var(--muted); white-space: nowrap; }
+.offer-big { font-family: var(--title); font-size: 34px; color: var(--gold, #ffc93c); margin: 8px 0; }
+.offer-big small { font-size: 14px; color: var(--muted); font-family: sans-serif; }
+.offer-row { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; margin: 6px 0; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--cc) 30%, transparent), rgba(255,255,255,.03)); }
+.offer-row .cc-em { font-size: 26px; text-align: center; }
+.offer-sum { font-family: var(--title); font-size: 18px; color: var(--gold, #ffc93c); text-align: right; }
+.offer-sum small { display: block; font-size: 11px; color: var(--muted); font-family: sans-serif; }
+@media (max-width: 700px) { .offer-row { grid-template-columns: 34px 1fr; } .offer-sum, .offer-row .btn { grid-column: 2; } }
+.att { margin: 6px 0; padding: 5px 10px; border-radius: 8px; font-size: 13px; border-left: 3px solid; }
+.att-admire { color: #ffe08a; background: rgba(255,201,60,.1); border-color: #ffc93c; }
+.att-hopes { color: #9ff0b8; background: rgba(69,224,122,.08); border-color: #45e07a; }
+.att-ok { color: #cdd6ea; background: rgba(255,255,255,.04); border-color: #8aa0c8; }
+.att-bad { color: #ffb8a0; background: rgba(255,140,90,.08); border-color: #ff8c5a; }
+.att-fire { color: #ff9aa8; background: rgba(255,84,104,.12); border-color: #ff5468; animation: pulse 1.6s infinite; }
+.att-i { font-size: 12px; margin-left: 3px; cursor: help; }
+.dev { margin: 4px 0; font-size: 13px; } .dev.pos { color: #6ff59a; } .dev.neg { color: #ff8a98; }

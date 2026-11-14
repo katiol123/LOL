@@ -159,7 +159,8 @@ const AI = {
   draftIq(cap) {
     if (!cap) return 10;
     const iq = cap.iq || {};
-    return U.clamp(((iq.team || 10) + (iq.tactic || 10)) / 2 + 0.2 * (((cap.stats && cap.stats.read) || 10) - 10), 1, 22);
+    // аналитический отдел клуба помогает капитану с драфтом
+    return U.clamp(((iq.team || 10) + (iq.tactic || 10)) / 2 + 0.2 * (((cap.stats && cap.stats.read) || 10) - 10) + 0.7 * ((cap.fac && cap.fac.analytics) || 0), 1, 24);
   },
   metaOf(id) { return (typeof HERO_META !== 'undefined' && HERO_META[id]) || null; },
   patchOf(id) { return patchMod(id, 'stat'); },

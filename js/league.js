@@ -42,6 +42,7 @@ function createLeague(seed = Math.floor(Math.random() * 1e9)) {
   assignMastery(rng, Object.values(L.players));
   L.patch = newPatchState('1.0', {}, [], {});
   L.schedule = doubleRoundRobin(L.clubs.map(c => c.id), rng);
+  if (typeof initFinance !== 'undefined') { initFinance(L, rng); syncFacilities(L); }
   return L;
 }
 
@@ -84,9 +85,10 @@ function doubleRoundRobin(ids, rng) {
 /* ---------- Доступ ---------- */
 const clubById = (L, id) => L.clubs.find(c => c.id === id);
 const rosterOf = (L, club) => ROLE_ORDER.map(r => L.players[club.roster[r]]);
-const clubOvr = (L, club) => U.sum(rosterOf(L, club), playerOvr) / 5;
-function clubStatAvg(L, club) { const ps = rosterOf(L, club); return Object.fromEntries(STAT_KEYS.map(k => [k, U.sum(ps, p => p.stats[k]) / 5])); }
-function clubForm(L, club) { return U.sum(rosterOf(L, club), playerFormAvg) / 5; }
+const clubPs = (L, club) => rosterOf(L, club).filter(Boolean);
+const clubOvr = (L, club) => { const ps = clubPs(L, club); return ps.length ? U.sum(ps, playerOvr) / ps.length : 0; };
+function clubStatAvg(L, club) { const ps = clubPs(L, club); return Object.fromEntries(STAT_KEYS.map(k => [k, ps.length ? U.sum(ps, p => p.stats[k]) / ps.length : 10])); }
+function clubForm(L, club) { const ps = clubPs(L, club); return ps.length ? U.sum(ps, playerFormAvg) / ps.length : 6.5; }
 function nextFixture(L, clubId) {
   const t = L.schedule[L.tour];
   return t ? t.find(f => f.home === clubId || f.away === clubId) : null;
@@ -101,6 +103,7 @@ function joinClub(L, human, clubId) {
   L.players[human.id] = human;
   club.roster[human.role] = human.id;
   L.humanId = human.id; L.humanClub = club.id;
+  if (typeof initPlayerFinance !== 'undefined') { initPlayerFinance(L, human); human.contract = { salary: Math.round(playerValue(human) * 0.9), until: L.season + 1 }; syncFacilities(L); }
   pickCaptain(L, club);
   return old;
 }
@@ -119,7 +122,9 @@ function applyGame(L, fixture, game, homeSide) {
     let gain = h.rating >= 9.5 ? 2 : h.rating >= 8 ? 1 : 0;
     // чем выше мастерство, тем труднее расти дальше: шанс роста 1 − M/21 (случайность — от сида лиги)
     const rng = U.seeded((L.seed * 31 + fixture.tour * 997 + fixture.games.length * 131 + [...p.id].reduce((x, ch) => (x * 33 + ch.charCodeAt(0)) >>> 0, 7) + Math.round(h.rating * 10)) >>> 0);
-    if (gain && rng() > 1 - before / 21) gain = 0;
+    // буткемп клуба повышает шанс роста мастерства
+    if (gain && rng() > (1 - before / 21) * (1 + 0.15 * ((p.fac && p.fac.bootcamp) || 0))) gain = 0;
+    if (typeof updatePopularity !== 'undefined') updatePopularity(p, h.rating, h.mvp, h.team === game.winner);
     if (gain) p.mastery[h.def.id] = Math.min(MASTERY_MAX, before + gain);
     rec.players.push({ id: p.id, hero: h.def.id, rating: h.rating, k: h.k, d: h.d, a: h.a, mvp: h.mvp, gain });
   }
@@ -194,7 +199,8 @@ async function simFixture(L, fixture, ui) {
 /* ---------- Капитан ----------
    Капитан драфтит за команду: им становится игрок с лучшим командным мышлением, тактикой и чтением игры. */
 function pickCaptain(L, club) {
-  const ps = rosterOf(L, club);
+  const ps = rosterOf(L, club).filter(Boolean);
+  if (!ps.length) return null;
   for (const p of ps) p.captain = false;
   const cap = AI.captainOf(ps.map(p => Object.assign({}, p, { captain: false })));
   const real = ps.find(p => p.id === cap.id);
@@ -281,6 +287,7 @@ function applyLeagueMeta(L) {
 }
 /* Совместимость со старыми сохранениями */
 function upgradeLeague(L) {
+  if (typeof upgradeFinance !== 'undefined') { upgradeFinance(L); syncFacilities(L); }
   if (!L.perksDone) { const r = U.seeded(L.seed + 555); for (const p of Object.values(L.players)) if (!p.perks) p.perks = rollPerks(r); L.perksDone = true; }
   if (!L.patch) L.patch = newPatchState('1.0', {}, [], {});
   for (const c of L.clubs) if (!c.captain || !L.players[c.captain]) pickCaptain(L, c);
@@ -288,7 +295,7 @@ function upgradeLeague(L) {
 }
 
 /* ---------- Сохранение ---------- */
-const SAVE_KEY = 'lk-campaign-v2';  // v2: новые герои
+const SAVE_KEY = 'lk-campaign-v3';  // v3: финансы, контракты, 28 героев
 function saveLeague(L) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(L)); return true; } catch (e) { return false; } }
 function loadLeague() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function clearLeague() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } }
