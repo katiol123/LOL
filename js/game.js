@@ -145,8 +145,7 @@ class Game {
       const front = this.frontline(e);
       if (front === h.prefTarget) return front;
       const noFront = !e.some(x => x.def.tags.includes('tank'));
-      const dive = U.clamp((iqOf(h, 'tactic') - 6) / 40, 0, 0.25) + (h.def.tags.includes('burst') ? 0.12 : 0) + (noFront ? 0.35 : 0);
-      return U.chance(dive) ? h.prefTarget : front;
+      return U.chance(this.diveChance(h, e)) ? h.prefTarget : front;
     }
     // провокация: пока действует, враг бьёт только провокатора
     if (h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy)) return h.tauntBy;
@@ -160,11 +159,17 @@ class Game {
     if (f && f.alive && e.includes(f) && U.chance(U.clamp((iqOf(h, 'team') - 3) / 14, 0, 0.95) * 0.6)) return f;
     // Тактика: иногда удаётся «нырнуть» за передовую и достать самого слабого (убийцам — чаще)
     // без передовой (ни одного танка у врага в бою) до хрупких бойцов добраться легко
-    const noFront = !e.some(x => x.def.tags.includes('tank'));
-    const dive = U.clamp((iqOf(h, 'tactic') - 6) / 40, 0, 0.25) + (h.def.tags.includes('burst') ? 0.12 : 0) + (noFront ? 0.35 : 0);
-    const t = U.chance(dive) ? U.minBy(e, x => x.hp + x.shield) : this.frontline(e);
+    // Тактика решает, пытаться ли нырнуть к самому слабому; удастся ли — зависит только от ситуации (как и у человека)
+    const tries = U.chance(U.clamp((iqOf(h, 'tactic') - 4) / 12, 0.05, 0.95));
+    const weak = U.minBy(e, x => x.hp + x.shield);
+    const t = tries && U.chance(this.diveChance(h, e)) ? weak : this.frontline(e);
     if (ev) { ev.focus = ev.focus || {}; if (!ev.focus[h.team] || !ev.focus[h.team].alive) ev.focus[h.team] = t; }
     return t;
+  }
+  /* Шанс пробиться за передовую к выбранной цели: убийцам легче, без танка у врага — намного легче */
+  diveChance(h, e) {
+    const noFront = !e.some(x => x.def.tags.includes('tank'));
+    return 0.18 + (h.def.tags.includes('burst') ? 0.15 : 0) + (noFront ? 0.4 : 0);
   }
   /* Позиционка: удар принимает тот, у кого больше «текущее здоровье + бросок от 1 до X» (+ модификаторы позиции).
      Крепкие бойцы и танки идут вперёд и прикрывают союзников; стрелки держатся сзади. */
@@ -194,7 +199,13 @@ class Game {
     // волна дотолкана — линия держится; ушёл, когда волна у своей башни, — она давит и бьёт по башне
     if (pushedFirst || dir * L.push > 0.15) return;
     L.push = U.clamp(L.push - dir * 0.3, -1, 1);
-    const st = this.structureFor(h.team, h.lane); if (st) this.damageStructure(st.team, st.lane, st.idx, 60 + this.minute * 6, null);
+    // урон по башне — только если на линии есть живой вражеский лейнер (он и сносит); нексус не трогаем, башню не добиваем
+    const foe = this.teams[h.enemyTeam].heroes.find(x => x.alive && x.lane === h.lane);
+    const st = this.structureFor(h.team, h.lane);
+    if (!foe || !st || st.idx === 3) return;
+    const hp = this.teams[h.team].towers[h.lane][st.idx];
+    const dmg = Math.min(60 + this.minute * 6, Math.max(0, hp - 1));
+    if (dmg > 0) this.damageStructure(st.team, st.lane, st.idx, dmg, foe);
   }
   /* Давление на линии: перекачанный враг рядом мешает фармить — −12% за каждый уровень разницы (не ниже 40%).
      Отставший по уровню (проиграл линию, нет поддержки) с трудом отыгрывается фармом. */
@@ -246,6 +257,7 @@ class Game {
       for (const h of order) {
         if (this.over) break;
         await this.heroTurn(h);
+        if (this.ui.afterTurn) this.ui.afterTurn();
       }
       if (this.over) break;
       await this.endRound();
@@ -705,8 +717,8 @@ class Game {
     if (kind === 'magic') d *= 1 - Math.min(0.4, tgt.itemStat('magRed'));   // и против магического
     if (src && src.itemStat('antiHeal') > 0) tgt.wounded = { until: this.round + 1, k: Math.min(0.6, src.itemStat('antiHeal')) };   // скверна режет лечение
     if (tgt.anchored > 0) d *= 1.2;
-    // слаженный фокус: удар по общей цели команды сильнее, чем лучше командное мышление бьющего
-    if (src && ev && ev.focus && ev.focus[src.team] === tgt) d *= 1 + 0.15 * U.clamp((iqOf(src, 'team') - 5) / 11, 0, 1.2);
+    // слаженный фокус: удар по общей цели команды сильнее
+    if (src && ev && ev.focus && ev.focus[src.team] === tgt) d *= 1.12;   // фокус: бить общую цель команды выгоднее (одинаково для всех)
     if (tgt.def.passive.hide) d *= 1 - Math.min(0.2, (1 - tgt.hp / tgt.maxHp) * this.pv(tgt, 'hide'));   // «Толстая шкура»
     if (src && hasPerk(src, 'hunter') && tgt.hp / tgt.maxHp < 0.35) d *= 1.2;
     if (src && hasPerk(src, 'reckless')) d *= 1.1;
@@ -991,7 +1003,8 @@ class Game {
         let choice = 'now';
         if (!pushed) {
           if (h.ctrl === 'human' && !h.autopilot) choice = await this.decide(h, { title: '🏠 Уход на базу', text: 'Волна не дотолкана. Если уйти сразу, она будет давить на вашу башню.', options: [{ id: 'push', label: 'Дотолкать и уйти через минуту' }, { id: 'now', label: 'Уйти сейчас' }], def: 'now' });
-          else choice = hpR > 0.3 && U.chance(U.clamp((iqOf(h, 'tactic') - 4) / 12, 0.05, 0.97)) ? 'push' : 'now';
+          // Осторожный уходит сразу уже при меньшей потере здоровья, Безрассудный дотолкает волну и полуживым
+          else choice = hpR > 0.3 + pk && U.chance(U.clamp((iqOf(h, 'tactic') - 4) / 12, 0.05, 0.97)) ? 'push' : 'now';
         }
         if (choice === 'push') { h.mem.pushRound = this.round; h.mem.recallNext = true; const L = this.lanes[h.lane]; L.push = U.clamp(L.push + (h.team === 'blue' ? 0.25 : -0.25), -1, 1); continue; }
       }
@@ -1400,7 +1413,9 @@ class Game {
         if (h.dead <= 0) { h.dead = 0; h.tailUsed = false; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; await this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
       }
       // зелье здоровья: пьёт, когда здоровья мало (умный — вовремя, неумный — с опозданием)
-      if (h.alive && h.potions > 0 && h.hp / h.maxHp < (iqOf(h, 'tactic') >= 10 ? 0.55 : 0.35) && h.ev && h.ev.type !== 'recall') {
+      const drink = h.ctrl === 'human' && !h.autopilot ? h.wantPotion : h.hp / h.maxHp < (iqOf(h, 'tactic') >= 10 ? 0.55 : 0.35);
+      h.wantPotion = false;
+      if (h.alive && h.potions > 0 && drink && h.hp < h.maxHp && h.ev && h.ev.type !== 'recall') {
         h.potions--; const amt = POTION.heal + POTION.healLvl * h.lvl; h.hp = Math.min(h.maxHp, h.hp + amt); this.ui.float(h, `🧪 +${amt}`, '#45e07a');
       }
       if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 2) this.calmDown(h);

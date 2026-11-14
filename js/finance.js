@@ -184,7 +184,7 @@ function offseason(L, rng = frng()) {
   });
   facUpkeepAll(L, news);
   // дивиденды: совет директоров забирает часть излишков (деньги не копятся бесконечно)
-  for (const c of L.clubs) if (c.budget > 2500) { const d = Math.round((c.budget - 2500) * 0.5); c.budget -= d; news.push({ club: c.id, text: `💼 ${c.emblem} ${c.name}: совет директоров забирает дивиденды ${money(d)}` }); }
+  for (const c of L.clubs) if (c.budget > 1500) { const d = Math.round((c.budget - 1500) * 0.5); c.budget -= d; news.push({ club: c.id, text: `💼 ${c.emblem} ${c.name}: совет директоров забирает дивиденды ${money(d)}` }); }
   for (const c of L.clubs) boardReview(L, c, news, rng);
   // развитие игроков: рост и спад характеристик (до переговоров — новые требования считаются от новой силы)
   // кто растёт, а кто сдаёт, решает успешность сезона (место в рейтинге), а не случай

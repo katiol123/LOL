@@ -155,7 +155,7 @@ const AI = {
     const accept = U.chance(U.clamp(p, 0.03, 0.97));
     return { accept, fast: accept && (AI.arrivesFast(h) || (hasPerk(sig.from, 'caller') && U.chance(0.35))) };
   },
-  arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team') + 0.035 * (iqOf(h, 'team') - 10), 0.05, 0.95)); },
+  arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team'), 0.05, 0.95)); },
 
   /* ---------- Драфт ----------
      Драфтит капитан команды. Его скрытый интеллект (командное мышление + тактика) и «Чтение игры»

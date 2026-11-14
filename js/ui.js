@@ -373,6 +373,7 @@ const UI = {
     while (lg.children.length > 80) lg.lastChild.remove();
   },
   roundStart(G) { this.turnCount = 0; this.epKey = ''; this.syncHuman(); },
+  afterTurn() { this.syncFocus(); },
   roundEnd(G) {
     const gd = U.sum(G.teams.blue.heroes, h => h.totalGold) - U.sum(G.teams.red.heroes, h => h.totalGold);
     this.advHist.push(gd);
@@ -538,6 +539,7 @@ const UI = {
       <button class="btn small" id="hc-leave" title="Выйти из затяжной драки и позвать союзников отступить">🏃 Отступить</button>
       <button class="btn small" id="hc-drake" title="Позвать команду на Дракона">📣 Дракон</button>
       <button class="btn small" id="hc-baron" title="Позвать команду на Барона">📣 Барон</button>
+      <button class="btn small" id="hc-potion" title="Выпить зелье здоровья в конце минуты">🧪 Зелье</button>
       <button class="btn small" id="hc-auto" title="Отдать управление ИИ (и вернуть)">🤖 Автопилот: выкл</button></div>
       <div class="hc-hint" id="hc-hint">Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.</div>`);
     bar.id = 'hctl';
@@ -551,6 +553,7 @@ const UI = {
     tg.querySelectorAll('[data-tg]').forEach(b => b.onclick = () => { const h = game.heroes.find(x => x.id === b.dataset.tg); this.setPref(me, h); });
     $('#hc-recall').onclick = () => { me.wantRecall = !me.wantRecall; $('#hc-recall').classList.toggle('on', me.wantRecall); };
     $('#hc-leave').onclick = () => { me.wantLeave = !me.wantLeave; $('#hc-leave').classList.toggle('on', me.wantLeave); };
+    $('#hc-potion').onclick = () => { me.wantPotion = !me.wantPotion; $('#hc-potion').classList.toggle('on', me.wantPotion); };
     $('#hc-drake').onclick = () => game.humanSignal(me, 'obj', { kind: 'dragon' });
     $('#hc-baron').onclick = () => game.humanSignal(me, 'obj', { kind: 'baron' });
     $('#hc-auto').onclick = () => { me.autopilot = !me.autopilot; $('#hc-auto').textContent = `🤖 Автопилот: ${me.autopilot ? 'вкл' : 'выкл'}`; if (me.autopilot && this.pending) this.pending.auto(); };
@@ -579,8 +582,15 @@ const UI = {
       this.pendingMove = null; this.pending = null; this.setHint(w.h.prefTarget ? `Приоритетная цель: ${w.h.prefTarget.nick}.` : 'Ход сделан. Цель: нажмите на карточку врага, чтобы сделать его приоритетной.'); w.resolve(mv);
     };
   },
-  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; document.querySelectorAll('.tgt').forEach(b => { const h = this.game.heroes.find(x => x.id === b.dataset.tg); b.classList.toggle('dead', !h.alive); b.querySelector('b').style.width = Math.round(Math.max(0, h.hp / h.maxHp) * 100) + '%'; }); $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave);
+  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; this.syncFocus(); $('#hc-potion').textContent = `🧪 Зелье ×${me.potions || 0}`; $('#hc-potion').classList.toggle('on', !!me.wantPotion); document.querySelectorAll('.tgt').forEach(b => { const h = this.game.heroes.find(x => x.id === b.dataset.tg); b.classList.toggle('dead', !h.alive); b.querySelector('b').style.width = Math.round(Math.max(0, h.hp / h.maxHp) * 100) + '%'; }); $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave);
     if (me.alive && !me.autopilot && me.hp / me.maxHp < 0.3) this.setHint('⚠ Мало здоровья! ИИ на вашем месте уже отступил бы: нажмите «Отступить» или «На базу».'); },
+  /* Фокус команды человека: отметка на карточке и аватаре врага (бить его — +12% урона, как и для ИИ) */
+  syncFocus() {
+    const me = this.human; if (!me) return;
+    const f = me.ev && me.ev.focus && me.ev.focus[me.team];
+    for (const h of this.game.heroes) if (h.team !== me.team) { const q = this.cards.get(h.id); q.c.classList.toggle('team-focus', f === h && h.alive); }
+    document.querySelectorAll('.tgt').forEach(b => b.classList.toggle('focus', !!f && b.dataset.tg === f.id));
+  },
   setPref(me, h) {
     me.prefTarget = me.prefTarget === h ? null : h;
     for (const x of this.game.heroes) { const q = this.cards.get(x.id); q.c.classList.toggle('pref', me.prefTarget === x); }

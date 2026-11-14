@@ -7,7 +7,7 @@ if (process.env.PERK) {
   const { load } = require('./harness');
   const ctx = load(`var PS = { tilt: { a: 0, b: 0 }, deaths: { a: 0, b: 0 }, help: { a: 0, b: 0 }, roam: { a: 0, b: 0 }, gold25: { a: 0, b: 0 }, rev: 0, hunt: 0, hits: 0 };
     const TT = Game.prototype.tryTilt; Game.prototype.tryTilt = function (h, ...r) { const b = h.tilt; const res = TT.call(this, h, ...r); if (h.tilt > b) PS.tilt[h.pl.perks && h.pl.perks.length ? 'a' : 'b']++; return res; };
-    const AN = Game.prototype.answer; Game.prototype.answer = function (sig, h) { const r = AN.call(this, sig, h); if (sig.type === 'help' && r.accept) PS.help[h.pl.perks && h.pl.perks.length ? 'a' : 'b']++; return r; };
+    const AN = Game.prototype.answer; Game.prototype.answer = async function (sig, h) { const r = await AN.call(this, sig, h); if (sig.type === 'help' && r.accept) PS.help[h.pl.perks && h.pl.perks.length ? 'a' : 'b']++; return r; };
     const ER = Game.prototype.endRound; Game.prototype.endRound = async function () { if (this.minute === 25) for (const h of this.heroes) PS.gold25[h.pl.perks && h.pl.perks.length ? 'a' : 'b'] += h.totalGold; return ER.call(this); };
     globalThis.PS = PS;`);
   const k = process.env.PERK;

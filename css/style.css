@@ -965,3 +965,10 @@ html, body, #app { overflow: clip; }
 .end-wrap .title-actions { padding: 6px 0 !important; }
 @media (max-width: 560px) { .pick-slot .pn b .you { display: block; width: max-content; margin: 0 auto 2px; } }
 #adv.empty-graph { display: none; }
+.hero-card.team-focus::after { content: '🎯 фокус команды'; position: absolute; top: 4px; right: 6px; font-size: 10px; font-weight: 700; color: #ffd36b; background: rgba(0,0,0,.6); padding: 1px 6px; border-radius: 6px; pointer-events: none; }
+.hero-card { position: relative; }
+.tgt.focus { box-shadow: 0 0 0 2px #ffd36b, 0 0 10px rgba(255,211,107,.7); }
+/* ---------- Визуальный критик, круг 3 ---------- */
+#side-info:has(.decide:not([hidden])) #event-panel { display: none; }
+#cl-detail .cd-grid { max-height: calc(100vh - 330px); overflow-y: auto; }
+@media (max-width: 560px) { .pick-slot .pn b .perk-i, .pick-slot .pn b .capt { display: none; } #cl-detail .cd-grid { max-height: none; } }
