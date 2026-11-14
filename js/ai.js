@@ -309,7 +309,7 @@ const AI = {
      для этого героя (набор умений, роль, теги), состава врагов и стадии игры. Тактика решает, насколько разумно
      игрок закупается: сильный тактик берёт лучшее для ситуации и меняет слабые предметы на сильные,
      слабый — покупает почти что попало. */
-  ITEM_UNIT: { atk: 95, arm: 16, hp: 1.9, sp: 21, mana: 3.5, ls: 4000, crit: 7000, pen: 6000, thorns: 4000, dodge: 9500, regen: 27000, manaRegen: 32, goldPow: 6500, towerPow: 3200, cascPow: 9000, shieldPow: 2200, healPow: 2200, visPow: 900, physRed: 5200, magRed: 5200, antiHeal: 2600, tenacity: 2600 },
+  ITEM_UNIT: { atk: 95, arm: 16, hp: 1.9, sp: 21, mana: 3.5, ls: 4000, crit: 7000, pen: 4200, thorns: 4000, dodge: 9500, regen: 27000, manaRegen: 32, goldPow: 6500, towerPow: 3200, cascPow: 9000, shieldPow: 2200, healPow: 2200, visPow: 900, physRed: 5200, magRed: 5200, antiHeal: 2600, tenacity: 2600 },
   PROFILE: {
     top: { atk: 0.9, sp: 0.3, hp: 1.0, arm: 1.0, mana: 0.2, ls: 0.8, crit: 0.3, pen: 0.5, thorns: 0.8, dodge: 0.6, regen: 1.0, manaRegen: 0.2, goldPow: 0.4, towerPow: 0.7, cascPow: 0.4, shieldPow: 0.2, healPow: 0.2, visPow: 0.1, physRed: 0.9, magRed: 0.7, antiHeal: 0.5, tenacity: 0.8 },
     jng: { atk: 1.0, sp: 0.3, hp: 0.8, arm: 0.8, mana: 0.2, ls: 0.8, crit: 0.6, pen: 0.8, thorns: 0.4, dodge: 0.6, regen: 0.6, manaRegen: 0.3, goldPow: 0.5, towerPow: 0.5, cascPow: 0.5, shieldPow: 0.1, healPow: 0.1, visPow: 0.6, physRed: 0.6, magRed: 0.5, antiHeal: 0.6, tenacity: 0.6 },
@@ -462,16 +462,16 @@ const AI = {
           const slotsLeft = 6 - inv.length;
           const eff = id => val(id) / ITEMS[id].cost;
           const okTier = id => ITEMS[id].tier < 4 || G.minute >= 18;
-          if (slotsLeft >= 3) {
-            // слотов много: берём лучшее из доступного по соотношению «польза/цена», но не мусор
-            const ok = cands.filter(id => okTier(id) && eff(id) >= 0.8);
+          // умный игрок тратит золото сразу: берёт лучшее по пользе (с учётом цены) из доступного прямо сейчас;
+          // копит только если крупная цель почти по карману (не хватает меньше ~300)
+          const pool = Object.keys(ITEMS).filter(id => allowed(id) && okTier(id) && ITEMS[id].tier >= (slotsLeft >= 3 ? 1 : 2));
+          const goal = this.pickNear(pool, id => val(id) * Math.pow(eff(id), 0.6));
+          if (ITEMS[goal].cost <= gold) pick = goal;
+          else if (ITEMS[goal].cost - gold < 300 && slotsLeft < 3) break;
+          else {
+            const ok = cands.filter(id => okTier(id) && (slotsLeft >= 3 || ITEMS[id].tier >= 2));
             if (!ok.length) break;
             pick = this.pickNear(ok, id => val(id) * Math.sqrt(eff(id)));
-          } else {
-            // слотов мало: каждый на счету — копим на крупный предмет
-            const pool = Object.keys(ITEMS).filter(id => allowed(id) && okTier(id) && ITEMS[id].tier >= 2);
-            const goal = this.pickNear(pool, id => val(id) * Math.pow(eff(id), 0.6));
-            if (ITEMS[goal].cost <= gold) pick = goal; else break;
           }
         } else pick = U.pick(cands);
         acts.push({ buy: pick }); inv.push(pick); gold -= ITEMS[pick].cost;
@@ -482,7 +482,7 @@ const AI = {
         const up = Object.keys(ITEMS).filter(id => ITEMS[id].cost <= gold + refund && !inv.includes(id) && ITEMS[id].cost > ITEMS[worst].cost);
         if (!up.length) break;
         const best = smart ? this.pickNear(up, val) : U.pick(up);
-        if (smart && val(best) < val(worst) * 1.35) break;
+        if (smart && val(best) < val(worst) * 1.15) break;
         if (!smart && U.chance(0.5)) break;
         acts.push({ sell: worst, refund }); inv.splice(inv.indexOf(worst), 1); gold += refund;
         acts.push({ buy: best }); inv.push(best); gold -= ITEMS[best].cost;
@@ -491,5 +491,6 @@ const AI = {
     return acts;
   },
   /* Сколько золота нужно, чтобы поход на базу имел смысл */
-  shopTarget(G, h) { return h.items.length < 6 ? (G.minute < 10 ? 450 : G.minute < 20 ? 1300 : 1900) : 2600; },
+  /* С каким запасом золота имеет смысл идти на базу: раньше — чтобы деньги не лежали без дела */
+  shopTarget(G, h) { return h.items.length < 6 ? (G.minute < 10 ? 400 : G.minute < 20 ? 850 : 1250) : 2600; },
 };

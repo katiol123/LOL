@@ -572,7 +572,8 @@ const UI = {
       this.pendingMove = null; this.pending = null; this.setHint(w.h.prefTarget ? `Приоритетная цель: ${w.h.prefTarget.nick}.` : 'Ход сделан. Цель: нажмите на карточку врага, чтобы сделать его приоритетной.'); w.resolve(mv);
     };
   },
-  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave); },
+  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave);
+    if (me.alive && !me.autopilot && me.hp / me.maxHp < 0.3) this.setHint('⚠ Мало здоровья! ИИ на вашем месте уже отступил бы: нажмите «Отступить» или «На базу».'); },
   setHint(t) { const e = $('#hc-hint'); if (e) e.textContent = t; },
   awaitHumanMove(h) {
     if (h.autopilot) return AI.chooseMove(this.game, h);

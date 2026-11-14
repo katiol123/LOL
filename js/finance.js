@@ -59,15 +59,17 @@ function upgradeFinance(L) { if (!L.clubs[0].mgmt || !L.free) initFinance(L, U.s
 
 /* ---------- Популярность и реклама ---------- */
 function updatePopularity(p, rating, mvp, won) {
-  const gain = (rating - 6.5) * 1.1 + (mvp ? 2.5 : 0) + (won ? 0.4 : 0);
+  const gain = (rating - 6.5) * 1.1 + (mvp ? 1.5 : 0) + (won ? 0.3 : 0);
   const media = 1 + 0.15 * ((p.fac && p.fac.media) || 0);
-  p.popularity = U.clamp((p.popularity || 10) + (gain > 0 ? gain * media : gain) - 0.15, 1, 100);
+  // популярность тянется к «естественному» уровню игрока: без ярких матчей не растёт сама по себе
+  const base = U.clamp(15 + (playerOvr(p) - 9) * 7, 3, 80);
+  p.popularity = U.clamp((p.popularity || 10) + (gain > 0 ? gain * media : gain) - 0.03 * ((p.popularity || 10) - base), 1, 100);
 }
 /* Рекламная сделка: чем популярнее игрок, тем вероятнее и прибыльнее. Деньги идут в бюджет клуба */
 function rollAds(L, p, rng = frng()) {
   if (!p.club || p.ads.length >= 2) return null;
   if (rng() > p.popularity / 750 * (1 + 0.2 * ((p.fac && p.fac.media) || 0))) return null;
-  const ad = { brand: AD_BRANDS[Math.floor(rng() * AD_BRANDS.length)], perSeason: Math.round(20 + p.popularity * (2 + rng() * 3)), until: L.season };
+  const ad = { brand: AD_BRANDS[Math.floor(rng() * AD_BRANDS.length)], perSeason: Math.round(20 + p.popularity * (1 + rng() * 1.5)), until: L.season };
   if (p.ads.some(a => a.brand === ad.brand)) return null;
   p.ads.push(ad);
   return ad;
@@ -90,6 +92,7 @@ function financeTour(L, tourFixtures, rng = frng()) {
     c.ledger.push({ tour: L.tour + 1, season: L.season, sponsor, ads, bonus, wages, net });
     if (c.ledger.length > 40) c.ledger.shift();
     for (const p of roster) {
+      if (p.human && p.contract) p.wallet = (p.wallet || 0) + p.contract.salary / tours;   // зарплата игрока-человека — на личный счёт
       const ad = rollAds(L, p, rng);
       if (ad) news.push({ club: c.id, text: `📺 ${p.nick} подписывает рекламу: ${ad.brand} (+${money(ad.perSeason)} за сезон в бюджет клуба)` });
     }
@@ -144,7 +147,7 @@ function releasePlayer(L, c, p, news, why) {
 
 /* ---------- Пул свободных агентов ---------- */
 function refillFreeAgents(L, rng, min = 16) {
-  const used = new Set([...Object.values(L.players), ...L.free].map(p => p.nick));
+  const used = new Set([...Object.values(L.players), ...L.free].map(p => p.nick.toLowerCase()));
   const roles = ROLE_ORDER;
   let i = 0;
   while (L.free.length < min) {
@@ -180,14 +183,23 @@ function offseason(L, rng = frng()) {
   facUpkeepAll(L, news);
   for (const c of L.clubs) boardReview(L, c, news, rng);
   // развитие игроков: рост и спад характеристик (до переговоров — новые требования считаются от новой силы)
+  // кто растёт, а кто сдаёт, решает успешность сезона (место в рейтинге), а не случай
+  const devKinds = assignDevelopment([...Object.values(L.players), ...L.free], L.schedule.length * 2, p => clubOvr(L, clubById(L, p.club)));
   for (const p of [...Object.values(L.players), ...L.free]) {
-    const dv = developPlayer(p, rng); dv.season = L.season;
+    const dv = developPlayer(p, rng, devKinds.get(p)); dv.season = L.season;
     const c = p.club && clubById(L, p.club);
     if (dv.kind === 'boom' || dv.kind === 'crash' || (p.human && dv.delta)) news.push({ club: c ? c.id : null, text: `${dv.delta > 0 ? '📈' : '📉'} ${p.nick}${c ? ' (' + c.tag + ')' : ''}: ${dv.kind === 'boom' ? 'резкий рост' : dv.kind === 'crash' ? 'резкий спад' : dv.delta > 0 ? 'прибавил' : 'сдал'} — ${dv.delta > 0 ? '+' : ''}${dv.delta} к сумме характеристик` });
   }
   // реклама кончается, игроки взрослеют
   for (const p of [...Object.values(L.players), ...L.free]) { p.ads = (p.ads || []).filter(a => a.until > L.season); p.age = (p.age || 20) + 1; }
   mgmtReview(L, news, rng);
+  // завершение карьеры: с 30 лет шанс растёт с возрастом и при слабой игре (игрок-человек решает сам)
+  for (const c of L.clubs) for (const role of ROLE_ORDER) {
+    const p = L.players[c.roster[role]];
+    if (!p || p.human || (p.age || 20) < 30) continue;
+    const ch = 0.15 + 0.12 * (p.age - 30) + (avgRating(p) < 6 ? 0.15 : 0);
+    if (rng() < ch) { c.roster[role] = null; delete L.players[p.id]; news.push({ club: c.id, text: `🎓 ${p.nick} (${c.tag}, ${p.age} лет) завершает карьеру` }); }
+  }
   // продление контрактов (кроме игрока-человека — он решает сам)
   for (const c of L.clubs) for (const role of ROLE_ORDER) {
     const p = L.players[c.roster[role]];
@@ -259,7 +271,7 @@ const FACILITIES = {
   analytics: { name: 'Аналитический отдел', icon: '📊', desc: 'капитан драфтит грамотнее (+0.7 к интеллекту драфта за уровень)' },
   psych: { name: 'Спортивный психолог', icon: '🧘', desc: 'игроки реже тильтуют (−8% за уровень)' },
   media: { name: 'Медиа-студия', icon: '🎥', desc: 'популярность растёт быстрее, рекламные сделки чаще (+15–20% за уровень)' },
-  academy: { name: 'Академия', icon: '🎓', desc: 'выпускники академии сильнее (+0.4 к уровню за уровень)' },
+  academy: { name: 'Академия', icon: '🎓', desc: 'выпускники академии сильнее (+0.25 к уровню за уровень)' },
 };
 const FAC_PRIORITY = {
   results: ['analytics', 'bootcamp', 'psych', 'media', 'academy'],
@@ -268,7 +280,7 @@ const FAC_PRIORITY = {
   media: ['media', 'psych', 'bootcamp', 'analytics', 'academy'],
 };
 const facCost = lvl => 280 * lvl;          // постройка уровня lvl
-const facUpkeep = lvl => 45 * lvl;         // содержание за сезон
+const facUpkeep = lvl => 25 * lvl * lvl;   // содержание за сезон (растёт быстрее уровня)
 const facLevel = (c, k) => (c.fac && c.fac[k]) || 0;
 /* Игроки «видят» отделы своего клуба в матче (аналитика, психолог) */
 function syncFacilities(L) { for (const c of L.clubs) for (const p of rosterOf(L, c)) if (p) p.fac = Object.assign({}, c.fac || {}); }
@@ -373,12 +385,50 @@ function mgmtAttitude(L, p) {
    65% — сумма характеристик почти не меняется (лёгкое перераспределение), 15% — немного растут, 15% — немного падают,
    5% — резкий рост или спад. Кто растёт, а кто падает — зависит от возраста (молодые чаще растут, ветераны сдают).
    Скрытые параметры (интеллект и требовательность) меняются слабее, обычно в ту же сторону. */
-function developPlayer(p, rng = frng()) {
-  const r = rng(), age = p.age || 22;
-  const upChance = U.clamp(0.5 + (23 - age) * 0.06, 0.15, 0.85);
-  let total = 0, kind = 'stable';
-  if (r < 0.05) { total = (6 + Math.floor(rng() * 5)) * (rng() < upChance ? 1 : -1); kind = total > 0 ? 'boom' : 'crash'; }
-  else if (r < 0.35) { total = (2 + Math.floor(rng() * 3)) * (rng() < upChance ? 1 : -1); kind = total > 0 ? 'up' : 'down'; }
+/* Успешность сезона: насколько средняя оценка выше ожидаемой для уровня силы игрока (вес растёт с числом сыгранных матчей), MVP,
+   небольшая поправка на возраст (молодые прогрессируют быстрее, ветераны быстрее сдают) */
+function seasonSuccess(p, tours, expected = 6.5) {
+  const g = p.season ? p.season.games : 0;
+  const age = p.age || 22;
+  // молодые прогрессируют быстрее; после 28 лет спад ускоряется
+  const ageAdj = U.clamp((23 - age) * 0.04 - Math.max(0, age - 28) * 0.08, -0.7, 0.25);
+  if (!g) return -0.2 + ageAdj;                                   // не играл — без практики
+  const conf = Math.min(1, g / Math.max(8, tours * 1.2));         // мало игр — результат весит меньше
+  return (avgRating(p) - expected) * conf + ageAdj;
+}
+/* Место в рейтинге успешности → тип развития: лучшие 2.5% — резкий рост, следующие 15% — рост,
+   середина 65% — стабильно, 15% снизу — спад, худшие 2.5% — резкий спад */
+function assignDevelopment(players, tours, L_OF = () => 10) {
+  // ожидаемая оценка по силе игрока и силе его клуба (регрессия по всей лиге): в зачёт идёт только превышение ожиданий,
+  // иначе сильные игроки и игроки сильных клубов всегда росли бы, а слабые — падали
+  const teamOf = p => { const c = p.club && L_OF(p); return c ? c : 10; };
+  const pl = players.filter(p => p.season && p.season.games >= 6);
+  let coef = [6.5, 0, 0];
+  if (pl.length > 12) {
+    const X = pl.map(p => [1, playerOvr(p), teamOf(p)]), Y = pl.map(avgRating);
+    // нормальные уравнения 3×3
+    const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], B = [0, 0, 0];
+    X.forEach((x, n) => { for (let i = 0; i < 3; i++) { B[i] += x[i] * Y[n]; for (let k = 0; k < 3; k++) A[i][k] += x[i] * x[k]; } });
+    for (let i = 0; i < 3; i++) A[i][i] += 1e-6;
+    const M = A.map((r, i) => [...r, B[i]]);
+    for (let i = 0; i < 3; i++) { let piv = i; for (let r = i + 1; r < 3; r++) if (Math.abs(M[r][i]) > Math.abs(M[piv][i])) piv = r; [M[i], M[piv]] = [M[piv], M[i]]; for (let r = 0; r < 3; r++) if (r !== i) { const f = M[r][i] / M[i][i]; for (let k = i; k < 4; k++) M[r][k] -= f * M[i][k]; } }
+    coef = M.map((r, i) => r[3] / r[i]);
+  }
+  const expected = p => coef[0] + coef[1] * playerOvr(p) + coef[2] * teamOf(p);
+  const ranked = players.map(p => ({ p, s: seasonSuccess(p, tours, expected(p)) })).sort((x, y) => y.s - x.s);
+  const n = ranked.length, out = new Map();
+  ranked.forEach((x, i) => {
+    const q = (i + 0.5) / n;
+    out.set(x.p, q < 0.025 ? 'boom' : q < 0.175 ? 'up' : q < 0.825 ? 'stable' : q < 0.975 ? 'down' : 'crash');
+  });
+  return out;
+}
+function developPlayer(p, rng = frng(), forced) {
+  let total = 0, kind = forced || 'stable';
+  if (kind === 'boom') total = 6 + Math.floor(rng() * 5);
+  else if (kind === 'crash') total = -(6 + Math.floor(rng() * 5));
+  else if (kind === 'up') total = 2 + Math.floor(rng() * 3);
+  else if (kind === 'down') total = -(2 + Math.floor(rng() * 3));
   const before = U.sum(STAT_KEYS, k => p.stats[k]);
   // перераспределение: у «стабильных» одна характеристика может уйти в другую
   if (kind === 'stable' && rng() < 0.5) {
@@ -445,8 +495,8 @@ function fillVacancy(L, c, role, news, rng = frng(), allowBuy = true, why) {
     signPlayer(L, c, bestFA, Math.min(playerDemand(bestFA), mgmtMaxOffer(L, c, bestFA)), 1 + Math.floor(rng() * 2), news, why || 'из свободных агентов');
     return;
   }
-  const used = new Set([...Object.values(L.players), ...L.free].map(x => x.nick));
-  const p = genLeaguePlayer(rng, used, role, 8.6 + 0.4 * facLevel(c, 'academy') + rng() * 1.6);
+  const used = new Set([...Object.values(L.players), ...L.free].map(x => x.nick.toLowerCase()));
+  const p = genLeaguePlayer(rng, used, role, 8.4 + 0.25 * facLevel(c, 'academy') + rng() * 1.2);
   p.age = 18; assignMastery(rng, [p]); initPlayerFinance(L, p, rng); L.free.push(p);
   signPlayer(L, c, p, playerValue(p) * 0.8, 2, news, 'выпускник академии');
 }

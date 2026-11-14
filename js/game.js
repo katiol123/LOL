@@ -1013,7 +1013,9 @@ class Game {
 
     // 4a. Сигналы, отправленные человеком (тем же механизмом, что и у ИИ)
     for (const q of (this.humanQueue || []).splice(0)) {
-      if (q.type === 'obj') { const npc = q.data.kind === 'baron' ? this.baron : this.dragon; const sig = this.signal(q.h, 'obj', { kind: npc.kind }); if (sig) { this.teams[q.h.team].pressure += 10 * sm(0.05, q.h, 'team'); for (const x of this.teams[q.h.team].heroes) if (x !== q.h && this.free(x)) { const r = await this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; } this.announce(sig); } }
+      if (q.type === 'obj') { const npc = q.data.kind === 'baron' ? this.baron : this.dragon; const thr = npc.kind === 'baron' ? 150 : 100;
+        if (!npc.alive || this.minute < npc.retryAt || this.teams[q.h.team].pressure < thr * 0.75) { this.ui.float(q.h, npc.alive ? 'Рано: мало давления на карте' : 'Монстра нет', '#aaa'); continue; }
+        const sig = this.signal(q.h, 'obj', { kind: npc.kind }); if (sig) { this.teams[q.h.team].pressure += 10 * sm(0.05, q.h, 'team'); for (const x of this.teams[q.h.team].heroes) if (x !== q.h && this.free(x)) { const r = await this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; } this.announce(sig); } }
     }
 
     // 4b. Сигнал «Давим линию»: соперники по линии мертвы, башня стоит

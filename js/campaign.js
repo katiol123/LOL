@@ -269,7 +269,7 @@ const Campaign = {
     $('#hub-meta').innerHTML = this.patchHTML(false);
     $('#hub-meta').onclick = () => this.openView({ type: 'patch', id: this.L.patch.name });
     // мой игрок
-    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
+    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}<div class="muted" style="margin:4px 0">💼 Личный счёт: <b>${money(me.wallet || 0)}</b>${me.contract ? ` · зарплата ${money(me.contract.salary)}/сезон до конца сезона ${me.contract.until}` : ' · без контракта'}</div>${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
     // состав
     $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба</div>${rosterOf(L, club).map(p => playerRow(L, p, { last: true })).join('')}`;
     // результаты прошлого тура
@@ -463,16 +463,18 @@ const Campaign = {
       <div class="offer-big">${money(n.salary)} <small>за сезон · на ${n.years} сезона</small></div>
       <p class="muted">Ваша популярность ${Math.round(me.popularity)}, рыночная стоимость около ${money(playerValue(me))}.</p>
       ${n.msg ? `<p class="cd-note">${n.msg}</p>` : ''}
-      <div class="title-actions"><button class="btn primary" id="ct-sign">✍ Подписать</button>${n.asked ? '' : '<button class="btn" id="ct-more">💬 Потребовать +15%</button>'}<button class="btn" id="ct-leave">🚪 Уйти в свободные агенты</button></div></div>`;
+      <div class="title-actions">${n.withdrawn ? '' : '<button class="btn primary" id="ct-sign">✍ Подписать</button>'}${n.asked ? '' : '<button class="btn" id="ct-more">💬 Потребовать +15%</button>'}<button class="btn" id="ct-leave">🚪 Уйти в свободные агенты</button></div></div>`;
   },
   bindContract(root) {
     const L = this.L, me = L.players[L.humanId], n = this.nego;
-    root.querySelector('#ct-sign').onclick = () => { me.contract = { salary: n.salary, until: L.season + n.years }; this.addNews([{ club: me.club, text: `🖊 ${me.nick} продлевает контракт с клубом: ${money(n.salary)} за сезон` }], 'Ваш контракт'); this.finishOffseason(); };
+    if (root.querySelector('#ct-sign')) root.querySelector('#ct-sign').onclick = () => { me.contract = { salary: n.salary, until: L.season + n.years }; this.addNews([{ club: me.club, text: `🖊 ${me.nick} продлевает контракт с клубом: ${money(n.salary)} за сезон` }], 'Ваш контракт'); this.finishOffseason(); };
     const more = root.querySelector('#ct-more');
     if (more) more.onclick = () => {
       n.asked = true;
       const want = Math.round(n.salary * 1.15);
-      if (want <= n.max || Math.random() < me.popularity / 200) { n.salary = want; n.msg = '✅ Руководство соглашается на ваши условия.'; }
+      // руководство соглашается, только если сумма в пределах того, что оно готово платить; иначе может и отозвать предложение
+      if (want <= n.max) { n.salary = want; n.msg = '✅ Руководство соглашается на ваши условия.'; }
+      else if (Math.random() < 0.35) { n.withdrawn = true; n.msg = '❌ Руководство обиделось и отозвало предложение. Придётся искать новый клуб.'; }
       else n.msg = '❌ Руководство отказывается поднимать сумму: это их последнее слово.';
       this.renderView();
     };

@@ -243,9 +243,9 @@ function applyPatch(L) {
     const s = old.stats[d.id] || { g: 0, w: 0, b: 0 };
     const wr = heroWr(s);
     let eff = 0, key = null, delta = 0;
-    if (s.g >= 12 && Math.abs(wr - 0.5) > 0.03) {
-      // нужная правка в «силе героя»: перекос винрейта с запасом на случайность, от 2 до 6%
-      let need = -U.clamp((wr - 0.5) * 70 / PATCH_WR_PER_PCT, -6, 6) / 100;
+    // правка только если перекос больше двух статистических погрешностей; чем меньше игр — тем осторожнее
+    if (s.g >= 30 && Math.abs(s.w / s.g - 0.5) > 2 * Math.sqrt(0.25 / s.g) && Math.abs(wr - 0.5) > 0.02) {
+      let need = -U.clamp((wr - 0.5) * 70 / PATCH_WR_PER_PCT * (s.g / (s.g + 60)) * 1.5, -6, 6) / 100;
       if (Math.abs(need) < 0.02) need = 0.02 * Math.sign(need);
       // в ~30% случаев правят не базовые характеристики, а Q, ульту или пассивку (часть набора — шаг крупнее)
       key = rng() < 0.7 ? 'stat' : ['q', 'r', 'p'][Math.floor(rng() * 3)];
