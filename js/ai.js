@@ -171,6 +171,16 @@ const AI = {
     return U.clamp(((iq.team || 10) + (iq.tactic || 10)) / 2 + 0.2 * (((cap.stats && cap.stats.read) || 10) - 10) + 0.7 * ((cap.fac && cap.fac.analytics) || 0), 1, 24);
   },
   metaOf(id) { return (typeof HERO_META !== 'undefined' && HERO_META[id]) || null; },
+  /* Сила героя в мете для хорошего драфтера: оценка на начало патча + сглаженный винрейт текущего патча
+     (чем больше игр в патче, тем больше вес живой статистики). Возвращает { score, wr, g } или null */
+  metaStrength(id) {
+    const mt = this.metaOf(id), live = typeof HERO_LIVE !== 'undefined' && HERO_LIVE ? HERO_LIVE[id] : null;
+    if (!mt && !(live && live.g >= 6)) return null;
+    const g = live ? live.g : 0, lwr = live && g ? (live.w + 10) / (g + 20) : 0.5;
+    const wl = U.clamp(g / 40, 0, 0.7);
+    const score = (mt ? mt.score : 0) * (1 - wl) + (lwr - 0.5) * wl;
+    return { score, wr: g ? live.w / g : (mt ? mt.wr : 0.5), g, tier: mt ? mt.tier : null };
+  },
   patchOf(id) { return patchMod(id, 'stat'); },
   /* Связки и контрпики выверены на симуляциях (tests/draft-fit.js и замеры составов):
      в этой игре решает постоянный урон, танк держит стрелка, против лечения и танков есть явные ответы. */
@@ -225,7 +235,9 @@ const AI = {
     // мета и патч: умный капитан смотрит на винрейт, слабый — на популярность
     const mt = this.metaOf(def.id);
     if (mt) {
-      if (D >= 9) { if (Math.abs(mt.score) > 0.012) s += add(mt.score * 70 * aw, mt.score > 0 ? '📈' : '📉', mt.score > 0 ? `мета ${mt.tier}-тир · винрейт ${Math.round(mt.wr * 100)}%` : `вне меты (${mt.tier}-тир)`, mt.score > 0 ? 'meta' : 'bad'); }
+      // хороший драфтер чаще берёт сильных в текущем патче и реже — слабых
+      const ms = this.metaStrength(def.id);
+      if (D >= 9 && ms) { if (Math.abs(ms.score) > 0.012) s += add(ms.score * 95 * aw, ms.score > 0 ? '📈' : '📉', ms.score > 0 ? `сильный в патче · винрейт ${Math.round(ms.wr * 100)}%${ms.g ? ` (${ms.g} игр)` : ''}` : `слаб в текущем патче (винрейт ${Math.round(ms.wr * 100)}%)`, ms.score > 0 ? 'meta' : 'bad'); }
       else if (mt.pr > 0.5) s += add(1.5, '🔥', 'популярный герой', 'meta');
       const pd = mt.lastDelta || 0;
       const pk = mt.lastKey && mt.lastKey !== 'stat' ? ` (${{ q: 'Q', r: 'ульта', p: 'пассивка' }[mt.lastKey]})` : '';
@@ -279,7 +291,13 @@ const AI = {
       if (thr.filter(x => x.v > 8).length >= 2 && D >= 11) s += add(1.5 * ck, '♟', 'сразу двое соперников могут на нём играть', 'threat');
       const mt = this.metaOf(d.id);
       if (mt) {
-        if (D >= 9) { if (mt.score > 0.012) s += add(mt.score * 90 * aw, '📈', `мета ${mt.tier}-тир · винрейт ${Math.round(mt.wr * 100)}%`, 'meta'); }
+        const ms = this.metaStrength(d.id);
+        if (D >= 9 && ms && ms.score > 0.012) {
+          // сильного в патче героя банит, если сам брать не собирается (никому из своих он не подходит)
+          const ownFit = Math.max(0, ...players[t].filter(p => !picks[t].some(x => x.pl === p)).map(p => [0, 0, 3, 5][d.fit[p.role]] + masteryOf(p, d.id) * 0.5));
+          const willTake = D >= 12 && ownFit >= 7;   // родная роль и мастерство у своего игрока — возьмём сами
+          if (!willTake) s += add(ms.score * 110 * aw, '📈', `сильный в патче (винрейт ${Math.round(ms.wr * 100)}%) — не отдать сопернику`, 'meta');
+        }
         else if (mt.pr > 0.45) s += add(mt.pr * 5, '🔥', 'все его берут', 'meta');
         if ((mt.lastDelta || 0) >= 0.02 && D >= 8) s += add(1.5 * aw, '⬆', `только что усилен (патч ${mt.patch}${mt.lastKey && mt.lastKey !== 'stat' ? ', ' + { q: 'Q', r: 'ульта', p: 'пассивка' }[mt.lastKey] : ''})`, 'patch');
       }

@@ -284,8 +284,9 @@ function applyPatch(L) {
 }
 /* Включить патч и мету лиги в игре (null — сбросить для быстрых матчей) */
 function applyLeagueMeta(L) {
-  HERO_PATCH = {}; HERO_META = {};
+  HERO_PATCH = {}; HERO_META = {}; HERO_LIVE = {};
   if (!L || !L.patch) return;
+  HERO_LIVE = L.patch.stats;   // та же ссылка: статистика пополняется по ходу патча
   Object.assign(HERO_PATCH, L.patch.mods);
   Object.assign(HERO_META, L.patch.meta);
 }

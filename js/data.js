@@ -843,6 +843,8 @@ for (const h of HEROES) { h.fit = HERO_FIT[h.id].fit; h.tags = HERO_FIT[h.id].ta
    Вне кампании пусты. Заполняются из лиги функцией applyLeagueMeta. */
 var HERO_PATCH = {};
 var HERO_META = {};
+/* Живая статистика текущего патча (игры и победы героев) — ссылка на статистику лиги */
+var HERO_LIVE = {};
 /* Правка героя в патче: stat — сила героя (здоровье, атака, сила умений), q/r — сила умений, p — пассивка */
 function patchMod(id, key) { const m = HERO_PATCH[id]; if (!m) return 0; if (typeof m === 'number') return key === 'stat' ? m : 0; return m[key] || 0; }
 const PATCH_KEYS = { stat: 'сила героя', q: 'умение Q', r: 'ульта', p: 'пассивка' };
