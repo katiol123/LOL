@@ -347,6 +347,7 @@ const Campaign = {
         series: { idx: gi, homeName: home.name, awayName: away.name, homeSide, prev: f.games.map(g => g.winner) },
         onResult: g => applyGame(L, f, g, homeSide),
         continueLabel: gi === 0 ? 'Игра 2 серии →' : last ? 'Итоги тура →' : 'Следующая серия →',
+        control: [home, away].some(c => rosterOf(L, c).some(p => p && p.human)),   // ручное управление своим игроком
       };
       await App.playMatch(players, meta);
     }

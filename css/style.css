@@ -897,3 +897,25 @@ html, body, #app { overflow: clip; }
 .att-fire { color: #ff9aa8; background: rgba(255,84,104,.12); border-color: #ff5468; animation: pulse 1.6s infinite; }
 .att-i { font-size: 12px; margin-left: 3px; cursor: help; }
 .dev { margin: 4px 0; font-size: 13px; } .dev.pos { color: #6ff59a; } .dev.neg { color: #ff8a98; }
+
+/* ---------- Ручное управление ---------- */
+.hctl { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(255,201,60,.06); border: 1px solid rgba(255,201,60,.3); font-size: 12px; }
+.hc-title { font-weight: 700; color: var(--gold, #ffc93c); margin-bottom: 4px; }
+.hc-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+.hc-btns .btn.on { background: rgba(255,201,60,.25); border-color: #ffc93c; }
+.hc-hint { margin-top: 5px; color: var(--muted); }
+.hero-card.targetable { cursor: crosshair; }
+.hero-card.pref { box-shadow: 0 0 0 2px #ff5468, 0 0 18px rgba(255,84,104,.6) !important; }
+#feature-wrap { position: relative; }
+.decide { position: absolute; left: 6px; right: 6px; top: 64px; z-index: 30; padding: 12px 14px; border-radius: 12px; background: rgba(10,14,28,.95); border: 1px solid rgba(255,201,60,.55); box-shadow: 0 10px 40px rgba(0,0,0,.6); animation: dcin .3s ease-out; max-height: 70%; overflow-y: auto; }
+.dc-t { font-family: var(--title); font-size: 18px; color: var(--gold, #ffc93c); margin-bottom: 4px; }
+.dc-x { font-size: 13px; margin-bottom: 8px; }
+.dc-o { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15); color: inherit; cursor: pointer; }
+.shop-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 6px 0 8px; }
+.shop-it { display: grid; grid-template-columns: 24px 1fr; gap: 0 6px; text-align: left; padding: 5px 7px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: inherit; cursor: pointer; font-size: 12px; }
+.shop-it span { grid-row: span 2; font-size: 18px; } .shop-it small { color: var(--muted); font-size: 10px; }
+.shop-it:hover { border-color: #ffc93c; }
+.shop-it.t3 { border-color: rgba(185,140,255,.4); } .shop-it.t4 { border-color: rgba(255,107,154,.5); }
+.pool-card.pickable { cursor: pointer; box-shadow: 0 0 0 1px rgba(255,201,60,.5); }
+.pool-card.pickable:hover { box-shadow: 0 0 0 2px #ffc93c, 0 0 20px rgba(255,201,60,.5); transform: translateY(-3px); }

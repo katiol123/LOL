@@ -135,7 +135,7 @@ const App = {
     await new Promise(r => setTimeout(r, 100));
     $('#screen-vs').classList.add('go');
     await new Promise(r => setTimeout(r, 3400));
-    this.game = new Game(picks.blue, picks.red, UI, { names: meta.names, colors: meta.colors, bans: picks.bans });
+    this.game = new Game(picks.blue, picks.red, UI, { names: meta.names, colors: meta.colors, bans: picks.bans, human: !!meta.control });
     await this.show('screen-game');
     UI.init(this.game);
     requestAnimationFrame(() => UI.resize());

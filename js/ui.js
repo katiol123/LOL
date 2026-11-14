@@ -99,6 +99,7 @@ const UI = {
     this.resize();
     this.view = game.heroes[0];
     this.renderHead(this.view);
+    this.initHuman(game);
   },
 
   buildCard(h) {
@@ -371,7 +372,7 @@ const UI = {
     const lg = $('#log'); lg.prepend(e);
     while (lg.children.length > 80) lg.lastChild.remove();
   },
-  roundStart(G) { this.turnCount = 0; this.epKey = ''; },
+  roundStart(G) { this.turnCount = 0; this.epKey = ''; this.syncHuman(); },
   roundEnd(G) {
     const gd = U.sum(G.teams.blue.heroes, h => h.totalGold) - U.sum(G.teams.red.heroes, h => h.totalGold);
     this.advHist.push(gd);
@@ -524,7 +525,118 @@ const UI = {
     FX.burst(b.left + b.width / 2, b.top + b.height / 2, color || '#fff', 20, 160);
   },
   gameOver(G) { setTimeout(() => App.showEnd(G), 1800 / Math.max(1, Clock.speed)); },
-  awaitHumanMove(h) { return AI.chooseMove(this.game, h); },
+  /* =================== Ручное управление игроком-человеком ===================
+     Человек принимает ровно те решения, что и ИИ: ходы на поле, умение (или без умения), приоритетная цель,
+     ответы на призывы, свои сигналы, возврат на базу, отступление, роум/ганг, защита башни, закупка. */
+  initHuman(game) {
+    const me = game.heroes.find(h => h.ctrl === 'human');
+    this.human = me || null;
+    $('#hctl') && $('#hctl').remove(); $('#decide') && $('#decide').remove();
+    if (!me) return;
+    const bar = el('div', 'hctl', `<div class="hc-title">🎮 Вы: ${U.esc(me.nick)} · ${me.name}</div>
+      <div class="hc-btns"><button class="btn small" id="hc-recall" title="Вернуться на базу в начале следующей минуты (закупка)">🏠 На базу</button>
+      <button class="btn small" id="hc-leave" title="Выйти из затяжной драки и позвать союзников отступить">🏃 Отступить</button>
+      <button class="btn small" id="hc-drake" title="Позвать команду на Дракона">📣 Дракон</button>
+      <button class="btn small" id="hc-baron" title="Позвать команду на Барона">📣 Барон</button>
+      <button class="btn small" id="hc-auto" title="Отдать управление ИИ (и вернуть)">🤖 Автопилот: выкл</button></div>
+      <div class="hc-hint" id="hc-hint">Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.</div>`);
+    bar.id = 'hctl';
+    $('#feature-wrap').appendChild(bar);
+    const dec = el('div', 'decide'); dec.id = 'decide'; dec.hidden = true; $('#feature-wrap').appendChild(dec);
+    $('#hc-recall').onclick = () => { me.wantRecall = !me.wantRecall; $('#hc-recall').classList.toggle('on', me.wantRecall); };
+    $('#hc-leave').onclick = () => { me.wantLeave = !me.wantLeave; $('#hc-leave').classList.toggle('on', me.wantLeave); };
+    $('#hc-drake').onclick = () => game.humanSignal(me, 'obj', { kind: 'dragon' });
+    $('#hc-baron').onclick = () => game.humanSignal(me, 'obj', { kind: 'baron' });
+    $('#hc-auto').onclick = () => { me.autopilot = !me.autopilot; $('#hc-auto').textContent = `🤖 Автопилот: ${me.autopilot ? 'вкл' : 'выкл'}`; if (me.autopilot && this.pending) this.pending.auto(); };
+    // приоритетная цель — клик по карточке врага
+    for (const h of game.heroes) if (h.team !== me.team) {
+      const r = this.cards.get(h.id);
+      r.c.classList.add('targetable');
+      r.c.addEventListener('click', () => { me.prefTarget = me.prefTarget === h ? null : h; for (const x of game.heroes) { const q = this.cards.get(x.id); q.c.classList.toggle('pref', me.prefTarget === x); } $('#hc-hint').textContent = me.prefTarget ? `Приоритетная цель: ${me.prefTarget.nick} (${me.prefTarget.name}). Достаётся, если её не прикрывает передовая — как и у ИИ.` : 'Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.'; });
+    }
+    // ходы — клик по клеткам своего поля
+    const cv = $('#feature');
+    cv.onclick = e => {
+      const w = this.pendingMove; if (!w) return;
+      const rect = cv.getBoundingClientRect(), fs = rect.width, cell = fs / N, st = this.featStrip || 0;
+      const c = Math.floor((e.clientX - rect.left) / cell), r = Math.floor((e.clientY - rect.top - st) / cell);
+      if (r < 0 || r >= N || c < 0 || c >= N) return;
+      const k = r * N + c;
+      if (this.select == null) { this.select = k; return; }
+      const r0 = kr(this.select), c0 = kc(this.select);
+      if (Math.abs(r0 - r) + Math.abs(c0 - c) !== 1) { this.select = k; return; }
+      const blind = !AI.seesFog(w.h);
+      const mv = w.h.board.listMoves(blind).find(m => (m.r === r0 && m.c === c0 && m.r2 === r && m.c2 === c) || (m.r === r && m.c === c && m.r2 === r0 && m.c2 === c0));
+      this.select = null;
+      if (!mv) { w.h.board.shake = 0.5; sfx('swap'); this.setHint('Такой обмен не даёт совпадения (или камень скрыт туманом/льдом).'); return; }
+      this.pendingMove = null; this.pending = null; this.setHint(w.h.prefTarget ? `Приоритетная цель: ${w.h.prefTarget.nick}.` : 'Ход сделан. Цель: нажмите на карточку врага, чтобы сделать его приоритетной.'); w.resolve(mv);
+    };
+  },
+  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave); },
+  setHint(t) { const e = $('#hc-hint'); if (e) e.textContent = t; },
+  awaitHumanMove(h) {
+    if (h.autopilot) return AI.chooseMove(this.game, h);
+    this.view = h; this.renderHead(h);
+    this.setHint('🎯 Ваш ход: выберите два соседних камня на поле.');
+    return new Promise(resolve => {
+      this.pendingMove = { h, resolve };
+      this.pending = { auto: () => { this.pendingMove = null; this.pending = null; resolve(AI.chooseMove(this.game, h)); } };
+    });
+  },
+  awaitHumanSkill(h, after) {
+    if (h.autopilot) return Promise.resolve(AI.chooseSkill(this.game, h, after));
+    const G = this.game;
+    const can = ['q', 'r'].filter(k => G.canCast(h, k));
+    if (!can.length) return Promise.resolve(null);
+    const t = G.enemiesIn(h).length ? (h.prefTarget && G.enemiesIn(h).includes(h.prefTarget) ? h.prefTarget.nick : 'ближайший (передовая)') : null;
+    return this.decide(h, { title: after ? '✨ Умение после хода' : '✨ Умение перед ходом', text: `Мана ${Math.round(h.mana)}/${h.maxMana}.${t ? ' Цель умений: ' + t + '.' : ''}`,
+      options: [...can.map(k => ({ id: k, label: `${h.def[k].icon} ${k.toUpperCase()} · ${h.def[k].name} (${h.def[k].cost} маны)`, title: h.def[k].desc })), { id: 'none', label: 'Без умения' }], def: AI.chooseSkill(G, h, after) || 'none' })
+      .then(k => (k === 'none' ? null : k));
+  },
+  /* Окно решения: варианты — те же, что рассматривает ИИ */
+  decide(h, q) {
+    const box = $('#decide');
+    if (!box || Clock.headless) return Promise.resolve(q.def);
+    box.innerHTML = `<div class="dc-t">${q.title}</div>${q.text ? `<div class="dc-x">${q.text}</div>` : ''}<div class="dc-o">${q.options.map(o => `<button class="btn ${o.id === 'none' || o.id === 'no' || o.id === 'wait' || o.id === 'decline' ? '' : 'primary'} small" data-o="${o.id}" ${o.title ? `title="${U.esc(o.title)}"` : ''}>${o.label}</button>`).join('')}</div>`;
+    box.hidden = false;
+    sfx('draft', { n: 3 });
+    return new Promise(resolve => {
+      const done = v => { box.hidden = true; this.pending = null; resolve(v); };
+      this.pending = { auto: () => done(q.def) };
+      box.querySelectorAll('[data-o]').forEach(b => b.onclick = () => done(b.dataset.o));
+    });
+  },
+  /* Призыв союзника: принять или нет (успеет ли сразу — тот же бросок, что у ИИ) */
+  askSignal(h, sig) {
+    const names = { help: 'просит помочь', obj: 'зовёт на объект', push: 'зовёт давить линию', retreat: 'зовёт отступать' };
+    return this.decide(h, { title: '📣 Сигнал', text: `${U.esc(sig.from.nick)} (${sig.from.name}) ${names[sig.type] || 'зовёт'}${sig.data.lane ? ' — ' + sig.data.lane.toUpperCase() : ''}${sig.data.kind ? ' — ' + (sig.data.kind === 'baron' ? 'Барон' : 'Дракон') : ''}.`,
+      options: [{ id: 'yes', label: '✅ Иду' }, { id: 'decline', label: '❌ Нет' }], def: AI.respondSignal(this.game, h, sig).accept ? 'yes' : 'decline' })
+      .then(v => ({ accept: v === 'yes', fast: false }));
+  },
+  /* Закупка на базе: те же предметы и правила, что у ИИ */
+  humanShop(h) {
+    const G = this.game, box = $('#decide');
+    if (!box || Clock.headless) return Promise.resolve(AI.shop(G, h));
+    const acts = []; let gold = h.gold; const inv = h.items.slice();
+    const allowed = id => inv.filter(x => x === id).length < (ITEMS[id].tier === 1 ? 2 : 1);
+    return new Promise(resolve => {
+      const finish = list => { box.hidden = true; this.pending = null; resolve(list); };
+      this.pending = { auto: () => finish(AI.shop(G, h)) };
+      const draw = () => {
+        const buyable = Object.keys(ITEMS).filter(id => ITEMS[id].cost <= gold && allowed(id) && (inv.length < 6)).sort((a, b) => ITEMS[a].cost - ITEMS[b].cost);
+        box.innerHTML = `<div class="dc-t">🛒 Магазин · 💰 ${Math.round(gold)}</div>
+          <div class="dc-x">Инвентарь (${inv.length}/6): ${inv.map((id, i) => `<button class="chip-btn" data-sell="${i}" title="Продать за ${Math.round(ITEMS[id].cost * 0.6)}">${ITEMS[id].icon} ${ITEMS[id].name} ✕</button>`).join(' ') || '—'}</div>
+          <div class="shop-list">${buyable.map(id => `<button class="shop-it t${ITEMS[id].tier}" data-buy="${id}" title="${U.esc(itemDesc(id))}"><span>${ITEMS[id].icon}</span><b>${ITEMS[id].name}</b><small>${ITEMS[id].cost} · ${itemDesc(id)}</small></button>`).join('') || '<div class="muted">Не хватает золота или нет мест</div>'}</div>
+          <div class="dc-o"><button class="btn primary small" id="sh-done">Готово</button><button class="btn small" id="sh-ai">Закупиться как ИИ</button></div>`;
+        box.hidden = false;
+        box.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const id = b.dataset.buy; acts.push({ buy: id }); inv.push(id); gold -= ITEMS[id].cost; draw(); });
+        box.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => { const id = inv[+b.dataset.sell]; const refund = Math.round(ITEMS[id].cost * 0.6); acts.push({ sell: id, refund }); inv.splice(+b.dataset.sell, 1); gold += refund; draw(); });
+        $('#sh-done').onclick = () => finish(acts);
+        $('#sh-ai').onclick = () => finish(AI.shop(G, h));
+      };
+      draw();
+    });
+  },
 };
 
 /* ---------- Драфт ---------- */
@@ -568,6 +680,28 @@ const Draft = {
     const m = AI.metaOf(d.id);
     return (m ? `<span class="tier-badge t${m.tier}" title="Мета: ${m.tier}-тир">${m.tier}</span>` : '') + (m && m.lastDelta ? `<span class="patch-arrow ${m.lastDelta > 0 ? 'up' : 'dn'}" title="${m.lastDelta > 0 ? 'Усилен' : 'Ослаблен'} в патче ${m.patch}">${m.lastDelta > 0 ? '▲' : '▼'}</span>` : '');
   },
+  /* Ход капитана-человека в драфте: выбрать героя (и кому из своих игроков он достанется) */
+  humanDraftStep(players, picks, taken, t, ban, cards, names) {
+    const sugg = ban ? AI.draftBan(players, picks, taken, t, () => 0.5) : AI.draftPick(players, picks, taken, t, () => 0.5);
+    $('#draft-sub').textContent = ban ? 'Вы капитан: выберите героя для бана' : 'Вы капитан: выберите героя для своей команды';
+    return new Promise(resolve => {
+      const off = () => { for (const [, c] of cards) { c.classList.remove('pickable'); c.onclick = null; } };
+      for (const [id, c] of cards) {
+        if (taken.has(id)) continue;
+        c.classList.add('pickable');
+        c.onclick = () => {
+          const def = HEROES.find(h => h.id === id);
+          if (ban) { off(); resolve({ ban: true, team: t, def, cap: sugg.cap, parts: [{ v: 1, ic: '🎮', t: 'решение капитана', cls: 'gut' }], reason: 'решение капитана' }); return; }
+          const done = new Set(picks[t].map(p => p.pl));
+          const left = players[t].filter(p => !done.has(p));
+          $('#draft-detail').innerHTML = `<div class="dcall pick ${t}"><div class="dc-face">${heroFace(def)}</div><div class="dc-main"><div class="dc-k">КОМУ ОТДАТЬ ${def.name.toUpperCase()}?</div><div class="dc-why">${left.map((p, i) => `<button class="btn small" data-pl="${i}">${U.esc(p.nick)} · ${ROLES[p.role].short} ${fitStars(def.fit[p.role])}${masteryOf(p, def.id) ? ' ✦' + masteryOf(p, def.id) : ''}</button>`).join('')}<button class="btn small" data-back="1">← другой герой</button></div></div></div>` + this.heroCard(def);
+          $('#draft-detail').querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { off(); const pl = left[+b.dataset.pl]; const ev = AI.draftEval(pl, pl.role, def, picks[t].map(p => p.def), [], () => 0, { D: 10 }); resolve({ pl, role: pl.role, def, team: t, cap: sugg.cap, parts: [{ v: 9, ic: '🎮', t: 'решение капитана', cls: 'gut' }, ...AI.topReasons(ev.parts, 2)], reason: 'решение капитана' }); });
+          $('#draft-detail').querySelector('[data-back]').onclick = () => { $('#draft-detail').innerHTML = ''; };
+        };
+      }
+      $('#draft-detail').innerHTML = `<p class="cd-note">🎮 Вы — капитан. Подсказка аналитиков: <b>${sugg.def.name}</b> (${U.esc(sugg.reason)}). Нажмите на героя в пуле.</p>`;
+    });
+  },
   /* players: { blue: [5 игроков], red: [...] }, meta: { names, colors } */
   async run(players, meta = {}) {
     const names = meta.names || { blue: 'Синие', red: 'Красные' };
@@ -608,7 +742,9 @@ const Draft = {
       po.forEach((x, j) => { x.classList.toggle('cur', j === i); x.classList.toggle('done', j < i); });
       $('#draft-phase').textContent = `${names[t]} ${ban ? 'банят' : 'выбирают'}`;
       $('#draft-phase').style.color = t === 'blue' ? 'var(--blue)' : 'var(--red)';
-      const step = ban ? AI.draftBan(players, picks, taken, t) : AI.draftPick(players, picks, taken, t);
+      // капитан-человек сам банит и выбирает (как капитан-ИИ); иначе решает капитан-ИИ
+      const humanCap = meta.control && caps[t].human;
+      const step = humanCap ? await this.humanDraftStep(players, picks, taken, t, ban, cards, names) : ban ? AI.draftBan(players, picks, taken, t) : AI.draftPick(players, picks, taken, t);
       const slot = ban ? null : slots[t].get(step.pl);
       if (slot) slot.classList.add('picking');
       $('#draft-sub').textContent = ban ? `Капитан ${caps[t].nick} выбирает бан…` : `${step.pl.nick} (${ROLES[step.role].name}) выбирает героя…`;

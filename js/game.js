@@ -109,6 +109,8 @@ class Game {
       if (opts.names && opts.names[t]) this.teams[t].name = opts.names[t];
     }
     this.heroes = [...this.teams.blue.heroes, ...this.teams.red.heroes];
+    // ручное управление: герой игрока-человека (в просмотре матча с интерфейсом)
+    if (opts.human) for (const h of this.heroes) if (h.pl && h.pl.human) h.ctrl = 'human';
     this.lanes = {};
     for (const l of LANES) this.lanes[l] = { id: l, push: 0, ward: { blue: 0, red: 0 }, farm: { blue: 0, red: 0 } };
     this.dragonQueue = U.shuffle(DRAGONS.slice());
@@ -138,6 +140,14 @@ class Game {
     if (e.some(x => !x.duel)) e = e.filter(x => !x.duel || !x.duel.alive);
     // маскировка: невидим, пока рядом есть другие цели
     if (e.some(x => !(x.stealth > 0))) e = e.filter(x => !(x.stealth > 0));
+    // приоритетная цель человека: достаётся с той же вероятностью «нырка», что и у ИИ, иначе удар принимает передовая
+    if (h.ctrl === 'human' && !h.autopilot && h.prefTarget && e.includes(h.prefTarget) && e.length > 1 && !(h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy))) {
+      const front = this.frontline(e);
+      if (front === h.prefTarget) return front;
+      const noFront = !e.some(x => x.def.tags.includes('tank'));
+      const dive = U.clamp((iqOf(h, 'tactic') - 6) / 40, 0, 0.25) + (h.def.tags.includes('burst') ? 0.12 : 0) + (noFront ? 0.35 : 0);
+      return U.chance(dive) ? h.prefTarget : front;
+    }
     // провокация: пока действует, враг бьёт только провокатора
     if (h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy)) return h.tauntBy;
     if (e.length === 1) return e[0];
@@ -169,6 +179,11 @@ class Game {
     if (hasPerk(x, 'reckless')) m += 0.15;
     if (hasPerk(x, 'cautious')) m -= 0.15;
     return m;
+  }
+  /* Решение игрока-человека: те же варианты, что у ИИ в этой ситуации. Без интерфейса (или на автопилоте) — решение ИИ */
+  async decide(h, q) {
+    if (h.ctrl !== 'human' || !this.ui.decide || h.autopilot) return q.def;
+    return this.ui.decide(h, q);
   }
   /* Давление на линии: перекачанный враг рядом мешает фармить — −12% за каждый уровень разницы (не ниже 40%).
      Отставший по уровню (проиграл линию, нет поддержки) с трудом отыгрывается фармом. */
@@ -212,7 +227,7 @@ class Game {
     }
     while (!this.over) {
       this.round++;
-      this.assignEvents();
+      await this.assignEvents();
       this.ui.roundStart(this);
       await wait(500);
       // порядок ходов: чем выше Реакция, тем раньше герой ходит в минуте
@@ -262,13 +277,13 @@ class Game {
   }
 
   async chooseMove(h) {
-    if (h.ctrl === 'ai') return AI.chooseMove(this, h);
+    if (h.ctrl !== 'human' || h.autopilot || !this.ui.awaitHumanMove) return AI.chooseMove(this, h);
     return this.ui.awaitHumanMove(h);
   }
 
   async trySkills(h, after) {
     // человек выберет умение сам (точка входа интерфейса), ИИ — по своим правилам
-    const key = h.ctrl !== 'ai' && this.ui.awaitHumanSkill ? await this.ui.awaitHumanSkill(h, after) : AI.chooseSkill(this, h, after);
+    const key = h.ctrl === 'human' && !h.autopilot && this.ui.awaitHumanSkill ? await this.ui.awaitHumanSkill(h, after) : AI.chooseSkill(this, h, after);
     if (key) await this.castSkill(h, key);
   }
 
@@ -848,9 +863,11 @@ class Game {
     return sig;
   }
   humanSignal(h, type, data = {}) { (this.humanQueue = this.humanQueue || []).push({ h, type, data }); }
-  answer(sig, h) {
+  async answer(sig, h) {
     // человек отвечает через интерфейс; если ответа ещё нет (null), он считается «позже» и прибывает на минуту позже
-    let r = (h.ctrl !== 'ai' && this.ui.askSignal) ? this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
+    // человек решает сам, принять ли призыв; успеет ли сразу — тот же бросок, что у ИИ
+    let r = (h.ctrl === 'human' && this.ui.askSignal) ? await this.ui.askSignal(h, sig) : AI.respondSignal(this, h, sig);
+    if (r && h.ctrl === 'human' && !r.pending) r.fast = r.accept && AI.arrivesFast(h);
     // молчание на «Отступаем» — уходит сразу (безопаснее), на остальные сигналы — «позже»
     if (!r) r = sig.type === 'retreat' ? { accept: true, fast: true, pending: true } : { accept: true, fast: false, pending: true };
     sig.answers.push(Object.assign({ h }, r));
@@ -896,7 +913,7 @@ class Game {
   join(ev, h) { if (!ev.sides[h.team].includes(h)) ev.sides[h.team].push(h); h.ev = ev; }
   free(h) { return h.alive && !h.ev; }
 
-  assignEvents() {
+  async assignEvents() {
     // осады прошлой минуты, у которых не было защитников, — атакуемая команда может отреагировать
     const sieged = { blue: [], red: [] };
     for (const ev of this.events || []) if (ev.type === 'siege' && ev.att && this.structureAlive(ev.structure)) {
@@ -915,7 +932,9 @@ class Game {
       // откликнувшиеся «позже» прибывают на минуту позже
       for (const x of ev.late || []) if (x.alive && !x.ev && x.hp / x.maxHp > 0.25 && !ev.sides[x.team].includes(x)) ev.sides[x.team].push(x);
       ev.late = [];
-      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && (x.hp / x.maxHp > (hasPerk(x, 'cautious') ? 0.25 : hasPerk(x, 'reckless') ? 0.04 : 0.12) || x.anchored > 0));
+      // человек сам решает выйти из драки (кнопка «Отступить»); ИИ выходит при малом здоровье
+      for (const t of ['blue', 'red']) for (const x of ev.sides[t].slice()) if (x.ctrl === 'human' && x.wantLeave && x.anchored <= 0) { ev.sides[t] = ev.sides[t].filter(y => y !== x); x.wantLeave = false; const sig = this.signal(x, 'retreat', { ev: ev.id }); if (sig) { const leave = []; for (const y of ev.sides[t]) { const r = await this.answer(sig, y); if (r.accept && r.fast) leave.push(y); } ev.sides[t] = ev.sides[t].filter(y => !leave.includes(y)); this.announce(sig); } }
+      for (const t of ['blue', 'red']) ev.sides[t] = ev.sides[t].filter(x => x.alive && !x.ev && ((x.ctrl === 'human' && !x.autopilot) || x.hp / x.maxHp > (hasPerk(x, 'cautious') ? 0.25 : hasPerk(x, 'reckless') ? 0.04 : 0.12) || x.anchored > 0));
       // сигнал «Отступаем», если команда в событии явно проигрывает
       for (const t of ['blue', 'red']) {
         const own = ev.sides[t], foe = ev.sides[this.enemyOf(t)];
@@ -925,7 +944,7 @@ class Game {
           const sig = this.signal(U.maxBy(own, x => sd(x, 'team') + U.rand(2)), 'retreat', { ev: ev.id });
           if (!sig) continue;
           const leave = [sig.from];
-          for (const x of own) if (x !== sig.from) { const r = this.answer(sig, x); if (r.accept && r.fast) leave.push(x); }
+          for (const x of own) if (x !== sig.from) { const r = await this.answer(sig, x); if (r.accept && r.fast) leave.push(x); }
           ev.sides[t] = own.filter(x => !leave.includes(x));
           this.announce(sig);
         }
@@ -948,7 +967,10 @@ class Game {
       const hpR = h.hp / h.maxHp;
       const rich = h.gold >= AI.shopTarget(this, h) && (hpR < 0.92 || U.chance(0.5));
       const pk = hasPerk(h, 'cautious') ? 0.12 : hasPerk(h, 'reckless') ? -0.15 : 0;
-      if (h.anchored <= 0 && (hpR < 0.3 + pk - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich)) {
+      // человек решает сам (кнопка «На базу»), ИИ — по здоровью, мане и деньгам
+      const wants = h.ctrl === 'human' && !h.autopilot ? h.wantRecall : (hpR < 0.3 + pk - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich);
+      h.wantRecall = false;
+      if (h.anchored <= 0 && wants) {
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
     }
@@ -991,7 +1013,7 @@ class Game {
 
     // 4a. Сигналы, отправленные человеком (тем же механизмом, что и у ИИ)
     for (const q of (this.humanQueue || []).splice(0)) {
-      if (q.type === 'obj') { const npc = q.data.kind === 'baron' ? this.baron : this.dragon; const sig = this.signal(q.h, 'obj', { kind: npc.kind }); if (sig) { this.teams[q.h.team].pressure += 10 * sm(0.05, q.h, 'team'); for (const x of this.teams[q.h.team].heroes) if (x !== q.h && this.free(x)) { const r = this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; } this.announce(sig); } }
+      if (q.type === 'obj') { const npc = q.data.kind === 'baron' ? this.baron : this.dragon; const sig = this.signal(q.h, 'obj', { kind: npc.kind }); if (sig) { this.teams[q.h.team].pressure += 10 * sm(0.05, q.h, 'team'); for (const x of this.teams[q.h.team].heroes) if (x !== q.h && this.free(x)) { const r = await this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; } this.announce(sig); } }
     }
 
     // 4b. Сигнал «Давим линию»: соперники по линии мертвы, башня стоит
@@ -1008,7 +1030,7 @@ class Game {
         mine.forEach(h => this.join(ev, h));
         for (const x of this.teams[t].heroes) {
           if (!this.free(x) || x.lane === l) continue;
-          const r = this.answer(sig, x);
+          const r = await this.answer(sig, x);
           if (r.accept) r.fast ? this.join(ev, x) : ev.late.push(x);
         }
         this.persist.push(ev);
@@ -1028,12 +1050,12 @@ class Game {
         const sig = this.signal(U.maxBy(callers, x => sd(x, 'map') + U.rand(2)), 'obj', { kind: npc.kind });
         if (!sig) continue;
         tm.pressure += 10 * (sm(0.05, sig.from, 'team'));
-        for (const x of tm.heroes) if (x !== sig.from && this.free(x)) { const r = this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; }
+        for (const x of tm.heroes) if (x !== sig.from && this.free(x)) { const r = await this.answer(sig, x); if (r.accept) x.mem.call = { kind: npc.kind, fast: r.fast, round: this.round }; }
         this.announce(sig);
       }
     }
-    if (!this.persist.some(e => e.type === 'dragon') && this.dragon.alive) this.tryObjective(this.dragon, 100, ['jng', 'adc', 'sup', 'mid']);
-    if (!this.persist.some(e => e.type === 'baron') && this.baron.alive) this.tryObjective(this.baron, 150, ['jng', 'adc', 'sup', 'mid', 'top']);
+    if (!this.persist.some(e => e.type === 'dragon') && this.dragon.alive) await this.tryObjective(this.dragon, 100, ['jng', 'adc', 'sup', 'mid']);
+    if (!this.persist.some(e => e.type === 'baron') && this.baron.alive) await this.tryObjective(this.baron, 150, ['jng', 'adc', 'sup', 'mid', 'top']);
 
     // 5б. Реакция на осаду: Карта решает, заметил ли игрок, что его башню бьют; командное мышление — стоит ли идти
     for (const t of ['blue', 'red']) for (const s of sieged[t]) {
@@ -1043,6 +1065,11 @@ class Game {
         if (sent >= Math.max(1, s.n)) break;
         if (h.mem.defendRound === this.round) continue;
         if (!U.chance(U.clamp(0.35 + 0.05 * sd(h, 'map') + (s.st.idx >= 2 ? 0.2 : 0), 0.05, 0.95))) continue;   // заметил?
+        if (h.ctrl === 'human' && !h.autopilot) {
+          const ans = await this.decide(h, { title: '🛡 Башню бьют!', text: `Враги (${s.n}) осаждают вашу башню на ${s.lane.toUpperCase()}. Пойти защищать?`, options: [{ id: 'go', label: 'Защищать' }, { id: 'no', label: 'Остаться' }], def: 'no' });
+          if (ans === 'go') { h.mem.defendLane = s.lane; h.mem.defendRound = this.round; sent++; }
+          continue;
+        }
         const smart = U.chance(U.clamp((iqOf(h, 'team') - 2) / 14, 0.05, 1));
         const go = smart ? h.hp / h.maxHp > 0.45 && sent + 1 >= s.n - 1 + (h.def.tags.includes('tank') ? -1 : 0) || (h.hp / h.maxHp > 0.45 && s.st.idx >= 2) : U.chance(0.5);
         if (!go) continue;
@@ -1055,12 +1082,12 @@ class Game {
     // 6. Ганги
     for (const t of U.shuffle(['blue', 'red'])) {
       const j = this.hero(t, 'jng');
-      if (this.free(j) && j.gank >= 100) { if (hasPerk(j, 'loner')) { j.gank = 0; continue; } this.startGank(j); }
+      if (this.free(j) && j.gank >= 100) { if (hasPerk(j, 'loner')) { j.gank = 0; continue; } await this.startGank(j); }
     }
     // 6б. Роумы мидера и саппорта
     if (this.minute >= 4) for (const t of U.shuffle(['blue', 'red'])) for (const r of U.shuffle(['mid', 'sup'])) {
       const h = this.hero(t, r);
-      if (this.free(h) && h.roam >= 100) { if (hasPerk(h, 'loner')) { h.roam = 0; continue; } this.tryRoam(h); }
+      if (this.free(h) && h.roam >= 100) { if (hasPerk(h, 'loner')) { h.roam = 0; continue; } await this.tryRoam(h); }
     }
 
     // 7. Обычные занятия: линии, лес, свободная осада
@@ -1088,8 +1115,11 @@ class Game {
     for (const h of this.heroes) {
       if (!this.free(h) || !h.def.passive.skyward) continue;
       const fights = this.events.filter(ev => ev.sides && ev.sides[h.team].some(x => x.alive) && ev.sides[h.enemyTeam].some(x => x.alive));
-      if (!fights.length || !U.chance(U.clamp((iqOf(h, 'team') - 2) / 14 + 0.2, 0.1, 0.95))) continue;
+      if (!fights.length) continue;
       const ev = U.maxBy(fights, e => e.sides[h.enemyTeam].filter(x => x.alive).length - e.sides[h.team].filter(x => x.alive).length);
+      // ИИ решает «лететь или нет» (куда — всегда туда, где союзникам тяжелее); человек — тот же выбор
+      if (h.ctrl === 'human' && !h.autopilot) { if (await this.decide(h, { title: '🦅 Небесный дозор', text: `Союзники дерутся${ev.lane ? ' на ' + ev.lane.toUpperCase() : ''}. Перелететь к ним?`, options: [{ id: 'fly', label: 'Лететь' }, { id: 'no', label: 'Остаться' }], def: 'no' }) !== 'fly') continue; }
+      else if (!U.chance(U.clamp((iqOf(h, 'team') - 2) / 14 + 0.2, 0.1, 0.95))) continue;
       this.join(ev, h);
       this.ui.log(`🦅 ${this.tag(h)} перелетает на помощь союзникам${ev.lane ? ' на ' + ev.lane.toUpperCase() : ''}!`, h.team);
     }
@@ -1110,7 +1140,7 @@ class Game {
     }
   }
 
-  tryObjective(npc, threshold, roles) {
+  async tryObjective(npc, threshold, roles) {
     const isBaron = npc.kind === 'baron';
     if (this.minute < npc.retryAt) return;
     const order = ['blue', 'red'].sort((a, b) => this.teams[b].pressure - this.teams[a].pressure);
@@ -1153,7 +1183,8 @@ class Game {
 
   /* Роум: мидер или саппорт оставляет линию и идёт на соседнюю. Командное мышление решает,
      вовремя ли уходить (своя линия не продавлена, напарник не при смерти), куда идти и позвать ли лесника. */
-  tryRoam(h) {
+  async tryRoam(h) {
+    if (h.ctrl === 'human' && !h.autopilot) return this.startGank(h, { roam: true, smart: true, human: true });
     const smart = U.chance(U.clamp((iqOf(h, 'team') - 2) / 14, 0.05, 1));
     if (smart) {
       const lane = this.lanes[h.lane];
@@ -1162,10 +1193,10 @@ class Game {
       const unsafe = push < -0.35 || (mate && mate.hp / mate.maxHp < 0.35) || h.hp / h.maxHp < 0.5;
       if (unsafe) { h.roam = 70; return; }
     }
-    this.startGank(h, { roam: true, smart });
+    await this.startGank(h, { roam: true, smart });
   }
 
-  startGank(j, opt = {}) {
+  async startGank(j, opt = {}) {
     const et = j.enemyTeam;
     const options = [];
     for (const l of LANES) {
@@ -1179,10 +1210,16 @@ class Game {
       options.push({ l, victims, score });
     }
     if (!options.length) { if (opt.roam) j.roam = 60; return; }
+    if (j.ctrl === 'human' && !j.autopilot) {
+      const ans = await this.decide(j, { title: opt.roam ? '🏃 Роум' : '⚡ Ганг', text: opt.roam ? 'Можно уйти с линии и помочь на соседней. Куда?' : 'Шкала ганга заполнена. Куда идти?',
+        options: [...options.map(o => ({ id: o.l, label: `${o.l.toUpperCase()}: ${o.victims.map(v => `${v.name} ${Math.round(v.hp / v.maxHp * 100)}%`).join(', ')}` })), { id: 'wait', label: opt.roam ? 'Остаться на линии' : 'Пока фармить' }], def: 'wait' });
+      if (ans === 'wait') { if (opt.roam) j.roam = 70; else j.gank = 80; return; }
+      opt.lane = ans;
+    }
     // Командное мышление: выбрать самую выгодную линию (слабый — почти наугад)
-    const best = (opt.roam ? opt.smart : U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1))) ? U.maxBy(options, o => o.score) : U.pick(options);
+    const best = opt.lane ? options.find(o => o.l === opt.lane) : (opt.roam ? opt.smart : U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1))) ? U.maxBy(options, o => o.score) : U.pick(options);
     // умный роумер не идёт туда, где ловить нечего, — подождёт момента получше
-    if (opt.roam && opt.smart && best.score < 36) { j.roam = 75; return; }
+    if (opt.roam && opt.smart && !opt.human && best.score < 36) { j.roam = 75; return; }
     if (opt.roam) { j.roam = 0; j.roams++; } else j.gank = 0;
     const lane = this.lanes[best.l];
     const ev = this.mkEv('gank', { lane: best.l, att: j.team, left: 2, roam: !!opt.roam });
@@ -1215,7 +1252,7 @@ class Game {
         if (!this.free(x) || best.victims.includes(x)) continue;
         // гангу на другой линии быстрее всего помогает свой лесник и мидер
         if (!(x.role === 'jng' || x.role === 'mid' || x.lane === best.l)) continue;
-        const r = this.answer(help, x);
+        const r = await this.answer(help, x);
         if (r.accept) { if (r.fast) { this.join(ev, x); msg += ` ${this.tag(x)} откликается на сигнал и прибегает на помощь!`; } else ev.late.push(x); }
       }
       this.announce(help);
@@ -1324,13 +1361,13 @@ class Game {
         h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (0.015 + tb.regen + h.itemStat('regen')));
         h.mana = Math.min(h.maxMana, h.mana + 6 + tb.mana + h.itemStat('manaRegen'));
         h.shield *= 0.55;
-        if (h.ev.type === 'recall') this.atBase(h);
+        if (h.ev.type === 'recall') await this.atBase(h);
         if (h.role === 'jng' && h.ev.type === 'jungle') h.gank += Math.max(2, 8 + 0.8 * sd(h, 'agr'));
         // мидер и саппорт копят желание сходить на соседнюю линию (роум); быстрее — у агрессивных
         if ((h.role === 'mid' || h.role === 'sup') && h.ev.lane === h.lane && ['lane', 'siege', 'defend'].includes(h.ev.type)) h.roam += Math.max(3, (h.role === 'mid' ? 14 : 12) + 1.2 * sd(h, 'agr'));
       } else {
         h.dead--;
-        if (h.dead <= 0) { h.dead = 0; h.tailUsed = false; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
+        if (h.dead <= 0) { h.dead = 0; h.tailUsed = false; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; await this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
       }
       // зелье здоровья: пьёт, когда здоровья мало (умный — вовремя, неумный — с опозданием)
       if (h.alive && h.potions > 0 && h.hp / h.maxHp < (iqOf(h, 'tactic') >= 10 ? 0.55 : 0.35) && h.ev && h.ev.type !== 'recall') {
@@ -1382,9 +1419,10 @@ class Game {
     await wait(300);
   }
 
-  atBase(h, respawn) {
+  async atBase(h, respawn) {
     h.hp = h.maxHp; h.mana = h.maxMana;
-    const acts = AI.shop(this, h);
+    // человек закупается сам (те же предметы и правила), ИИ — по своей оценке предметов
+    const acts = h.ctrl === 'human' && !h.autopilot && this.ui.humanShop ? await this.ui.humanShop(h) : AI.shop(this, h);
     const bought = [], sold = [];
     for (const a of acts) {
       if (a.sell) { const i = h.items.indexOf(a.sell); if (i >= 0) { h.items.splice(i, 1); h.gold += a.refund; sold.push(a.sell); } }
