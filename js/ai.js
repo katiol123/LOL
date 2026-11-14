@@ -176,14 +176,13 @@ const AI = {
      в этой игре решает постоянный урон, танк держит стрелка, против лечения и танков есть явные ответы. */
   SYNERGY: [
     ['tank', 'dps', 'танк прикроет стрелка'],
-    ['control', 'dps', 'контроль даёт стрелку бить безнаказанно'],
-    ['dps', 'dps', 'два источника постоянного урона'],
-    ['vision', 'dps', 'обзор держит стрелка в безопасности'],
+    ['heal', 'dps', 'лекарь держит стрелка в бою'],
+    ['vision', 'burst', 'обзор для засад убийцы'],
+    ['utility', 'burst', 'поддержка разгоняет убийцу'],
   ],
   COUNTER: [
-    ['heal', 'burst', 'против лекарей нужен взрывной урон'],
-    ['tank', 'dps', 'танков пробивает постоянный урон'],
-    ['sustain', 'dps', 'живучих перебивает постоянный урон'],
+    ['sustain', 'burst', 'живучих добивает взрывной урон'],
+    ['burst', 'tank', 'взрывной урон вязнет в танке'],
   ],
   /* Оценка героя для игрока: число + причины. ctx: { D — грамотность капитана, enemyPicks, pickNo } */
   draftEval(pl, role, def, mine, enemyPlayers, rng = Math.random, ctx = {}) {
@@ -191,22 +190,23 @@ const AI = {
     const parts = [];
     const add = (v, ic, t, cls) => { if (v) parts.push({ v, ic, t, cls }); return v; };
     const fit = def.fit[role];
-    let s = add([-7, -1.5, 6.5, 9][fit], fit >= 3 ? '🎯' : fit === 2 ? '✓' : '⚠', fit >= 3 ? 'родная роль' : fit === 2 ? 'хорошо подходит на роль' : 'не по профилю', fit >= 2 ? 'fit' : 'bad');
+    let s = add([-9, -4, 6.5, 9][fit], fit >= 3 ? '🎯' : fit === 2 ? '✓' : '⚠', fit >= 3 ? 'родная роль' : fit === 2 ? 'хорошо подходит на роль' : 'не по профилю', fit >= 2 ? 'fit' : 'bad');
     const m = masteryOf(pl, def.id);
     s += add(m * 0.9, '✦', m >= 15 ? `коронный герой игрока (✦${m})` : m >= 8 ? `высокое мастерство (✦${m})` : `знакомый герой (✦${m})`, 'mastery');
     const tags = mine.flatMap(d => d.tags);
-    const need = { tank: [1.0, 'команде нужна передовая'], vision: [0.6, 'не хватает обзора'] };
+    const need = { tank: [1.0, 'команде нужна передовая'], vision: [1.6, 'не хватает обзора'], utility: [1.4, 'нужна поддержка команды'] };
     for (const t of def.tags) {
       if (need[t] && !tags.includes(t)) s += add(need[t][0] * ck, '🧩', need[t][1], 'comp');
     }
     // постоянный урон — главное в составе
     const dpsN = tags.filter(t => t === 'dps').length;
-    if (def.tags.includes('dps')) s += add((dpsN === 0 ? 3.2 : dpsN === 1 ? 1.6 : 0) * ck, '⚔', dpsN === 0 ? 'составу нужен постоянный урон' : 'второй источник урона', 'comp');
+    if (def.tags.includes('dps') && dpsN === 0) s += add(2.4 * ck, '⚔', 'составу нужен постоянный урон', 'comp');
+    if (def.tags.includes('vision') && tags.includes('vision')) s += add(0.8 * ck, '👁', 'больше обзора — больше контроля карты', 'comp');
     // перебор однотипных: два лекаря, три контроля, много взрывного урона — составы, которые проигрывают
     if (def.tags.includes('heal') && tags.includes('heal')) s += add(-2.5 * (0.4 + ck), '⧉', 'второй лекарь — мало урона', 'bad');
     if (def.tags.includes('control') && tags.filter(t => t === 'control').length >= 2) s += add(-1.6 * (0.4 + ck), '⧉', 'контроля уже в избытке', 'bad');
-    if (def.tags.includes('burst') && tags.filter(t => t === 'burst').length >= 2) s += add(-1.2 * (0.4 + ck), '⧉', 'взрывного урона уже в избытке', 'bad');
-    if (def.tags.includes('utility') && tags.includes('utility')) s += add(-1.0 * (0.4 + ck), '⧉', 'вторая поддержка — мало урона', 'bad');
+    if (def.tags.includes('burst') && tags.filter(t => t === 'burst').length >= 1) s += add(-1.6 * (0.4 + ck), '⧉', 'взрывного урона уже хватает', 'bad');
+    if (def.tags.includes('sustain') && tags.includes('sustain')) s += add(-1.2 * (0.4 + ck), '⧉', 'вторая «живучесть» — мало пользы', 'bad');
     if (mine.length >= 3 && !tags.some(t => t === 'dps' || t === 'burst') && def.tags.some(t => t === 'dps' || t === 'burst')) s += add(2 * ck, '⚔', 'составу не хватает урона', 'comp');
     // связки с уже взятыми союзниками
     for (const [a, b, txt] of this.SYNERGY) {
