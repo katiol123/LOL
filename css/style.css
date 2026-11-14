@@ -972,3 +972,7 @@ html, body, #app { overflow: clip; }
 #side-info:has(.decide:not([hidden])) #event-panel { display: none; }
 #cl-detail .cd-grid { max-height: calc(100vh - 330px); overflow-y: auto; }
 @media (max-width: 560px) { .pick-slot .pn b .perk-i, .pick-slot .pn b .capt { display: none; } #cl-detail .cd-grid { max-height: none; } }
+/* ---------- Выбор клуба: без прыжков и сдвигов ---------- */
+.club-card, .club-card:hover { transform: none !important; transition: box-shadow .2s !important; }
+#cl-list, #cl-detail, #cl-detail .cd-grid { scrollbar-gutter: stable; }
+#cl-detail .title-actions { animation: none !important; }
