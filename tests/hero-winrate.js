@@ -4,7 +4,7 @@
 const { load } = require('./harness');
 const ctx = load(`
   var MECH = {};
-  for (const m of ['mineBlast', 'revive', 'bonusMove', 'taunt', 'silence', 'anchor', 'takeRaw']) {
+  for (const m of ['mineBlast', 'revive', 'bonusMove', 'taunt', 'silence', 'anchor', 'takeRaw', 'abduct', 'molt', 'duel', 'bloomBurst', 'longShot']) {
     const f = Game.prototype[m];
     Game.prototype[m] = function (...a) { MECH[m] = (MECH[m] || 0) + 1; return f.apply(this, a); };
   }

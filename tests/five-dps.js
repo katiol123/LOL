@@ -56,9 +56,12 @@ if (!process.env.FD_WORKER) {
     if (!B) { i--; continue; }
     fitA += A.fit; fitB += B.fit;
     const side = i % 2 === 0;
-    const mk = L => L.lu.map((d, j) => ({ def: d, role: ROLE_ORDER[j], pl: ctx.neutralPlayer(ROLE_ORDER[j]) }));
-    const mA = mk(A).map(x => Object.assign(x, { def: ablate(x.def) }));
-    const g = new ctx.Game(side ? mA : mk(B), side ? mk(B) : mA, ctx.NOOP_UI);
+    // BIQ — скрытый интеллект сбалансированной команды (board/tactic/team), AIQ — пятёрки дамагеров
+    const mkPl = (r, iq) => { const p = ctx.neutralPlayer(r); if (iq) p.iq = { board: iq, tactic: iq, team: iq }; return p; };
+    const mk = (L, iq) => L.lu.map((d, j) => ({ def: d, role: ROLE_ORDER[j], pl: mkPl(ROLE_ORDER[j], iq) }));
+    const mA = mk(A, +process.env.AIQ || 0).map(x => Object.assign(x, { def: ablate(x.def) }));
+    const mB = mk(B, +process.env.BIQ || 0);
+    const g = new ctx.Game(side ? mA : mB, side ? mB : mA, ctx.NOOP_UI);
     if (process.env.TANKHP) for (const h of g.heroes) if (h.def.tags.includes('tank')) { const rc = h.recalc.bind(h); h.recalc = () => { rc(); h.maxHp = Math.round(h.maxHp * +process.env.TANKHP); }; h.recalc(); h.hp = h.maxHp; }
     if (process.env.STUN) { const orig = g.castSkill.bind(g); g.castSkill = async (h, key) => { const r = await orig(h, key); if (r && h.def.tags.includes('control') && key === 'r') { const t = g.target(h); if (t) g.stun(h, t); } return r; }; }
     if (process.env.ARMB) for (const h of g.heroes) if (h.team !== (side ? 'blue' : 'red')) { const rc = h.recalc.bind(h); h.recalc = () => { rc(); h.armor *= +process.env.ARMB; }; h.recalc(); }

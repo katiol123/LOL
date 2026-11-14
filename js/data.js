@@ -292,7 +292,7 @@ const HEROES = [
     id: 'monk', name: 'Сун', title: 'Мастер ки', role: 'mid', emoji: '👊', color: '#6b8f7a', img: 'img/heroes/monk',
     mod: { sp: 1.05, hp: 1.0 },
     lore: 'Странствующий монах: его удары собирают внутреннюю силу и взрываются, как гром.',
-    passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 16, 0.17); } },
+    passive: { name: 'Вибрация ки', desc: 'Каждая взорванная бомба на его поле наносит цели доп. урон.', effects(G, h, c) { c.bombDmg += c.info.bombs * G.sp(h, 11, 0.12); } },
     q: {
       name: 'Сгусток ки', icon: '🌀', cost: 50, cd: 3, need: 'none',
       desc: 'Создаёт 2 бомбы на своём поле.',
@@ -300,9 +300,9 @@ const HEROES = [
     },
     r: {
       name: 'Сто ударов', icon: '👊', cost: 110, cd: 5, lvl: 6, need: 'enemy',
-      desc: 'Создаёт 4 бомбы на своём поле и мгновенно подрывает их все.',
+      desc: 'Создаёт 3 бомбы на своём поле и мгновенно подрывает их все.',
       async cast(G, h) {
-        const ks = h.board.pick(g => h.board.plain(g), 4);
+        const ks = h.board.pick(g => h.board.plain(g), 3);
         await G.selfBoardQuiet(h, b => b.convert(ks, T_ATK, 'bomb'));
         await G.blast(h, ks);
       },
@@ -442,6 +442,7 @@ const HEROES = [
       desc: 'Сразу лечит самого раненого союзника в событии и превращает 5 камней на его поле в ✚.',
       ai: (G, h) => G.alliesIn(h).some(a => a.hp / a.maxHp < 0.75),
       async cast(G, h) {
+        const foe = G.target(h); if (foe) await G.skillDamage(h, foe, G.sp(h, 45, 0.55), 'magic', '#9ad14a');
         const a = U.minBy(G.alliesIn(h), x => x.hp / x.maxHp);
         G.healHero(h, a, G.sp(h, 90, 0.7));
         await G.allyBoard(h, a, b => b.convert(b.pick(g => b.plain(g) && g.t !== T_HEAL, 5), T_HEAL), '#fff0a8');
@@ -494,7 +495,7 @@ const HEROES = [
     q: {
       name: 'Дымовая шашка', icon: '💨', cost: 40, cd: 2, need: 'enemy',
       desc: 'Бьёт цель, перемешивает её поле и скрывает 6 клеток туманом.',
-      async cast(G, h, t) { await G.skillDamage(h, t, G.sp(h, 45, 0.55), 'magic', '#ff7ce0'); await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.fogify(b.pick(g => !g.fog, 6)); }, '#ff7ce0'); },
+      async cast(G, h, t) { await G.skillDamage(h, t, G.sp(h, 25, 0.35), 'magic', '#ff7ce0'); await G.enemyBoard(h, t, b => { b.shuffleGems(); return b.fogify(b.pick(g => !g.fog, 6)); }, '#ff7ce0'); },
     },
     r: {
       name: 'Козырь в рукаве', icon: '🃏', cost: 100, cd: 5, lvl: 6, need: 'enemy',
@@ -666,6 +667,137 @@ const HEROES = [
       },
     },
   },
+  {
+    id: 'bull', name: 'Горган', title: 'Бык-воитель', role: 'top', emoji: '🐂', color: '#7a5a3a', img: 'img/heroes/bull',
+    mod: { hp: 1.18, arm: 1.12, atk: 1.0 },
+    lore: 'Минотавр с двуручной секирой. Чем сильнее его ранят, тем крепче становится его шкура.',
+    passive: { name: 'Толстая шкура', desc: 'Получает на 1% меньше урона за каждые 4% недостающего здоровья (до −20%).', hide: 0.25 },
+    q: {
+      name: 'Удар рогами', icon: '🐃', cost: 45, cd: 3, need: 'enemy',
+      desc: 'Бьёт цель и отбрасывает её: до конца следующей минуты её ⚔ не достают героев — только волну, монстров и строения.',
+      async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 40, 0.4) + h.power * 0.8, 'phys', '#c48a4a');
+        if (t.alive && !G.shrug(t)) { t.knocked = 2; G.ui.float(t, '💨 ОТБРОШЕН', '#e0b080'); }
+      },
+    },
+    r: {
+      name: 'Неудержимый натиск', icon: '🪓', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'На 2 минуты становится неудержимым (контроль не действует) и бьёт всех врагов в событии — тем сильнее, чем больше у него недостающего здоровья.',
+      async cast(G, h) {
+        h.unstoppable = 3; G.ui.float(h, '🐂 НЕУДЕРЖИМ', '#ffb36b');
+        for (const e of G.enemiesIn(h)) await G.skillDamage(h, e, G.sp(h, 50, 0.4) + (h.maxHp - h.hp) * 0.22, 'phys', '#c48a4a');
+      },
+    },
+  },
+  {
+    id: 'cactus', name: 'Колюч', title: 'Кактус-отшельник', role: 'sup', emoji: '🌵', color: '#5f9e3a', img: 'img/heroes/cactus',
+    mod: { hp: 1.28, sp: 1.38, arm: 1.12 },
+    lore: 'Пустынный отшельник с цветком на макушке. Бережёт каждую каплю — и делится ею, когда друзьям совсем худо.',
+    passive: { name: 'Запас влаги', desc: '✚ при полном здоровье копят влагу (до 5 капель). Когда здоровья меньше половины, каждую минуту тратится капля: +8% здоровья.', water: true },
+    q: {
+      name: 'Цветение', icon: '🌼', cost: 45, cd: 2, need: 'none',
+      desc: 'Бросает иглы во врага и сажает цветок на поле самого раненого союзника в событии. Цветок растёт каждую минуту (до 3 стадий); когда его камень собирают, союзники в событии лечатся и получают щит — тем больше, чем выше стадия.',
+      ai: (G, h) => G.alliesIn(h).length >= 1,
+      async cast(G, h) {
+        const foe = G.target(h); if (foe) await G.skillDamage(h, foe, G.sp(h, 45, 0.55), 'magic', '#9ad14a');
+        const a = U.minBy(G.alliesIn(h), x => x.hp / x.maxHp);
+        await G.allyBoard(h, a, b => { const k = b.pick(g => b.plain(g) && !g.bloom, 1)[0]; if (k != null) { const g = b.at(k); g.bloom = 1; g.bloomBy = h.id; g.flash = 1; } }, '#ffe066');
+      },
+    },
+    r: {
+      name: 'Оазис', icon: '🏝', cost: 110, cd: 6, lvl: 6, need: 'none',
+      desc: 'На 3 минуты вокруг Колюча возникает оазис: в конце каждой минуты союзники рядом восстанавливают здоровье и ману.',
+      ai: (G, h) => G.alliesIn(h).length >= 2 || G.enemiesIn(h).length > 0,
+      async cast(G, h) { h.oasis = 3; G.ui.float(h, '🏝 ОАЗИС', '#7be0c3'); G.ui.log(`🏝 ${G.tag(h)} создаёт оазис — союзники рядом будут восстанавливаться.`, h.team); },
+    },
+  },
+  {
+    id: 'griffin', name: 'Аэрин', title: 'Всадник грифона', role: 'jng', emoji: '🦅', color: '#b8a27a', img: 'img/heroes/griffin',
+    mod: { atk: 1.08, hp: 1.02 },
+    lore: 'Легионер верхом на грифоне. С высоты он видит каждую драку на карте — и успевает к любой.',
+    passive: { name: 'Небесный дозор', desc: 'Если он свободен, а союзники где-то дерутся, может перелететь к ним в начале минуты (решает командное мышление).', skyward: true },
+    q: {
+      name: 'Пике', icon: '🪶', cost: 45, cd: 2, need: 'enemy',
+      desc: 'Пикирует на самого раненого врага в событии, минуя передовую; урон проходит сквозь щиты.',
+      async cast(G, h) {
+        const e = G.enemiesIn(h); if (!e.length) return;
+        const t = U.minBy(e, x => x.hp / x.maxHp);
+        h.pierce = true;
+        try { await G.skillDamage(h, t, G.sp(h, 45, 0.35) + h.power * 1.1, 'phys', '#e8d9a8'); } finally { h.pierce = false; }
+      },
+    },
+    r: {
+      name: 'Похищение', icon: '🦅', cost: 110, cd: 6, lvl: 6, need: 'enemy',
+      desc: 'Хватает цель и уносит её туда, где союзников Аэрина больше всего (в драку или под их башню), нанося урон.',
+      async cast(G, h, t) {
+        await G.skillDamage(h, t, G.sp(h, 50, 0.4), 'phys', '#e8d9a8');
+        if (t.alive && !G.shrug(t)) G.abduct(h, t);
+      },
+    },
+  },
+  {
+    id: 'owl', name: 'Сыч', title: 'Совиный снайпер', role: 'adc', emoji: '🦉', color: '#8a7a5a', img: 'img/heroes/owl',
+    mod: { atk: 1.45, hp: 1.1 },
+    lore: 'Ночной снайпер в маскхалате. Стреляет из такого далека, что цель не успевает понять, откуда пришла пуля.',
+    passive: { name: 'Дальний выстрел', desc: 'Если в его событии нет врагов, вдобавок треть урона от ⚔ летит во врага в любой драке, где есть союзники.', longshot: 0.33 },
+    q: {
+      name: 'Прицеливание', icon: '🎯', cost: 40, cd: 3, need: 'enemy',
+      desc: 'Сразу стреляет и берёт цель на прицел: на следующей минуте первый удар ⚔ по ней — ×2.5.',
+      async cast(G, h, t) { await G.skillDamage(h, t, G.sp(h, 30, 0.2) + h.power * 0.9, 'phys', '#ffd36b'); h.aim = { t, round: G.round + 1 }; G.ui.float(t, '🎯 НА ПРИЦЕЛЕ', '#ffd36b'); },
+    },
+    r: {
+      name: 'Маскировка', icon: '🌫', cost: 100, cd: 5, lvl: 6, need: 'none',
+      desc: 'На 2 минуты исчезает из виду: его нельзя выбрать целью, пока рядом есть другие союзники, а все его совпадения ⚔ критические.',
+      ai: (G, h) => G.enemiesIn(h).length > 0,
+      async cast(G, h) { h.stealth = 3; G.ui.float(h, '🌫 МАСКИРОВКА', '#c8d2e0'); },
+    },
+  },
+  {
+    id: 'reptile', name: 'Скинк', title: 'Ящер-гладиатор', role: 'jng', emoji: '🦎', color: '#7aa04a', img: 'img/heroes/reptile',
+    mod: { hp: 1.05, atk: 1.05, arm: 1.05 },
+    lore: 'Хладнокровный ящер с мечом и круглым щитом. Сбрасывает хвост, линяет — и перенимает чужие приёмы.',
+    passive: { name: 'Сброс хвоста', desc: 'Раз за жизнь переживает смертельный удар: остаётся с 15% здоровья.', tail: true },
+    q: {
+      name: 'Линька', icon: '🐍', cost: 40, cd: 3, need: 'none',
+      desc: 'Сбрасывает кожу: снимает с себя оглушение, немоту, провокацию, якорь, отбрасывание и раны, очищает своё поле от льда, тумана, гнили и мин и получает щит.',
+      ai: (G, h) => h.silenced > 0 || h.taunted > 0 || h.anchored > 0 || h.knocked > 0 || (h.wounded && h.wounded.until >= G.round) || h.board.keys(g => g.ice || g.fog || g.rot || g.mine).length >= 3 || G.enemiesIn(h).length > 0,
+      async cast(G, h) { G.molt(h); G.shieldHero(h, h, G.sp(h, 50, 0.5)); },
+    },
+    r: {
+      name: 'Мимикрия', icon: '🪞', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Копирует последнее умение Q, которое применил враг в его событии (или Q цели), и применяет его со своей силой.',
+      async cast(G, h, t) {
+        const src = (h.ev && h.ev.lastQ && h.ev.lastQ[h.enemyTeam]) || t.def;
+        if (!src || src.id === 'reptile') return;
+        G.ui.float(h, `🪞 ${src.q.name}`, '#b9f0a0');
+        G.ui.log(`🪞 ${G.tag(h)} копирует «${src.q.name}» у ${src.name}!`, h.team);
+        await src.q.cast(G, h, G.target(h) || t);
+      },
+    },
+  },
+  {
+    id: 'gunslinger', name: 'Шерман', title: 'Странный стрелок', role: 'mid', emoji: '🔫', color: '#a0784a', img: 'img/heroes/gunslinger',
+    mod: { sp: 1.35, atk: 1.2, hp: 1.1 },
+    lore: 'Бродяга в лоскутном плаще с рыбой на шляпе. Шестизарядник, удача и полное отсутствие страха.',
+    passive: { name: 'Барабан на шесть', desc: 'Каждое совпадение ⚔ — выстрел: доп. урон цели. После шести выстрелов следующее совпадение уходит на перезарядку.', ammo: 6 },
+    q: {
+      name: 'Рулетка', icon: '🎲', cost: 40, cd: 2, need: 'enemy',
+      desc: 'Крутит барабан: джекпот (огромный урон), попадание (урон), трофей (+150 золота), осечка или выстрел себе в ногу.',
+      async cast(G, h, t) {
+        const r = U.ri(6);
+        if (r === 0) { G.ui.float(h, '🎲 ДЖЕКПОТ!', '#ffd36b'); await G.skillDamage(h, t, G.sp(h, 220, 1.5), 'magic', '#ffd36b'); }
+        else if (r <= 2) { G.ui.float(h, '🎲 ПОПАДАНИЕ', '#ffb36b'); await G.skillDamage(h, t, G.sp(h, 95, 0.8), 'magic', '#ffb36b'); }
+        else if (r === 3) { G.ui.float(h, '🎲 ТРОФЕЙ +150💰', '#ffc93c'); G.addGold(h, 150); }
+        else if (r === 4) G.ui.float(h, '🎲 ОСЕЧКА', '#aaa');
+        else { G.ui.float(h, '🎲 В НОГУ!', '#ff5468'); G.dealDamage(null, h, G.sp(h, 30, 0.25), 'true'); }
+      },
+    },
+    r: {
+      name: 'Дуэль', icon: '🤠', cost: 100, cd: 5, lvl: 6, need: 'enemy',
+      desc: 'Вызывает цель на дуэль на 2 минуты: они бьют только друг друга, остальные их не трогают. Победитель получает 300 золота и полную ману.',
+      async cast(G, h, t) { if (!G.shrug(t)) G.duel(h, t, 2); },
+    },
+  },
 ];
 
 
@@ -696,6 +828,12 @@ const HERO_FIT = {
   seawitch: { fit: { top: 0, jng: 1, mid: 2, adc: 0, sup: 3 }, tags: ['control', 'utility'] },
   crabpirate: { fit: { top: 1, jng: 0, mid: 1, adc: 3, sup: 0 }, tags: ['dps', 'control'] },
   bonebard: { fit: { top: 0, jng: 0, mid: 1, adc: 0, sup: 3 }, tags: ['utility'] },
+  bull: { fit: { top: 3, jng: 1, mid: 0, adc: 0, sup: 2 }, tags: ['tank', 'control'] },
+  cactus: { fit: { top: 1, jng: 0, mid: 0, adc: 0, sup: 3 }, tags: ['heal', 'utility'] },
+  griffin: { fit: { top: 1, jng: 3, mid: 1, adc: 0, sup: 0 }, tags: ['burst', 'control'] },
+  owl: { fit: { top: 0, jng: 0, mid: 2, adc: 3, sup: 0 }, tags: ['dps', 'vision'] },
+  reptile: { fit: { top: 2, jng: 3, mid: 0, adc: 0, sup: 0 }, tags: ['sustain', 'burst'] },
+  gunslinger: { fit: { top: 0, jng: 0, mid: 3, adc: 2, sup: 0 }, tags: ['burst'] },
 };
 const FIT_NAMES = ['плохо', 'терпимо', 'хорошо', 'родная роль'];
 const TAG_NAMES = { tank: 'танк', heal: 'лекарь', control: 'контроль', burst: 'взрывной урон', dps: 'постоянный урон', utility: 'поддержка', vision: 'обзор', sustain: 'живучесть' };

@@ -247,6 +247,15 @@ const BoardView = {
       for (let i = 0; i < 3; i++) { const a = time * 1.5 + i * 2.1 + g.id; ctx.beginPath(); ctx.arc(px + Math.cos(a) * gs * 0.22, py + Math.sin(a * 1.3) * gs * 0.22, gs * 0.06, 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
     }
+    if (g.bloom) {
+      ctx.save();
+      const r = gs * (0.12 + 0.05 * g.bloom);
+      ctx.translate(px + gs * 0.26, py - gs * 0.26);
+      ctx.fillStyle = '#ffe066';
+      for (let i = 0; i < 5; i++) { ctx.rotate(Math.PI * 2 / 5); ctx.beginPath(); ctx.ellipse(0, -r * 0.6, r * 0.35, r * 0.6, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#e07b00'; ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     if (g.mine) {
       ctx.save();
       ctx.fillStyle = `rgba(255,90,50,${0.5 + Math.sin(time * 5 + g.id) * 0.35})`;

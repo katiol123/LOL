@@ -6,6 +6,8 @@ const TOWER_HP = [1100, 1600, 2000];
 const NEXUS_HP = 3400;
 const ATK_MUL = 2.6;
 const HERO_DMG = 1.45;
+/* Выстрел из барабана Шермана */
+const G_SHOT = (G, h) => G.sp(h, 22, 0.25) + h.power * 0.7;
 /* Свойства предметов, которые складываются от одинаковых предметов */
 const ITEM_STACKING = new Set(['atk', 'arm', 'hp', 'sp', 'mana', 'crit', 'dodge']);
 /* Стоимость волны миньонов за минуту (на одну команду): сколько золота вообще можно снять с линии */
@@ -48,6 +50,8 @@ class Hero {
     this.k = 0; this.d = 0; this.a = 0; this.dmg = 0; this.healed = 0; this.cs = 0;
     this.cd = { q: 0, r: 0 };
     this.stunned = 0; this.dead = 0; this.ev = null; this.gank = 0; this.roam = 0; this.roams = 0; this.potions = 0;
+    this.knocked = 0; this.unstoppable = 0; this.water = 0; this.tailUsed = false; this.stealth = 0; this.aim = null; this.duel = null; this.duelLeft = 0; this.oasis = 0;
+    this.ammo = def.passive.ammo || 0;
     this.mem = {}; this.streak = 0;
     this.recalc();
     this.hp = this.maxHp; this.mana = this.maxMana * 0.6; this.shield = 0;
@@ -127,8 +131,13 @@ class Game {
   allTeam(h) { return this.teams[h.team].heroes.filter(x => x.alive); }
   allEnemies(h) { return this.teams[h.enemyTeam].heroes.filter(x => x.alive && !(x.ev && x.ev.type === 'recall')); }
   target(h) {
-    const e = this.enemiesIn(h);
+    let e = this.enemiesIn(h);
     if (!e.length) return null;
+    // дуэль: дуэлянты бьют только друг друга, остальные их не трогают
+    if (h.duel && h.duel.alive && e.includes(h.duel)) return h.duel;
+    if (e.some(x => !x.duel)) e = e.filter(x => !x.duel || !x.duel.alive);
+    // маскировка: невидим, пока рядом есть другие цели
+    if (e.some(x => !(x.stealth > 0))) e = e.filter(x => !(x.stealth > 0));
     // провокация: пока действует, враг бьёт только провокатора
     if (h.taunted > 0 && h.tauntBy && h.tauntBy.alive && e.includes(h.tauntBy)) return h.tauntBy;
     if (e.length === 1) return e[0];
@@ -282,6 +291,7 @@ class Game {
     this.ui.log(`${this.tag(h)} применяет <b class="skn">${s.icon} ${s.name}</b>${t && s.need === 'enemy' ? ` на ${this.tag(t)}` : ''}.`);
     await wait(650);
     // стрелок силён автоатаками (⚔) и фармом, а не умениями — как в LoL
+    if (key === 'q' && h.ev && h.def.id !== 'reptile') { h.ev.lastQ = h.ev.lastQ || {}; h.ev.lastQ[h.team] = h.def; }
     h.castMul = (1 + patchMod(h.def.id, key)) * ((h.def.main || h.def.role) === 'adc' ? ADC_SKILL : 1);
     try { await s.cast(this, h, t); } finally { h.castMul = 1; }
     await wait(200);
@@ -328,15 +338,17 @@ class Game {
       if (st.maxLen >= 5) bonus = true;
       const info = { cascade, atkRuns: st.atkRuns, bombs: st.acts.filter(a => a.sp === 'bomb').length, maxLen: st.maxLen, acts: st.acts.length };
       // гнилые камни не дают эффекта; мины взрываются, когда их камень уходит с поля
-      const mines = [];
+      const mines = [], blooms = [];
       for (const k of st.clear) {
         const g = b.at(k); if (!g) continue;
         if (g.rot && g.t <= 5 && st.counts[g.t] > 0) st.counts[g.t]--;
         if (g.mine) mines.push(g.mine);
+        if (g.bloom) blooms.push({ stage: g.bloom, by: g.bloomBy });
       }
       b.applyStep(st);
       this.stepSound(st, cascade);
       for (const m of mines) this.mineBlast(h, m);
+      for (const bl of blooms) this.bloomBurst(h, bl);
       if (st.acts.length) b.shake = Math.min(1, 0.3 + st.acts.length * 0.2);
       if (cascade >= 1 && effects) this.ui.combo(h, cascade + 1);
       await wait(230);
@@ -402,7 +414,14 @@ class Game {
       * (inFight && this.persist.includes(h.ev) ? sm(0.012, h, 'calm') : 1)   // хладнокровие в затяжных боях
       * (allies >= 2 ? sm(0.012, h, 'team') : 1);                              // слаженность с союзниками
     for (const k in c.m) c.m[k] *= gm;
-    if (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech') + h.itemStat('crit'), 0.01, 0.8))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
+    if ((h.stealth > 0 && counts[T_ATK] > 0) || (info.atkRuns.some(l => l >= 4) && U.chance(U.clamp(0.1 + 0.02 * sd(h, 'mech') + h.itemStat('crit'), 0.01, 0.8)))) { c.m.atk *= 1.5; c.label = c.label || 'КРИТ!'; }
+    // «Барабан на шесть»: каждое совпадение ⚔ — выстрел; пустой барабан — перезарядка вместо выстрела
+    if (p.ammo && counts[T_ATK] > 0) {
+      if (h.ammo > 0) { h.ammo--; c.bombDmg += G_SHOT(this, h); this.ui.float(h, `🔫 ${h.ammo}/6`, '#ffd36b', true); }
+      else { h.ammo = p.ammo; this.ui.float(h, '🔫 перезарядка', '#aaa', true); }
+    }
+    // «Запас влаги»: ✚ при полном здоровье копят влагу
+    if (p.water && counts[T_HEAL] > 0 && h.hp >= h.maxHp * 0.97) { h.water = Math.min(5, h.water + 1); this.ui.float(h, `💧 ${h.water}`, '#7bd3ff', true); }
     c.m.mana *= sm(0.045, h, 'read');
     c.m.gold *= sm(0.02, h, 'farm') * (1 + h.itemStat('goldPow'));
     const healPow = 1 + this.itemsOf(h, 'healPow');
@@ -412,6 +431,8 @@ class Game {
     if (counts[T_ATK] > 0) {
       const dmg = counts[T_ATK] * h.power * ATK_MUL * c.m.atk * casc * buff.atk;
       if (c.label) this.ui.float(h, c.label, '#ff5468');
+      // «Дальний выстрел» (Сыч): если врагов рядом нет, ещё треть урона летит в драку союзников
+      const ls = p.longshot && !this.enemiesIn(h).length ? this.longShot(h, dmg * Math.min(0.6, this.pv(h, 'longshot'))) : 0;
       this.routeAttack(h, dmg, c);
     }
     if (c.bombDmg > 0) { const t = this.target(h); if (t) { this.ui.projectile(h, t, '#ff9a3c'); this.dealDamage(h, t, c.bombDmg, 'magic'); } }
@@ -460,7 +481,9 @@ class Game {
     const enemies = this.enemiesIn(h);
     const toHero = (amt) => {
       if (amt <= 0 || !enemies.length) return 0;
-      const t = this.target(h);
+      if (h.knocked > 0) return 0;   // отброшен: до героев не достаёт
+      let t = this.target(h);
+      if (h.aim && h.aim.round === this.round && h.aim.t.alive && enemies.includes(h.aim.t)) { t = h.aim.t; amt *= 2.5; h.aim = null; this.ui.float(h, '🎯 ВЫСТРЕЛ!', '#ffd36b'); }
       this.ui.projectile(h, t, '#ff5468');
       const d = this.dealDamage(h, t, amt * (sm(0.03, h, 'agr')), 'phys');
       if (c.lifesteal > 0) this.healHero(h, h, d * c.lifesteal, true);
@@ -653,6 +676,7 @@ class Game {
     if (kind === 'magic') d *= 1 - Math.min(0.4, tgt.itemStat('magRed'));   // и против магического
     if (src && src.itemStat('antiHeal') > 0) tgt.wounded = { until: this.round + 1, k: Math.min(0.6, src.itemStat('antiHeal')) };   // скверна режет лечение
     if (tgt.anchored > 0) d *= 1.2;
+    if (tgt.def.passive.hide) d *= 1 - Math.min(0.2, (1 - tgt.hp / tgt.maxHp) * this.pv(tgt, 'hide'));   // «Толстая шкура»
     if (src && hasPerk(src, 'hunter') && tgt.hp / tgt.maxHp < 0.35) d *= 1.2;
     if (src && hasPerk(src, 'reckless')) d *= 1.1;
     if (hasPerk(tgt, 'reckless')) d *= 1.1;
@@ -661,7 +685,7 @@ class Game {
       const guard = ev.sides[tgt.team].find(x => x !== tgt && x.alive && x.def.passive.phalanx);
       if (guard) { const part = d * Math.min(0.6, this.pv(guard, 'phalanx')); d -= part; this.takeRaw(src, guard, part); }
     }
-    const abs = Math.min(tgt.shield, d);
+    const abs = src && src.pierce ? 0 : Math.min(tgt.shield, d);   // пике грифона проходит сквозь щит
     tgt.shield -= abs; d -= abs;
     tgt.hp -= d;
     if (src) src.dmg += d + abs;
@@ -729,7 +753,7 @@ class Game {
   // мёртвый герой (в таверне) не получает ни золота, ни опыта
   addGold(h, amt) { if (!h.alive) return; h.gold += amt; h.totalGold += amt; }
   /* Амулет стойкости: шанс стряхнуть контроль */
-  shrug(tgt) { const t = tgt.itemStat('tenacity'); if (t > 0 && U.chance(t)) { this.ui.float(tgt, 'СТОЙКОСТЬ', '#c9f'); return true; } return false; }
+  shrug(tgt) { if (tgt.unstoppable > 0) { this.ui.float(tgt, 'НЕУДЕРЖИМ', '#ffb36b'); return true; } const t = tgt.itemStat('tenacity'); if (t > 0 && U.chance(t)) { this.ui.float(tgt, 'СТОЙКОСТЬ', '#c9f'); return true; } return false; }
   stun(src, tgt) {
     if (!tgt.alive || this.shrug(tgt)) return;
     tgt.stunned = 1;
@@ -765,6 +789,10 @@ class Game {
 
   kill(src, tgt) {
     if (tgt.dead > 0) return;
+    // «Сброс хвоста»: раз за жизнь переживает смертельный удар
+    if (tgt.def.passive.tail && !tgt.tailUsed) { tgt.tailUsed = true; tgt.hp = Math.round(tgt.maxHp * 0.15); this.ui.float(tgt, '🦎 СБРОС ХВОСТА', '#b9f0a0'); this.ui.log(`🦎 ${this.tag(tgt)} сбрасывает хвост и уходит от смерти!`, tgt.team); return; }
+    // исход дуэли
+    if (tgt.duel) { const w = tgt.duel; if (w === src && w.alive) { this.addGold(w, 300); w.mana = w.maxMana; this.ui.float(w, '🤠 ДУЭЛЬ ВЫИГРАНА', '#ffd36b'); this.ui.log(`🤠 ${this.tag(w)} побеждает в дуэли!`, w.team); } w.duel = null; tgt.duel = null; }
     if (src && src.team !== tgt.team) tgt.mem.killer = src;
     // жатва душ (Валдрек): любая смерть рядом с некромантом усиливает его
     if (tgt.ev && tgt.ev.sides) for (const x of [...tgt.ev.sides.blue, ...tgt.ev.sides.red]) if (x !== tgt && x.alive && x.def.passive.souls && x.souls < 20) { x.souls++; x.recalc(); this.ui.float(x, `💀 душа ${x.souls}`, '#7bff9e'); }
@@ -1055,6 +1083,15 @@ class Game {
         }
       }
     }
+    // «Небесный дозор» (Аэрин): свободный грифон перелетает в драку союзников
+    for (const h of this.heroes) {
+      if (!this.free(h) || !h.def.passive.skyward) continue;
+      const fights = this.events.filter(ev => ev.sides && ev.sides[h.team].some(x => x.alive) && ev.sides[h.enemyTeam].some(x => x.alive));
+      if (!fights.length || !U.chance(U.clamp((iqOf(h, 'team') - 2) / 14 + 0.2, 0.1, 0.95))) continue;
+      const ev = U.maxBy(fights, e => e.sides[h.enemyTeam].filter(x => x.alive).length - e.sides[h.team].filter(x => x.alive).length);
+      this.join(ev, h);
+      this.ui.log(`🦅 ${this.tag(h)} перелетает на помощь союзникам${ev.lane ? ' на ' + ev.lane.toUpperCase() : ''}!`, h.team);
+    }
     for (const t of ['blue', 'red']) {
       const j = this.hero(t, 'jng');
       if (this.free(j)) {
@@ -1292,7 +1329,7 @@ class Game {
         if ((h.role === 'mid' || h.role === 'sup') && h.ev.lane === h.lane && ['lane', 'siege', 'defend'].includes(h.ev.type)) h.roam += Math.max(3, (h.role === 'mid' ? 14 : 12) + 1.2 * sd(h, 'agr'));
       } else {
         h.dead--;
-        if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
+        if (h.dead <= 0) { h.dead = 0; h.tailUsed = false; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
       }
       // зелье здоровья: пьёт, когда здоровья мало (умный — вовремя, неумный — с опозданием)
       if (h.alive && h.potions > 0 && h.hp / h.maxHp < (iqOf(h, 'tactic') >= 10 ? 0.55 : 0.35) && h.ev && h.ev.type !== 'recall') {
@@ -1301,6 +1338,11 @@ class Game {
       if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 2) this.calmDown(h);
       for (const k of ['q', 'r']) if (h.cd[k] > 0) h.cd[k]--;
       for (const k of ['taunted', 'silenced', 'anchored', 'reflect']) if (h[k] > 0) h[k]--;
+      for (const k of ['knocked', 'unstoppable', 'stealth']) if (h[k] > 0) h[k]--;
+      if (h.duel) { h.duelLeft--; if (h.duelLeft <= 0 || !h.duel.alive) { if (h.duel.duel === h) h.duel.duel = null; h.duel = null; } }
+      if (h.alive && h.oasis > 0) { h.oasis--; for (const a of this.alliesIn(h)) { this.healHero(h, a, a.maxHp * 0.07 + this.sp(h, 20, 0.2)); this.shieldHero(h, a, this.sp(h, 15, 0.15)); this.addMana(a, 12, true); } }
+      if (h.alive && h.water > 0 && h.hp < h.maxHp * 0.5) { h.water--; this.healHero(h, h, h.maxHp * 0.08); this.ui.float(h, '💧 влага', '#7bd3ff'); }
+      h.board.forEach(g => { if (g && g.bloom && g.bloom < 3) g.bloom++; });
       if (h.verses > 0 && (!h.ev || !h.ev.sides || h.ev.type === 'recall')) h.verses--;
       if (h.board.spreadRot()) this.ui.boardHit(h, '#7bd36b');
       h.board.decayFog();
@@ -1371,6 +1413,45 @@ class Game {
   taunt(src, foes, rounds = 1) { for (const e of foes) { if (this.shrug(e)) continue; e.taunted = rounds + 1; e.tauntBy = src; this.ui.float(e, '😠 ПРОВОКАЦИЯ', '#ffb36b'); } }
   silence(src, tgt, rounds) { if (this.shrug(tgt)) return; tgt.silenced = rounds + 1; this.ui.float(tgt, '🤐 НЕМОТА', '#9fd3ff'); }
   anchor(src, tgt, rounds) { if (this.shrug(tgt)) return; tgt.anchored = rounds + 1; this.ui.float(tgt, '⚓ ЯКОРЬ', '#c8d2e0'); }
+  longShot(h, amt) {
+    const evs = this.events.filter(ev => ev.sides && ev !== h.ev && ev.sides[h.team].some(x => x.alive) && ev.sides[h.enemyTeam].some(x => x.alive));
+    if (!evs.length) return 0;
+    const ev = U.pick(evs), t = this.frontline(ev.sides[h.enemyTeam].filter(x => x.alive && !(x.stealth > 0)).concat([]).filter(Boolean)) || null;
+    if (!t) return 0;
+    this.ui.projectile(h, t, '#ffd36b');
+    this.dealDamage(h, t, amt, 'phys');
+    return amt;
+  }
+  /* Цветок Колюча: лечит и даёт щит союзникам владельца поля, сила — от стадии роста */
+  bloomBurst(owner, bl) {
+    const src = this.heroes.find(x => x.id === bl.by) || owner;
+    const k = [0, 0.9, 1.6, 2.6][bl.stage];
+    this.ui.float(owner, `🌼 ЦВЕТОК ×${bl.stage}`, '#ffe066');
+    for (const a of this.alliesIn(owner)) { this.healHero(src, a, this.sp(src, 30, 0.3) * k); this.shieldHero(src, a, this.sp(src, 25, 0.25) * k); }
+  }
+  /* Похищение (Аэрин): цель уносится туда, где союзников похитителя больше всего */
+  abduct(h, t) {
+    const evs = this.events.filter(ev => ev !== t.ev && ev.sides && ev.type !== 'dead' && ev.type !== 'recall');
+    const dest = U.maxBy(evs, ev => ev.sides[h.team].filter(x => x.alive).length - ev.sides[t.team].filter(x => x.alive).length);
+    if (!dest || dest.sides[h.team].filter(x => x.alive).length < 1) return;
+    const from = t.ev; if (from && from.sides) from.sides[t.team] = from.sides[t.team].filter(x => x !== t);
+    dest.sides[t.team].push(t); t.ev = dest;
+    this.ui.float(t, '🦅 ПОХИЩЕН', '#e8d9a8');
+    this.ui.log(`🦅 ${this.tag(h)} уносит ${this.tag(t)} к своим союзникам${dest.lane ? ' на ' + dest.lane.toUpperCase() : ''}!`, h.team);
+  }
+  /* Линька (Скинк): снимает с себя контроль и порчу поля */
+  molt(h) {
+    h.stunned = 0; h.silenced = 0; h.taunted = 0; h.tauntBy = null; h.anchored = 0; h.knocked = 0; h.wounded = null;
+    h.board.forEach(g => { if (!g) return; if (g.ice || g.fog || g.rot || g.mine) { g.ice = 0; g.fog = 0; g.rot = 0; g.mine = null; g.flash = 1; } });
+    this.ui.float(h, '🐍 ЛИНЬКА', '#b9f0a0');
+  }
+  /* Дуэль (Шерман) */
+  duel(h, t, rounds) {
+    if (h.duel && h.duel.duel === h) h.duel.duel = null;
+    h.duel = t; t.duel = h; h.duelLeft = t.duelLeft = rounds + 1;
+    this.ui.float(t, '🤠 ДУЭЛЬ', '#ffd36b'); this.ui.float(h, '🤠 ДУЭЛЬ', '#ffd36b');
+    this.ui.log(`🤠 ${this.tag(h)} вызывает ${this.tag(t)} на дуэль!`, h.team);
+  }
   /* Немедленный дополнительный ход союзника (Ноктюрн) */
   async bonusMove(h) {
     if (!h.alive || this.over) return;
