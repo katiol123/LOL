@@ -919,3 +919,40 @@ html, body, #app { overflow: clip; }
 .shop-it.t3 { border-color: rgba(185,140,255,.4); } .shop-it.t4 { border-color: rgba(255,107,154,.5); }
 .pool-card.pickable { cursor: pointer; box-shadow: 0 0 0 1px rgba(255,201,60,.5); }
 .pool-card.pickable:hover { box-shadow: 0 0 0 2px #ffc93c, 0 0 20px rgba(255,201,60,.5); transform: translateY(-3px); }
+
+/* ---------- Визуальный критик, круг 1 ---------- */
+.decide { position: static !important; top: auto !important; margin: 6px 0; max-height: none; }
+#feature-box.my-turn { border-radius: 12px; box-shadow: 0 0 0 3px #ffc93c, 0 0 26px rgba(255,201,60,.55); animation: myturn 1.2s ease-in-out infinite; }
+@keyframes myturn { 50% { box-shadow: 0 0 0 3px #ffe08a, 0 0 40px rgba(255,201,60,.8); } }
+#feature-box.bad-swap { animation: badswap .45s ease; }
+@keyframes badswap { 0%,100% { transform: none; } 20% { transform: translateX(-7px); box-shadow: 0 0 0 3px #ff5468; } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.hero-card.mine-card { box-shadow: 0 0 0 2px #ffc93c, 0 0 16px rgba(255,201,60,.35); }
+.hc-targets { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.tgt { position: relative; width: 38px; height: 38px; padding: 0; border-radius: 50%; overflow: hidden; border: 2px solid rgba(255,84,104,.5); background: #111a2c; cursor: crosshair; }
+.tgt img { width: 100%; height: 100%; object-fit: cover; }
+.tgt i { position: absolute; left: 3px; right: 3px; bottom: 2px; height: 4px; border-radius: 2px; background: rgba(0,0,0,.6); overflow: hidden; }
+.tgt i b { display: block; height: 100%; background: #45e07a; }
+.tgt.on { border-color: #ff5468; box-shadow: 0 0 12px #ff5468; }
+.tgt.dead { filter: grayscale(1) brightness(.4); }
+#feature-skills .fsk small, #feature-skills .fsk b { white-space: normal; overflow: visible; text-overflow: clip; }
+.end-wrap { padding-bottom: 90px; }
+.share b { position: static !important; margin-left: 6px; }
+#cl-detail { padding-bottom: 70px; }
+.hub-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .draft-head { display: grid !important; grid-template-columns: 1fr 1fr; grid-template-areas: "b r" "s s"; gap: 4px 8px; padding: 6px 10px !important; }
+  .draft-head .draft-team { font-size: 15px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .draft-head .draft-team.blue { grid-area: b; } .draft-head .draft-team.red { grid-area: r; text-align: right; }
+  .draft-head .draft-status { grid-area: s; font-size: 13px; }
+  .draft-head .draft-team small.dcap { font-size: 10px; }
+  #draft-phase { font-size: 15px !important; } #draft-sub { font-size: 11px !important; }
+  #draft-order .po { width: 18px !important; } #draft-order .po.ban { width: 9px !important; }
+  .draft-picks { display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 4px !important; overflow: visible !important; }
+  .draft-picks .ban-row { grid-column: 1 / -1; }
+  .pick-slot { min-width: 0 !important; flex-direction: column !important; padding: 4px !important; gap: 2px !important; text-align: center !important; }
+  .pick-slot .pf { display: none !important; }
+  .pick-slot .pn b { font-size: 11px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .pick-slot .pn small, .pick-slot .why, .pick-slot .ph { display: none !important; }
+  .hud-team .hud-name { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+  .hub-actions .btn { padding: 4px 8px; font-size: 11px; }
+}

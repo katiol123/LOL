@@ -103,13 +103,13 @@ const UI = {
   },
 
   buildCard(h) {
-    const c = el('div', 'hero-card');
+    const c = el('div', 'hero-card' + (h.pl && h.pl.human ? ' mine-card' : ''));
     c.style.setProperty('--hc', h.def.color);
     c.innerHTML = `
       <div class="hc-info">
         <div class="hc-top">
           <div class="portrait pface">${faceHTML(h.pl, this.teamColors(h.team))}<span class="hero-badge" style="--hc:${h.def.color}" title="${U.esc(h.name)}">${heroFace(h.def)}</span><span class="lvl">1</span></div>
-          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${U.esc(h.nick)}${perkHTML(h.pl)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
+          <div class="hc-name"><b title="${U.esc(h.pl.first + ' ' + h.pl.last)}">${h.pl.human ? '<span class="you">ВЫ</span> ' : ''}${U.esc(h.nick)}${perkHTML(h.pl)}<span class="tilt-badge" title="Тильт: −к Механике, Реакции, Чтению игры"></span></b><small title="${U.esc(h.def.title)}">${ROLES[h.role].icon} ${h.name}${h.fit < 3 ? ` <span class="offrole" title="Пригодность героя к роли: ${FIT_NAMES[h.fit]} (подсказка для выбора, штрафа нет)">${fitStars(h.fit)}</span>` : ''}${h.ms ? ` <span class="msb" title="Мастерство на герое">✦${h.ms}</span>` : ''}</small></div>
         </div>
         <div class="ev-chip">—</div>
         <div class="bar hp"><i class="lag"></i><i class="fill"></i><i class="shield"></i><span></span></div>
@@ -542,7 +542,11 @@ const UI = {
       <div class="hc-hint" id="hc-hint">Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.</div>`);
     bar.id = 'hctl';
     $('#feature-wrap').appendChild(bar);
-    const dec = el('div', 'decide'); dec.id = 'decide'; dec.hidden = true; $('#feature-wrap').appendChild(dec);
+    const dec = el('div', 'decide'); dec.id = 'decide'; dec.hidden = true; $('#feature-wrap').insertBefore(dec, bar);
+    // ряд вражеских аватаров: выбор приоритетной цели прямо под полем (удобно и на телефоне)
+    const tg = el('div', 'hc-targets', '<span class="muted">Цель:</span>' + game.heroes.filter(h => h.team !== me.team).map(h => `<button class="tgt" data-tg="${h.id}" title="${U.esc(h.nick)} · ${h.name}">${heroFace(h.def)}<i><b style="width:100%"></b></i></button>`).join(''));
+    bar.appendChild(tg);
+    tg.querySelectorAll('[data-tg]').forEach(b => b.onclick = () => { const h = game.heroes.find(x => x.id === b.dataset.tg); this.setPref(me, h); });
     $('#hc-recall').onclick = () => { me.wantRecall = !me.wantRecall; $('#hc-recall').classList.toggle('on', me.wantRecall); };
     $('#hc-leave').onclick = () => { me.wantLeave = !me.wantLeave; $('#hc-leave').classList.toggle('on', me.wantLeave); };
     $('#hc-drake').onclick = () => game.humanSignal(me, 'obj', { kind: 'dragon' });
@@ -552,7 +556,7 @@ const UI = {
     for (const h of game.heroes) if (h.team !== me.team) {
       const r = this.cards.get(h.id);
       r.c.classList.add('targetable');
-      r.c.addEventListener('click', () => { me.prefTarget = me.prefTarget === h ? null : h; for (const x of game.heroes) { const q = this.cards.get(x.id); q.c.classList.toggle('pref', me.prefTarget === x); } $('#hc-hint').textContent = me.prefTarget ? `Приоритетная цель: ${me.prefTarget.nick} (${me.prefTarget.name}). Достаётся, если её не прикрывает передовая — как и у ИИ.` : 'Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.'; });
+      r.c.addEventListener('click', () => this.setPref(me, h));
     }
     // ходы — клик по клеткам своего поля
     const cv = $('#feature');
@@ -568,17 +572,28 @@ const UI = {
       const blind = !AI.seesFog(w.h);
       const mv = w.h.board.listMoves(blind).find(m => (m.r === r0 && m.c === c0 && m.r2 === r && m.c2 === c) || (m.r === r && m.c === c && m.r2 === r0 && m.c2 === c0));
       this.select = null;
-      if (!mv) { w.h.board.shake = 0.5; sfx('swap'); this.setHint('Такой обмен не даёт совпадения (или камень скрыт туманом/льдом).'); return; }
+      if (!mv) { w.h.board.shake = 0.8; sfx('swap'); $('#feature-box').classList.remove('bad-swap'); void $('#feature-box').offsetWidth; $('#feature-box').classList.add('bad-swap'); this.setHint('🎯 Ваш ход. ✖ Такой обмен не даёт совпадения (или камень под туманом/льдом) — попробуйте другой.'); return; }
+      $('#feature-box').classList.remove('my-turn'); clearTimeout(this.hintTimer);
       this.pendingMove = null; this.pending = null; this.setHint(w.h.prefTarget ? `Приоритетная цель: ${w.h.prefTarget.nick}.` : 'Ход сделан. Цель: нажмите на карточку врага, чтобы сделать его приоритетной.'); w.resolve(mv);
     };
   },
-  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave);
+  syncHuman() { const me = this.human; if (!me || !$('#hc-recall')) return; document.querySelectorAll('.tgt').forEach(b => { const h = this.game.heroes.find(x => x.id === b.dataset.tg); b.classList.toggle('dead', !h.alive); b.querySelector('b').style.width = Math.round(Math.max(0, h.hp / h.maxHp) * 100) + '%'; }); $('#hc-recall').classList.toggle('on', !!me.wantRecall); $('#hc-leave').classList.toggle('on', !!me.wantLeave);
     if (me.alive && !me.autopilot && me.hp / me.maxHp < 0.3) this.setHint('⚠ Мало здоровья! ИИ на вашем месте уже отступил бы: нажмите «Отступить» или «На базу».'); },
+  setPref(me, h) {
+    me.prefTarget = me.prefTarget === h ? null : h;
+    for (const x of this.game.heroes) { const q = this.cards.get(x.id); q.c.classList.toggle('pref', me.prefTarget === x); }
+    document.querySelectorAll('.tgt').forEach(b => b.classList.toggle('on', me.prefTarget && b.dataset.tg === me.prefTarget.id));
+    this.setHint(me.prefTarget ? `Приоритетная цель: ${me.prefTarget.nick} (${me.prefTarget.name}). Достаётся, если её не прикрывает передовая — как и у ИИ.` : 'Цель: нажмите на карточку врага или аватар, чтобы сделать его приоритетной целью.');
+  },
   setHint(t) { const e = $('#hc-hint'); if (e) e.textContent = t; },
   awaitHumanMove(h) {
     if (h.autopilot) return AI.chooseMove(this.game, h);
     this.view = h; this.renderHead(h);
     this.setHint('🎯 Ваш ход: выберите два соседних камня на поле.');
+    $('#feature-box').classList.add('my-turn'); this.banner('ВАШ ХОД', 'выберите два соседних камня', h.team);
+    sfx('lockin');
+    clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => { if (this.pendingMove && this.pendingMove.h === h) { const mv = U.pick(h.board.listMoves(!AI.seesFog(h))); if (mv) { this.select = mv.r * N + mv.c; this.setHint('💡 Подсказка: один из возможных обменов подсвечен.'); } } }, 8000);
     return new Promise(resolve => {
       this.pendingMove = { h, resolve };
       this.pending = { auto: () => { this.pendingMove = null; this.pending = null; resolve(AI.chooseMove(this.game, h)); } };
@@ -729,7 +744,7 @@ const Draft = {
       banRows[t] = el('div', 'ban-row', AI.BAN_ORDER.filter(x => x === t).map(() => '<span class="ban-slot"></span>').join(''));
       col.appendChild(banRows[t]);
       for (const p of players[t]) {
-        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${U.esc(p.nick)}${p === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(p)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
+        const s = el('div', 'pick-slot', `${faceHTML(p, colors[t], 'pf')}<div class="pp">?</div><div class="pn"><b>${p.human ? '<span class="you">ВЫ</span> ' : ''}${U.esc(p.nick)}${p === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(p)}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}</small><em class="why"></em></div>`);
         col.appendChild(s); slots[t].set(p, s);
       }
     }
@@ -774,7 +789,7 @@ const Draft = {
         pp.innerHTML = heroFace(step.def);
         pp.style.background = `radial-gradient(circle at 35% 30%, ${step.def.color}, #0b0f1d 85%)`;
         const ms = masteryOf(step.pl, step.def.id);
-        slot.querySelector('.pn').innerHTML = `<b>${U.esc(step.pl.nick)}${step.pl === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(step.pl)}</b><span class="ph">${step.def.name}</span><small>${ROLES[step.role].short} ${fitStars(step.def.fit[step.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why">${this.chips(step.parts, 1)}</em>`;
+        slot.querySelector('.pn').innerHTML = `<b>${step.pl.human ? '<span class="you">ВЫ</span> ' : ''}${U.esc(step.pl.nick)}${step.pl === caps[t] ? ' <span class="capt">C</span>' : ''}${perkHTML(step.pl)}</b><span class="ph">${step.def.name}</span><small>${ROLES[step.role].short} ${fitStars(step.def.fit[step.role])}${ms ? ' · ✦' + ms : ''}</small><em class="why">${this.chips(step.parts, 1)}</em>`;
         slot.title = step.reason;
       }
       await wait(ban ? 450 : 380);

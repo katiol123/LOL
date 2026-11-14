@@ -39,7 +39,7 @@ function playerRow(L, p, opts = {}) {
     <div class="pr-name"><b>${U.esc(p.nick)}${p.captain ? ' <span class="capt" title="Капитан: драфтит за команду (баны и выбор героев)">C</span>' : ''}${p.human ? ' <span class="you">ВЫ</span>' : ''}${p.talent === 'star' ? ' <span title="Восходящая звезда">🌟</span>' : ''}${perkHTML(p)}${(() => { const at = typeof mgmtAttitude !== 'undefined' && L.clubs[0].mgmt ? mgmtAttitude(L, p) : null; return at && at !== ATTITUDES.ok ? ` <span class="att-i ${at.cls}" title="Руководство: ${at.name}">${at.icon}</span>` : ''; })()}</b><small>${ROLES[p.role].icon} ${ROLES[p.role].name}${opts.club && club ? ' · ' + club.emblem + ' ' + club.tag : ''}</small></div>
     <div class="pr-ovr" title="Общий рейтинг (среднее 8 характеристик)">${playerOvr(p).toFixed(1)}</div>
     <div class="pr-form" style="color:${formColor(p)}" title="Форма: средняя оценка за 5 матчей ${playerFormAvg(p).toFixed(2)}">${formArrow(p)}</div>
-    ${opts.last ? `<div class="pr-last">${ratingChips(p, 3)}</div>` : ''}
+    ${opts.last ? `<div class="pr-last" title="Оценки за последние игры (1–10)">${ratingChips(p, 3)}</div>` : ''}
   </div>`;
 }
 
@@ -127,7 +127,8 @@ const Campaign = {
     const L = this.L;
     const avg = clubStatAvg(L, c);
     const leagueAvg = Object.fromEntries(STAT_KEYS.map(k => [k, U.sum(L.clubs, x => clubStatAvg(L, x)[k]) / L.clubs.length]));
-    const strong = STATS.filter(s => avg[s.key] - leagueAvg[s.key] >= 0.8).map(s => s.name), weak = STATS.filter(s => leagueAvg[s.key] - avg[s.key] >= 0.8).map(s => s.name);
+    const diff = STATS.map(s => ({ n: s.name, d: avg[s.key] - leagueAvg[s.key] })).sort((a, b) => b.d - a.d);
+    const strong = diff.filter(x => x.d >= 0.5).slice(0, 3).map(x => x.n), weak = diff.slice().reverse().filter(x => x.d <= -0.5).slice(0, 3).map(x => x.n);
     const replaced = choosing && this.human ? L.players[c.roster[this.human.role]] : null;
     return `<div class="cd-head" style="--cc:${c.color};--cc2:${c.color2}"><div class="cc-em big">${c.emblem}</div><div><h2>${c.name}</h2>
       <small>${c.tag} · рейтинг клуба <b>${clubOvr(L, c).toFixed(1)}</b> · средняя форма ${clubForm(L, c).toFixed(2)}</small></div></div>
@@ -262,6 +263,8 @@ const Campaign = {
       $('#hub-watch').onclick = () => this.playTour(true);
       $('#hub-sim').onclick = () => this.playTour(false);
     }
+    // кнопки окон в шапке хаба (всегда на виду)
+    $('#hub-news').onclick = () => this.openView({ type: 'news', id: 'all' }); $('#hub-agents').onclick = () => this.openView({ type: 'agents', id: 'x' }); $('#hub-fac').onclick = () => this.openView({ type: 'facilities', id: 'x' });
     // финансы и руководство
     $('#hub-fin').innerHTML = this.clubFinHTML(club, true);
     $('#hub-fin').querySelectorAll('[data-view]').forEach(b => b.onclick = () => this.openView({ type: b.dataset.view, id: b.dataset.id || 'x' }));
@@ -426,7 +429,7 @@ const Campaign = {
   clubFinHTML(c, hub) {
     const L = this.L, m = c.mgmt, st = MGMT_STYLES[m.style];
     const last = (c.ledger || [])[c.ledger.length - 1];
-    const fac = Object.keys(FACILITIES).map(k => `<span class="fac ${facLevel(c, k) ? 'on' : ''}" title="${FACILITIES[k].name}: ${FACILITIES[k].desc}">${FACILITIES[k].icon}<b>${facLevel(c, k)}</b></span>`).join('');
+    const fac = `<span class="muted">Отделы:</span> ` + Object.keys(FACILITIES).map(k => `<span class="fac ${facLevel(c, k) ? 'on' : ''}" title="${FACILITIES[k].name}: ${FACILITIES[k].desc}">${FACILITIES[k].icon} ${FACILITIES[k].name.split(' ')[0]} <b>${facLevel(c, k)}</b></span>`).join('');
     const pay = payroll(L, c);
     return `${hub ? '<div class="panel-title">Клуб: финансы и руководство</div>' : '<div class="cr-label">Руководство и финансы</div>'}
       <div class="fin-box">
