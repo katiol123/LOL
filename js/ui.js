@@ -542,7 +542,9 @@ const UI = {
       <div class="hc-hint" id="hc-hint">Цель: нажмите на карточку врага, чтобы сделать его приоритетной целью.</div>`);
     bar.id = 'hctl';
     $('#feature-wrap').appendChild(bar);
-    const dec = el('div', 'decide'); dec.id = 'decide'; dec.hidden = true; $('#feature-wrap').insertBefore(dec, bar);
+    // окно решений: на широком экране — справа над панелью события (поле не сжимается), на телефоне — под полем
+    const dec = el('div', 'decide'); dec.id = 'decide'; dec.hidden = true;
+    if (innerWidth > 900 && $('#side-info')) $('#side-info').insertBefore(dec, $('#side-info').firstChild); else $('#feature-wrap').insertBefore(dec, bar);
     // ряд вражеских аватаров: выбор приоритетной цели прямо под полем (удобно и на телефоне)
     const tg = el('div', 'hc-targets', '<span class="muted">Цель:</span>' + game.heroes.filter(h => h.team !== me.team).map(h => `<button class="tgt" data-tg="${h.id}" title="${U.esc(h.nick)} · ${h.name}">${heroFace(h.def)}<i><b style="width:100%"></b></i></button>`).join(''));
     bar.appendChild(tg);
@@ -634,6 +636,8 @@ const UI = {
     const G = this.game, box = $('#decide');
     if (!box || Clock.headless) return Promise.resolve(AI.shop(G, h));
     const acts = []; let gold = h.gold; const inv = h.items.slice();
+    // покупать нечего — магазин не открываем
+    if (!Object.keys(ITEMS).some(id => ITEMS[id].cost <= gold) && inv.length < 6) return Promise.resolve([]);
     const allowed = id => inv.filter(x => x === id).length < (ITEMS[id].tier === 1 ? 2 : 1);
     return new Promise(resolve => {
       const finish = list => { box.hidden = true; this.pending = null; resolve(list); };

@@ -934,9 +934,7 @@ html, body, #app { overflow: clip; }
 .tgt i b { display: block; height: 100%; background: #45e07a; }
 .tgt.on { border-color: #ff5468; box-shadow: 0 0 12px #ff5468; }
 .tgt.dead { filter: grayscale(1) brightness(.4); }
-#feature-skills .fsk small, #feature-skills .fsk b { white-space: normal; overflow: visible; text-overflow: clip; }
 .end-wrap { padding-bottom: 90px; }
-.share b { position: static !important; margin-left: 6px; }
 #cl-detail { padding-bottom: 70px; }
 .hub-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 560px) {
@@ -956,3 +954,14 @@ html, body, #app { overflow: clip; }
   .hud-team .hud-name { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
   .hub-actions .btn { padding: 4px 8px; font-size: 11px; }
 }
+
+/* ---------- Визуальный критик, круг 2 ---------- */
+#side-info .decide { margin: 0 0 8px; }
+#cl-detail .title-actions { position: static !important; background: none !important; padding: 12px 0 4px !important; }
+#cl-detail { padding-bottom: 10px !important; }
+.pick-slot .why .rchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-slot .pn { min-width: 0; }
+.end-wrap { padding-bottom: 120px !important; }
+.end-wrap .title-actions { padding: 6px 0 !important; }
+@media (max-width: 560px) { .pick-slot .pn b .you { display: block; width: max-content; margin: 0 auto 2px; } }
+#adv.empty-graph { display: none; }

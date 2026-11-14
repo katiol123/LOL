@@ -240,12 +240,16 @@ function applyPatch(L) {
   for (const id in old.mods) mods[id] = typeof old.mods[id] === 'number' ? { stat: old.mods[id] } : Object.assign({}, old.mods[id]);
   const notes = [], meta = {};
   for (const d of HEROES) {
-    const s = old.stats[d.id] || { g: 0, w: 0, b: 0 };
+    // статистика текущего патча + половина прошлого (скользящее окно), чтобы правки не реагировали на шум
+    const cur = old.stats[d.id] || { g: 0, w: 0, b: 0 }, prevP = (L.patchHistory || [])[L.patchHistory ? L.patchHistory.length - 1 : 0], pv = prevP && prevP.stats && prevP.stats[d.id];
+    const s = pv ? { g: cur.g + pv.g * 0.5, w: cur.w + pv.w * 0.5, b: cur.b } : cur;
     const wr = heroWr(s);
     let eff = 0, key = null, delta = 0;
     // правка только если перекос больше двух статистических погрешностей; чем меньше игр — тем осторожнее
     if (s.g >= 30 && Math.abs(s.w / s.g - 0.5) > 2 * Math.sqrt(0.25 / s.g) && Math.abs(wr - 0.5) > 0.02) {
-      let need = -U.clamp((wr - 0.5) * 70 / PATCH_WR_PER_PCT * (s.g / (s.g + 60)) * 1.5, -6, 6) / 100;
+      // большой перекос (больше трёх погрешностей) — шаг до 10%
+      const lim = Math.abs(s.w / s.g - 0.5) > 3 * Math.sqrt(0.25 / s.g) ? 10 : 6;
+      let need = -U.clamp((wr - 0.5) * 70 / PATCH_WR_PER_PCT * (s.g / (s.g + 60)) * 1.5, -lim, lim) / 100;
       if (Math.abs(need) < 0.02) need = 0.02 * Math.sign(need);
       // в ~30% случаев правят не базовые характеристики, а Q, ульту или пассивку (часть набора — шаг крупнее)
       key = rng() < 0.7 ? 'stat' : ['q', 'r', 'p'][Math.floor(rng() * 3)];

@@ -40,19 +40,21 @@ const AI = {
     const k = U.clamp((iqOf(h, 'tactic') - 2) / 12, 0, 1.25);
     const flat = [1.6, 0.8, 0.8, 0.8, 1.1, 0.8];
     // слабый тактик ещё и «плывёт» в приоритетах от хода к ходу
-    const drift = U.clamp((12 - iqOf(h, 'tactic')) / 10, 0, 1) * 0.9;
+    const drift = U.clamp((13 - iqOf(h, 'tactic')) / 9, 0, 1.1) * 1.5;
     for (let t = 0; t < 6; t++) w[t] = Math.max(0.05, (flat[t] + k * (w[t] - flat[t])) * (1 + U.rand(-drift, drift)));
     if (hasPerk(h, 'late') && G.minute < 25) w[T_GOLD] *= 2.2;   // «Игрок лейта» копит золото на поздние предметы
     return w;
   },
 
-  scoreSim(sim, w, h) {
+  scoreSim(sim, w, h, ctx) {
     let s = 0;
     for (let t = 0; t < 6; t++) s += sim.counts[t] * w[t];
     const cm = hasPerk(h, 'combo') ? 1.6 : 1;   // «Комбинатор» выше ценит особые камни и их срабатывание
     for (const c of sim.creates) s += (c.sp === 'prism' ? 7 : c.sp === 'bomb' ? 4.5 : 3.2) * cm;
     s += sim.stones * 0.9;
-    s += sim.acts.length * 1.2 * cm;
+    // Тактика: особые камни (бомбы, линии) умный игрок бережёт до драки и взрывает, когда рядом враги
+    const save = ctx ? ctx.save : 0;
+    s += sim.acts.length * (1.2 * cm + (ctx && ctx.fight ? 3 * save : -3 * save));
     return s;
   },
 
@@ -73,6 +75,8 @@ const AI = {
     const iq = iqOf(h, 'board');
     if (U.chance(Math.max(0, 8 - iq) * 0.03)) return U.pick(moves);   // «зевок»: случайный ход
     const noise = 0.4 + (20 - iq) * 0.26;
+    const tq = U.clamp((iqOf(h, 'tactic') - 6) / 10, 0, 1.2);
+    const sctx = { fight: G.enemiesIn(h).length > 0 || ['dragon', 'baron'].includes(h.ev.type), save: tq };
     const depth = iq >= 14 ? 3 : iq >= 8 ? 1 : 0;
     let best = null, bs = -Infinity;
     for (const mv of moves) {
@@ -85,7 +89,7 @@ const AI = {
           s = h.board.count(color) * w[color] + 4;
         }
       } else {
-        s = this.scoreSim(depth ? h.board.simulateDeep(mv, blind, preview, depth) : h.board.simulate(mv, blind), w, h);
+        s = this.scoreSim(depth ? h.board.simulateDeep(mv, blind, preview, depth) : h.board.simulate(mv, blind), w, h, sctx);
       }
       // предпочтение ходов внизу поля (больше шансов на каскад)
       s += Math.max(mv.r, mv.r2) * 0.12 * (iq >= 10 ? 1 : 0) + Math.random() * noise;
@@ -112,7 +116,11 @@ const AI = {
       if (iqOf(h, 'tactic') >= 12 && s.need === 'enemy' && key === 'r') {
         const t = G.target(h);
         if (t && t.hp / t.maxHp > 0.7 && enemies.length <= 1 && !['dragon', 'baron'].includes(h.ev.type)) continue;
+        // на линии один на один ульту бережёт до добивания или групповой драки
+        if (h.ev.type === 'lane' && enemies.length <= 1 && t && t.hp / t.maxHp > 0.45) continue;
       }
+      // умный тактик не тратит контроль на одиночную цель на линии — держит его для драки
+      if (iqOf(h, 'tactic') >= 12 && h.def.tags.includes('control') && h.ev.type === 'lane' && enemies.length <= 1 && U.chance(0.6)) continue;
       return key;
     }
     return null;
@@ -147,7 +155,7 @@ const AI = {
     const accept = U.chance(U.clamp(p, 0.03, 0.97));
     return { accept, fast: accept && (AI.arrivesFast(h) || (hasPerk(sig.from, 'caller') && U.chance(0.35))) };
   },
-  arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team'), 0.05, 0.95)); },
+  arrivesFast(h) { return U.chance(U.clamp(0.45 + 0.05 * sd(h, 'team') + 0.035 * (iqOf(h, 'team') - 10), 0.05, 0.95)); },
 
   /* ---------- Драфт ----------
      Драфтит капитан команды. Его скрытый интеллект (командное мышление + тактика) и «Чтение игры»
@@ -491,6 +499,15 @@ const AI = {
     return acts;
   },
   /* Сколько золота нужно, чтобы поход на базу имел смысл */
+  /* Цена ближайшей стоящей цели закупки: умный игрок идёт на базу, как только на неё хватает */
+  nextGoalCost(G, h) {
+    if (h.items.length >= 6 || !U.chance(U.clamp((iqOf(h, 'tactic') - 2) / 14, 0.05, 1))) return Infinity;
+    const prof = this.heroProfile(G, h), tierMin = h.items.length >= 3 ? 2 : 1;
+    const pool = Object.keys(ITEMS).filter(id => ITEMS[id].tier >= tierMin && (ITEMS[id].tier < 4 || G.minute >= 18) && this.canOwn(h, id));
+    if (!pool.length) return Infinity;
+    const best = U.maxBy(pool, id => this.itemValue(G, h, id, prof) * Math.pow(this.itemValue(G, h, id, prof) / ITEMS[id].cost, 0.6));
+    return ITEMS[best].cost;
+  },
   /* С каким запасом золота имеет смысл идти на базу: раньше — чтобы деньги не лежали без дела */
   shopTarget(G, h) { return h.items.length < 6 ? (G.minute < 10 ? 400 : G.minute < 20 ? 850 : 1250) : 2600; },
 };

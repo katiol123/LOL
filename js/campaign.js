@@ -272,7 +272,8 @@ const Campaign = {
     $('#hub-meta').innerHTML = this.patchHTML(false);
     $('#hub-meta').onclick = () => this.openView({ type: 'patch', id: this.L.patch.name });
     // мой игрок
-    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}<div class="muted" style="margin:4px 0">💼 Личный счёт: <b>${money(me.wallet || 0)}</b>${me.contract ? ` · зарплата ${money(me.contract.salary)}/сезон до конца сезона ${me.contract.until}` : ' · без контракта'}</div>${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
+    $('#hub-me').innerHTML = `<div class="panel-title">Ваш игрок</div>${playerRow(L, me, { last: true })}${(me.perks || []).length ? `<div class="perks">${perkHTML(me, true)}</div>` : ''}<div class="muted" style="margin:4px 0">💼 Личный счёт: <b>${money(me.wallet || 0)}</b>${me.contract ? ` · зарплата ${money(me.contract.salary)}/сезон до конца сезона ${me.contract.until}` : ' · без контракта'}</div>${me.trainerActive ? '<div class="cd-note">🏋 Личный тренер нанят на этот сезон: в межсезонье шанс роста выше.</div>' : `<button class="btn small" id="hub-trainer" ${(me.wallet || 0) < TRAINER_COST ? 'disabled' : ''} title="Повышает вашу успешность в зачёте развития этого сезона">🏋 Личный тренер на сезон — ${money(TRAINER_COST)}</button>`}${statBars(me.stats)}<div class="cr-label">Мастерство</div><div class="mlist">${masteryList(me, 6)}</div>`;
+    if ($('#hub-trainer')) $('#hub-trainer').onclick = () => { if ((me.wallet || 0) < TRAINER_COST) return; me.wallet -= TRAINER_COST; me.trainerActive = true; saveLeague(L); this.renderHub(); };
     // состав
     $('#hub-roster').innerHTML = `<div class="panel-title">Состав клуба</div>${rosterOf(L, club).map(p => playerRow(L, p, { last: true })).join('')}`;
     // результаты прошлого тура
@@ -460,6 +461,7 @@ const Campaign = {
   contractHTML() {
     const L = this.L, me = L.players[L.humanId], c = this.myClub();
     if (!this.nego) this.nego = Object.assign(humanOffer(L, c, me), { asked: false, msg: '' });
+    L.humanNego = this.nego;
     const n = this.nego;
     return `<div class="patch-full"><h2>Новый контракт</h2>
       <p>Ваш контракт с «${c.name}» истекает. Руководство (${c.mgmt.name}, курс «${MGMT_STYLES[c.mgmt.style].name}») предлагает:</p>
@@ -470,20 +472,22 @@ const Campaign = {
   },
   bindContract(root) {
     const L = this.L, me = L.players[L.humanId], n = this.nego;
-    if (root.querySelector('#ct-sign')) root.querySelector('#ct-sign').onclick = () => { me.contract = { salary: n.salary, until: L.season + n.years }; this.addNews([{ club: me.club, text: `🖊 ${me.nick} продлевает контракт с клубом: ${money(n.salary)} за сезон` }], 'Ваш контракт'); this.finishOffseason(); };
+    if (root.querySelector('#ct-sign')) root.querySelector('#ct-sign').onclick = () => {
+      L.humanNego = null; me.contract = { salary: n.salary, until: L.season + n.years }; this.addNews([{ club: me.club, text: `🖊 ${me.nick} продлевает контракт с клубом: ${money(n.salary)} за сезон` }], 'Ваш контракт'); this.finishOffseason(); };
     const more = root.querySelector('#ct-more');
     if (more) more.onclick = () => {
       n.asked = true;
       const want = Math.round(n.salary * 1.15);
       // руководство соглашается, только если сумма в пределах того, что оно готово платить; иначе может и отозвать предложение
       if (want <= n.max) { n.salary = want; n.msg = '✅ Руководство соглашается на ваши условия.'; }
-      else if (Math.random() < 0.35) { n.withdrawn = true; n.msg = '❌ Руководство обиделось и отозвало предложение. Придётся искать новый клуб.'; }
+      else if (Math.random() < 0.35) { n.withdrawn = true; n.msg = '❌ Руководство обиделось и отозвало предложение. Придётся искать новый клуб.'; saveLeague(L); }
       else n.msg = '❌ Руководство отказывается поднимать сумму: это их последнее слово.';
       this.renderView();
     };
     root.querySelector('#ct-leave').onclick = () => {
       const c = this.myClub();
       if (c.roster[me.role] === me.id) c.roster[me.role] = null;
+      L.humanNego = null;
       me.club = null; me.contract = null; me.captain = false; pickCaptain(L, c); L.humanFree = true; L.humanFreeTours = 0; L.humanOffers = [];
       this.finishOffseason();
     };
@@ -514,7 +518,8 @@ const Campaign = {
   newSeason() {
     const L = this.L, me = L.players[L.humanId];
     // контракт игрока-человека истёк — переговоры с руководством
-    if (me.contract && me.contract.until <= L.season && !L.humanFree) { this.nego = null; this.openView({ type: 'contract', id: 'x' }); return; }
+    // переговоры хранятся в сохранении: закрыть окно и начать заново нельзя
+    if (me.contract && me.contract.until <= L.season && !L.humanFree) { this.nego = L.humanNego || null; this.openView({ type: 'contract', id: 'x' }); return; }
     this.finishOffseason();
   },
   finishOffseason() {

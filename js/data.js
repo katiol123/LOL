@@ -83,9 +83,9 @@ const ITEMS = {
   blightstaff: { name: 'Посох скверны', icon: '☠', cost: 1300, tier: 2, sp: 30, antiHeal: 0.4 },
   tenacity: { name: 'Амулет стойкости', icon: '🧿', cost: 1000, tier: 2, hp: 150, tenacity: 0.45 },
   // ---- уровень 4: легендарные поздние ----
-  serpent: { name: 'Сердце древнего змея', icon: '🐉', cost: 3000, tier: 4, hp: 850, arm: 30, regen: 0.03 },
-  stars: { name: 'Венец звёздного пламени', icon: '🌟', cost: 3300, tier: 4, sp: 90, mana: 120, cascPow: 0.15 },
-  eclipse: { name: 'Затмение', icon: '🌑', cost: 3400, tier: 4, atk: 32, crit: 0.15, ls: 0.1 },
+  serpent: { name: 'Сердце древнего змея', icon: '🐉', cost: 2600, tier: 4, hp: 850, arm: 30, regen: 0.03 },
+  stars: { name: 'Венец звёздного пламени', icon: '🌟', cost: 2700, tier: 4, sp: 90, mana: 120, cascPow: 0.15 },
+  eclipse: { name: 'Затмение', icon: '🌑', cost: 2800, tier: 4, atk: 32, crit: 0.15, ls: 0.1 },
 };
 const ITEM_EFFECTS = {
   atk: v => `+${v} к атаке`, arm: v => `+${v} брони`, hp: v => `+${v} здоровья`, sp: v => `+${v} к силе умений`, mana: v => `+${v} маны`,
@@ -310,7 +310,7 @@ const HEROES = [
   },
   {
     id: 'psiblade', name: 'Кзайра', title: 'Псионический клинок', role: 'mid', emoji: '🗡', color: '#9acd32', img: 'img/heroes/psiblade',
-    mod: { sp: 1.32, hp: 1.08 },
+    mod: { sp: 1.45, hp: 1.12 },
     lore: 'Воительница из иного мира с клинком, заряженным силой разума. Она питается чужой магией.',
     passive: {
       name: 'Поглощение разума', desc: 'Каждое совпадение ◆ крадёт 6 маны у цели.',
@@ -339,7 +339,7 @@ const HEROES = [
   },
   {
     id: 'windmage', name: 'Аэлла', title: 'Повелительница ветров', role: 'mid', emoji: '🌪', color: '#bcd7f5', img: 'img/heroes/windmage',
-    mod: { sp: 0.98 },
+    mod: { sp: 0.9 },
     lore: 'Чародейка в белых одеждах: ветра несут ей вести со всей карты и рассеивают любой туман.',
     passive: { name: 'Вести ветра', desc: '◉ также дают ману (+3 за камень).', effects(G, h, c) { c.manaFlat += c.counts[T_VIS] * 3; } },
     q: {
@@ -384,7 +384,7 @@ const HEROES = [
   },
   {
     id: 'elfarcher', name: 'Лиэн', title: 'Изумрудный лучник', role: 'adc', emoji: '🏹', color: '#3c8d3c', img: 'img/heroes/elfarcher',
-    mod: { atk: 1.3 },
+    mod: { atk: 1.25 },
     lore: 'Эльф-лучник в изумрудном плаще. Ветер и лес помогают его стрелам находить цель.',
     passive: {
       name: 'Лесной ритм', desc: 'Каждый третий ход с совпадением ⚔ наносит ×1.3 урона.',
@@ -581,7 +581,7 @@ const HEROES = [
   },
   {
     id: 'seawitch', name: 'Ундина', title: 'Морская ведьма', role: 'sup', emoji: '🐙', color: '#3a7bd5', img: 'img/heroes/seawitch',
-    mod: { sp: 1.05, hp: 1.05 },
+    mod: { sp: 1.12, hp: 1.1 },
     lore: 'Хозяйка глубин с щупальцами вместо ног. Её водовороты путают камни, а объятия лишают голоса.',
     passive: { name: 'Солёные глубины', desc: 'Враги в её событии получают на 20% больше урона от ⚔.', vuln: 0.2 },
     q: {
@@ -777,7 +777,7 @@ const HEROES = [
   },
   {
     id: 'gunslinger', name: 'Шерман', title: 'Странный стрелок', role: 'mid', emoji: '🔫', color: '#a0784a', img: 'img/heroes/gunslinger',
-    mod: { sp: 1.45, atk: 1.28, hp: 1.1 },
+    mod: { sp: 1.52, atk: 1.34, hp: 1.1 },
     lore: 'Бродяга в лоскутном плаще с рыбой на шляпе. Шестизарядник, удача и полное отсутствие страха.',
     passive: { name: 'Барабан на шесть', desc: 'Каждое совпадение ⚔ — выстрел: доп. урон цели. После шести выстрелов следующее совпадение уходит на перезарядку.', ammo: 6 },
     q: {

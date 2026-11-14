@@ -185,6 +185,17 @@ class Game {
     if (h.ctrl !== 'human' || !this.ui.decide || h.autopilot) return q.def;
     return this.ui.decide(h, q);
   }
+  /* Уход с линии (на базу, в роум): умный тактик сначала дотолкает волну к вражеской башне —
+     линия не теряет ни золото, ни башню; неумный уходит, когда волна давит на его башню */
+  leaveLane(h, pushedFirst) {
+    const L = this.lanes[h.lane];
+    if (!L || !['top', 'mid', 'adc', 'sup'].includes(h.role)) return;
+    const dir = h.team === 'blue' ? 1 : -1;
+    // волна дотолкана — линия держится; ушёл, когда волна у своей башни, — она давит и бьёт по башне
+    if (pushedFirst || dir * L.push > 0.15) return;
+    L.push = U.clamp(L.push - dir * 0.3, -1, 1);
+    const st = this.structureFor(h.team, h.lane); if (st) this.damageStructure(st.team, st.lane, st.idx, 60 + this.minute * 6, null);
+  }
   /* Давление на линии: перекачанный враг рядом мешает фармить — −12% за каждый уровень разницы (не ниже 40%).
      Отставший по уровню (проиграл линию, нет поддержки) с трудом отыгрывается фармом. */
   farmRate(h) {
@@ -450,6 +461,8 @@ class Game {
       const ls = p.longshot && !this.enemiesIn(h).length ? this.longShot(h, dmg * Math.min(0.6, this.pv(h, 'longshot'))) : 0;
       this.routeAttack(h, dmg, c);
     }
+    // осколки: особые камни, взорванные рядом с врагами, бьют и по герою (на волне такой выгоды нет)
+    if (info.acts > 0 && inFight && !h.knocked) { const t = this.target(h); if (t) { this.ui.projectile(h, t, '#ffb347'); this.dealDamage(h, t, info.acts * (h.power * 1.1 + h.sp * 0.25), 'phys'); } }
     if (c.bombDmg > 0) { const t = this.target(h); if (t) { this.ui.projectile(h, t, '#ff9a3c'); this.dealDamage(h, t, c.bombDmg, 'magic'); } }
     if (counts[T_DEF] > 0) {
       const amt = counts[T_DEF] * (10 + h.lvl * 3) * c.m.def * casc * shieldPow;
@@ -692,6 +705,8 @@ class Game {
     if (kind === 'magic') d *= 1 - Math.min(0.4, tgt.itemStat('magRed'));   // и против магического
     if (src && src.itemStat('antiHeal') > 0) tgt.wounded = { until: this.round + 1, k: Math.min(0.6, src.itemStat('antiHeal')) };   // скверна режет лечение
     if (tgt.anchored > 0) d *= 1.2;
+    // слаженный фокус: удар по общей цели команды сильнее, чем лучше командное мышление бьющего
+    if (src && ev && ev.focus && ev.focus[src.team] === tgt) d *= 1 + 0.15 * U.clamp((iqOf(src, 'team') - 5) / 11, 0, 1.2);
     if (tgt.def.passive.hide) d *= 1 - Math.min(0.2, (1 - tgt.hp / tgt.maxHp) * this.pv(tgt, 'hide'));   // «Толстая шкура»
     if (src && hasPerk(src, 'hunter') && tgt.hp / tgt.maxHp < 0.35) d *= 1.2;
     if (src && hasPerk(src, 'reckless')) d *= 1.1;
@@ -965,12 +980,25 @@ class Game {
     for (const h of this.heroes) {
       if (!this.free(h)) continue;
       const hpR = h.hp / h.maxHp;
-      const rich = h.gold >= AI.shopTarget(this, h) && (hpR < 0.92 || U.chance(0.5));
+      const rich = (h.gold >= AI.shopTarget(this, h) || h.gold >= AI.nextGoalCost(this, h)) && (hpR < 0.92 || U.chance(0.5));
       const pk = hasPerk(h, 'cautious') ? 0.12 : hasPerk(h, 'reckless') ? -0.15 : 0;
       // человек решает сам (кнопка «На базу»), ИИ — по здоровью, мане и деньгам
       const wants = h.ctrl === 'human' && !h.autopilot ? h.wantRecall : (hpR < 0.3 + pk - 0.01 * sd(h, 'agr') || h.mana < 20 && hpR < 0.6 || rich);
       h.wantRecall = false;
+      if (h.anchored <= 0 && wants && h.mem.pushRound !== this.round - 1 && h.ev == null && h.lane && this.lanes[h.lane] && ['top', 'mid', 'adc', 'sup'].includes(h.role) && hpR > 0.12) {
+        // решение: дотолкать волну и уйти через минуту или уйти сразу (волна останется у своей башни)
+        const pushed = (h.team === 'blue' ? 1 : -1) * this.lanes[h.lane].push > 0.15;
+        let choice = 'now';
+        if (!pushed) {
+          if (h.ctrl === 'human' && !h.autopilot) choice = await this.decide(h, { title: '🏠 Уход на базу', text: 'Волна не дотолкана. Если уйти сразу, она будет давить на вашу башню.', options: [{ id: 'push', label: 'Дотолкать и уйти через минуту' }, { id: 'now', label: 'Уйти сейчас' }], def: 'now' });
+          else choice = hpR > 0.3 && U.chance(U.clamp((iqOf(h, 'tactic') - 4) / 12, 0.05, 0.97)) ? 'push' : 'now';
+        }
+        if (choice === 'push') { h.mem.pushRound = this.round; h.mem.recallNext = true; const L = this.lanes[h.lane]; L.push = U.clamp(L.push + (h.team === 'blue' ? 0.25 : -0.25), -1, 1); continue; }
+      }
+      const pushedFirst = h.mem.pushRound === this.round - 1;
+      if (h.mem.recallNext) { h.mem.recallNext = false; if (h.alive && this.free(h)) { this.leaveLane(h, true); h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h); continue; } }
       if (h.anchored <= 0 && wants) {
+        this.leaveLane(h, pushedFirst);
         h.ev = this.mkEv('recall', { lane: null }); h.ev.sides[h.team].push(h);
       }
     }
@@ -1222,7 +1250,7 @@ class Game {
     const best = opt.lane ? options.find(o => o.l === opt.lane) : (opt.roam ? opt.smart : U.chance(U.clamp((iqOf(j, 'team') - 2) / 14, 0.05, 1))) ? U.maxBy(options, o => o.score) : U.pick(options);
     // умный роумер не идёт туда, где ловить нечего, — подождёт момента получше
     if (opt.roam && opt.smart && !opt.human && best.score < 36) { j.roam = 75; return; }
-    if (opt.roam) { j.roam = 0; j.roams++; } else j.gank = 0;
+    if (opt.roam) { j.roam = 0; j.roams++; this.leaveLane(j); } else j.gank = 0;
     const lane = this.lanes[best.l];
     const ev = this.mkEv('gank', { lane: best.l, att: j.team, left: 2, roam: !!opt.roam });
     this.join(ev, j);

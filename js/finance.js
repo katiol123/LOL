@@ -15,6 +15,8 @@ const AD_BRANDS = ['кроссовки «Рысь»', 'энергетик «Вс
 const PRIZES = [1200, 850, 650, 500, 420, 360, 310, 270, 230, 200, 170, 150, 130, 110, 100, 90];
 const WIN_BONUS = 18, DRAW_BONUS = 6;
 const money = v => `${Math.round(v)}к`;
+/* Личный тренер игрока-человека (на сезон): повышает успешность в зачёте развития */
+const TRAINER_COST = 120;
 /* Генератор случайных чисел с методами pick/ri (нужен генератору игроков) */
 const frng = () => U.seeded(Math.floor(Math.random() * 1e9));
 
@@ -181,12 +183,14 @@ function offseason(L, rng = frng()) {
     if (diff <= -4) c.mgmt.target = Math.min(14, c.mgmt.target + 1);
   });
   facUpkeepAll(L, news);
+  // дивиденды: совет директоров забирает часть излишков (деньги не копятся бесконечно)
+  for (const c of L.clubs) if (c.budget > 2500) { const d = Math.round((c.budget - 2500) * 0.5); c.budget -= d; news.push({ club: c.id, text: `💼 ${c.emblem} ${c.name}: совет директоров забирает дивиденды ${money(d)}` }); }
   for (const c of L.clubs) boardReview(L, c, news, rng);
   // развитие игроков: рост и спад характеристик (до переговоров — новые требования считаются от новой силы)
   // кто растёт, а кто сдаёт, решает успешность сезона (место в рейтинге), а не случай
   const devKinds = assignDevelopment([...Object.values(L.players), ...L.free], L.schedule.length * 2, p => clubOvr(L, clubById(L, p.club)));
   for (const p of [...Object.values(L.players), ...L.free]) {
-    const dv = developPlayer(p, rng, devKinds.get(p)); dv.season = L.season;
+    const dv = developPlayer(p, rng, devKinds.get(p)); dv.season = L.season; p.trainerActive = false;
     const c = p.club && clubById(L, p.club);
     if (dv.kind === 'boom' || dv.kind === 'crash' || (p.human && dv.delta)) news.push({ club: c ? c.id : null, text: `${dv.delta > 0 ? '📈' : '📉'} ${p.nick}${c ? ' (' + c.tag + ')' : ''}: ${dv.kind === 'boom' ? 'резкий рост' : dv.kind === 'crash' ? 'резкий спад' : dv.delta > 0 ? 'прибавил' : 'сдал'} — ${dv.delta > 0 ? '+' : ''}${dv.delta} к сумме характеристик` });
   }
@@ -291,10 +295,19 @@ function mgmtInvest(L, c, news) {
   // экономное руководство держит запас; амбициозное — тратит смелее
   const reserve = style === 'profit' ? 900 : 350 + c.mgmt.target * 30;
   let built = 0;
+  const upkeepNow = () => U.sum(Object.keys(FACILITIES), k => facUpkeep(facLevel(c, k)));
+  // в долгах или содержание не по карману — руководство закрывает уровень самого дорогого отдела
+  while ((c.budget < 0 || upkeepNow() > c.sponsor.perSeason * 0.25) && upkeepNow() > 0) {
+    const k = U.maxBy(Object.keys(FACILITIES), x => facLevel(c, x));
+    c.fac[k]--; c.budget += facCost(c.fac[k] + 1) * 0.3;
+    news.push({ club: c.id, text: `📉 ${c.emblem} ${c.name}: денег не хватает — ${FACILITIES[k].icon} ${FACILITIES[k].name} понижен до уровня ${c.fac[k]}` });
+  }
   for (const k of FAC_PRIORITY[style]) {
     const next = facLevel(c, k) + 1;
     if (next > 5 || built >= 2) continue;
     if (c.budget - facCost(next) < reserve) continue;
+    // содержание после постройки должно оставаться по карману: не больше четверти спонсорских
+    if (upkeepNow() - facUpkeep(next - 1) + facUpkeep(next) > c.sponsor.perSeason * 0.25) continue;
     c.budget -= facCost(next); c.fac[k] = next; built++;
     news.push({ club: c.id, text: `🏗 ${c.emblem} ${c.name}: руководство вкладывает ${money(facCost(next))} — ${FACILITIES[k].icon} ${FACILITIES[k].name} до уровня ${next}` });
   }
@@ -394,7 +407,7 @@ function seasonSuccess(p, tours, expected = 6.5) {
   const ageAdj = U.clamp((23 - age) * 0.04 - Math.max(0, age - 28) * 0.08, -0.7, 0.25);
   if (!g) return -0.2 + ageAdj;                                   // не играл — без практики
   const conf = Math.min(1, g / Math.max(8, tours * 1.2));         // мало игр — результат весит меньше
-  return (avgRating(p) - expected) * conf + ageAdj;
+  return (avgRating(p) - expected) * conf + ageAdj + (p.trainerActive ? 0.35 : 0);
 }
 /* Место в рейтинге успешности → тип развития: лучшие 2.5% — резкий рост, следующие 15% — рост,
    середина 65% — стабильно, 15% снизу — спад, худшие 2.5% — резкий спад */
@@ -415,12 +428,15 @@ function assignDevelopment(players, tours, L_OF = () => 10) {
     coef = M.map((r, i) => r[3] / r[i]);
   }
   const expected = p => coef[0] + coef[1] * playerOvr(p) + coef[2] * teamOf(p);
-  const ranked = players.map(p => ({ p, s: seasonSuccess(p, tours, expected(p)) })).sort((x, y) => y.s - x.s);
+  const played = players.filter(p => p.season && p.season.games >= 6);
+  const ranked = played.map(p => ({ p, s: seasonSuccess(p, tours, expected(p)) })).sort((x, y) => y.s - x.s);
   const n = ranked.length, out = new Map();
   ranked.forEach((x, i) => {
     const q = (i + 0.5) / n;
     out.set(x.p, q < 0.025 ? 'boom' : q < 0.175 ? 'up' : q < 0.825 ? 'stable' : q < 0.975 ? 'down' : 'crash');
   });
+  // кто почти не играл — без рейтинга: стабильно, у молодых небольшой шанс роста, у ветеранов — спада
+  for (const p of players) if (!out.has(p)) { const a = p.age || 22, r = Math.random(); out.set(p, a <= 21 && r < 0.2 ? 'up' : a >= 29 && r < 0.3 ? 'down' : 'stable'); }
   return out;
 }
 function developPlayer(p, rng = frng(), forced) {
