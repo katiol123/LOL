@@ -524,7 +524,8 @@ class Game {
     let gold = Math.round(amt * 0.32 * fm * (hasPerk(h, 'farmer') ? 1.2 : 1) * this.farmRate(h));
     // волна конечна: за минуту одна команда может снять с линии не больше её стоимости — двое на линии делят золото
     if (!lane.wave || lane.wave.round !== this.round) lane.wave = { round: this.round, blue: 0, red: 0 };
-    const cap = WAVE_GOLD(this.minute) * (hasPerk(h, 'farmer') ? 1.1 : 1);
+    // хороший фармер (точные добивания) снимает с волны больше
+    const cap = WAVE_GOLD(this.minute) * (hasPerk(h, 'farmer') ? 1.1 : 1) * U.clamp(sm(0.04, h, 'farm'), 0.6, 1.6);
     gold = Math.max(0, Math.min(gold, Math.round(cap - lane.wave[h.team])));
     lane.wave[h.team] += gold;
     const cs = Math.max(1, Math.round(amt / 45));
