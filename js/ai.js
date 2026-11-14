@@ -345,11 +345,11 @@ const AI = {
   },
   /* Ответные предметы на каждый тип врагов и «обычное» число таких врагов в составе */
   COUNTERS: {
-    phys: { items: ['stoneskin', 'spikes', 'mirror'], norm: 3, name: 'физический урон' },
-    magic: { items: ['mantle'], norm: 2, name: 'магия' },
-    heal: { items: ['blight', 'blightstaff'], norm: 1, name: 'лечение и живучесть' },
-    tank: { items: ['spear', 'grimoire'], norm: 1, name: 'танки' },
-    control: { items: ['tenacity', 'boots'], norm: 2, name: 'контроль' },
+    phys: { items: ['stoneskin', 'spikes', 'mirror'], start: ['vest', 'cloth'], norm: 3, name: 'физический урон' },
+    magic: { items: ['mantle'], start: ['nullcloak'], norm: 2, name: 'магия' },
+    heal: { items: ['blight', 'blightstaff'], start: ['shiv'], norm: 1, name: 'лечение и живучесть' },
+    tank: { items: ['spear', 'grimoire'], start: ['awl'], norm: 1, name: 'танки' },
+    control: { items: ['tenacity', 'boots'], start: ['charmband'], norm: 2, name: 'контроль' },
   },
   /* Сколько врагов каждого типа (сверх обычного, в долях: 1 = на одного больше нормы) */
   enemyStacks(G, h) {
@@ -385,6 +385,23 @@ const AI = {
       return this.pickNear(opts, id => this.itemValue(G, h, id));
     }
     return null;
+  },
+  /* Стартовая закупка (первая минута): дешёвый ответ на перекос состава врага — если игрок его заметил
+     (чем больше однотипных врагов и выше Тактика, тем вероятнее), иначе — зелья здоровья */
+  startShop(G, h) {
+    const ex = this.enemyStacks(G, h), tq = U.clamp((iqOf(h, 'tactic') - 2) / 14, 0, 1.2);
+    const types = Object.keys(this.COUNTERS).filter(k => ex[k] > 0).sort((a, b) => ex[b] - ex[a]);
+    let gold = h.gold; const buy = [];
+    for (const k of types) {
+      if (!U.chance(U.clamp(ex[k] * 0.45 * tq, 0, 0.95))) continue;
+      const opts = this.COUNTERS[k].start.filter(id => ITEMS[id].cost <= gold);
+      if (!opts.length) continue;
+      const id = this.pickNear(opts, x => this.itemValue(G, h, x));
+      buy.push(id); gold -= ITEMS[id].cost; h.mem.counterStart = k;
+      break;
+    }
+    const potions = Math.min(POTION.max, Math.floor((buy.length ? gold : Math.min(gold, 220)) / POTION.cost));
+    return { buy, potions };
   },
   /* Насколько состав врага перекошен в физический урон: >0 — больше обычного (обычный состав ≈ 0) */
   physThreat(G, h) {

@@ -47,7 +47,7 @@ class Hero {
     this.gold = 500; this.totalGold = 500;
     this.k = 0; this.d = 0; this.a = 0; this.dmg = 0; this.healed = 0; this.cs = 0;
     this.cd = { q: 0, r: 0 };
-    this.stunned = 0; this.dead = 0; this.ev = null; this.gank = 0; this.roam = 0; this.roams = 0;
+    this.stunned = 0; this.dead = 0; this.ev = null; this.gank = 0; this.roam = 0; this.roams = 0; this.potions = 0;
     this.mem = {}; this.streak = 0;
     this.recalc();
     this.hp = this.maxHp; this.mana = this.maxMana * 0.6; this.shield = 0;
@@ -192,6 +192,15 @@ class Game {
   /* ---------------- Главный цикл ---------------- */
   async run() {
     this.ui.log(`<b>Матч начался!</b> Добро пожаловать в Ущелье Кристаллов.`, 'sys');
+    // стартовая закупка: дешёвый ответ на состав врага или зелья
+    for (const h of this.heroes) {
+      const { buy, potions } = AI.startShop(this, h);
+      for (const id of buy) { h.gold -= ITEMS[id].cost; h.items.push(id); }
+      h.potions = potions; h.gold -= potions * POTION.cost;
+      if (buy.length) h.recalc(), h.hp = h.maxHp;
+      const what = [...buy.map(i => ITEMS[i].icon + ' ' + ITEMS[i].name), potions ? `🧪×${potions}` : ''].filter(Boolean).join(', ');
+      if (what) this.ui.log(`🛒 ${this.tag(h)} на старте берёт: ${what}${buy.length ? ' — ответ на состав соперника' : ''}.`);
+    }
     while (!this.over) {
       this.round++;
       this.assignEvents();
@@ -1284,6 +1293,10 @@ class Game {
       } else {
         h.dead--;
         if (h.dead <= 0) { h.dead = 0; h.hp = h.maxHp; h.mana = h.maxMana; h.shield = 0; this.atBase(h, true); this.ui.log(`✨ ${this.tag(h)} возрождается на базе.`); }
+      }
+      // зелье здоровья: пьёт, когда здоровья мало (умный — вовремя, неумный — с опозданием)
+      if (h.alive && h.potions > 0 && h.hp / h.maxHp < (iqOf(h, 'tactic') >= 10 ? 0.55 : 0.35) && h.ev && h.ev.type !== 'recall') {
+        h.potions--; const amt = POTION.heal + POTION.healLvl * h.lvl; h.hp = Math.min(h.maxHp, h.hp + amt); this.ui.float(h, `🧪 +${amt}`, '#45e07a');
       }
       if (h.tilt && this.round - (h.mem.tiltAt || 0) >= 2) this.calmDown(h);
       for (const k of ['q', 'r']) if (h.cd[k] > 0) h.cd[k]--;

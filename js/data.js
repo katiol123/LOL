@@ -47,6 +47,11 @@ const ITEMS = {
   vest: { name: 'Кольчуга', icon: '🥋', cost: 350, tier: 1, arm: 14 },
   ruby: { name: 'Рубин жизни', icon: '♥', cost: 400, tier: 1, hp: 160 },
   tome: { name: 'Том чар', icon: '📘', cost: 435, tier: 1, sp: 22, mana: 30 },
+  // дешёвые ответы для стартовой закупки
+  nullcloak: { name: 'Плащ отрицания', icon: '🧣', cost: 400, tier: 1, hp: 60, magRed: 0.12 },
+  shiv: { name: 'Гнилой стилет', icon: '🗡', cost: 450, tier: 1, atk: 4, antiHeal: 0.25 },
+  awl: { name: 'Шило пробоя', icon: '📍', cost: 450, tier: 1, atk: 4, pen: 0.08 },
+  charmband: { name: 'Браслет стойкости', icon: '📿', cost: 400, tier: 1, hp: 60, tenacity: 0.2 },
   // ---- уровень 2: средние ----
   ward: { name: 'Око Стража', icon: '👁', cost: 600, tier: 2, hp: 120, visPow: 0.5 },
   boots: { name: 'Сапоги ловкача', icon: '👢', cost: 800, tier: 2, dodge: 0.06, hp: 80 },
@@ -94,6 +99,8 @@ const ITEM_EFFECTS = {
 const itemDesc = id => Object.entries(ITEMS[id]).filter(([k]) => ITEM_EFFECTS[k]).map(([k, v]) => ITEM_EFFECTS[k](v)).join(', ');
 const ITEM_TIER_NAMES = ['', 'Простой', 'Средний', 'Крупный', 'Легендарный'];
 const ELIXIR = { atk: 4, hp: 70, sp: 9, arm: 3 };
+/* Зелье здоровья: расходник, восстанавливает здоровье, когда его мало */
+const POTION = { cost: 50, heal: 110, healLvl: 14, max: 5 };
 
 const DRAGONS = [
   { id: 'fire', name: 'Огненный дракон', icon: '🔥', color: '#ff6a3d', buff: '+8% урона от ⚔', soul: 'Душа пламени: +25% урона от ⚔' },
