@@ -123,9 +123,12 @@ function applyGame(L, fixture, game, homeSide) {
     // чем выше мастерство, тем труднее расти дальше: шанс роста 1 − M/21 (случайность — от сида лиги)
     const rng = U.seeded((L.seed * 31 + fixture.tour * 997 + fixture.games.length * 131 + [...p.id].reduce((x, ch) => (x * 33 + ch.charCodeAt(0)) >>> 0, 7) + Math.round(h.rating * 10)) >>> 0);
     // буткемп клуба повышает шанс роста мастерства
-    if (gain && rng() > (1 - before / 21) * (1 + 0.15 * ((p.fac && p.fac.bootcamp) || 0))) gain = 0;
+    // чем выше мастерство, тем труднее расти (показатель MASTERY_GAIN_POW подобран тестом, чтобы средний уровень не полз к потолку)
+    if (gain && rng() > Math.pow(1 - before / 21, MASTERY_GAIN_POW) * (1 + 0.15 * ((p.fac && p.fac.bootcamp) || 0))) gain = 0;
     if (typeof updatePopularity !== 'undefined') updatePopularity(p, h.rating, h.mvp, h.team === game.winner);
     if (gain) p.mastery[h.def.id] = Math.min(MASTERY_MAX, before + gain);
+    // когда игрок последний раз играл на герое (для естественного забывания)
+    p.lastPlayed = p.lastPlayed || {}; p.lastPlayed[h.def.id] = absTour(L, L.season, fixture.tour);
     rec.players.push({ id: p.id, hero: h.def.id, rating: h.rating, k: h.k, d: h.d, a: h.a, mvp: h.mvp, gain });
   }
   fixture.games.push(rec);
@@ -212,6 +215,12 @@ function pickCaptain(L, club) {
    Каждые 10 туров выходит патч: герои со слишком высоким винрейтом ослабляются, слишком слабые — усиливаются.
    После патча складывается мета: ожидаемая сила героя = винрейт прошлого патча (сглаженный) + эффект правки. */
 const PATCH_EVERY = 10;
+/* Доля мастерства, которую игроки теряют на изменённом герое при правке ~4% силы (подобрано тестом tests/mastery-drift.js) */
+var PATCH_MASTERY_LOSS = 0.5;
+/* Естественное забывание: доля мастерства, теряемая за каждые 10 туров без игр на герое (подобрано тестом) */
+var MASTERY_DECAY = 0.2;
+/* Насколько быстро падает шанс роста мастерства с его уровнем: шанс = (1 − M/21)^MASTERY_GAIN_POW */
+var MASTERY_GAIN_POW = 3;
 const PATCH_WR_PER_PCT = 1.1;   // ≈ сколько п.п. винрейта даёт 1% силы героя (замер на тестах)
 function newPatchState(name, mods, notes, meta) {
   return { name, mods: Object.assign({}, mods), notes, meta, stats: {}, games: 0 };
@@ -229,8 +238,26 @@ function recordHeroStats(L, game) {
 }
 /* Сглаженный винрейт: к результатам героя добавляются 24 «средние» игры, чтобы случайные серии не дёргали баланс */
 function heroWr(s) { return s ? (s.w + 12) / (s.g + 24) : 0.5; }
+/* Естественное забывание героев: не играл 10 туров и больше — мастерство на герое понемногу падает.
+   Проверяется раз в 10 туров (вместе с патчем) */
+const absTour = (L, season, tour) => (season - 1) * L.schedule.length + tour;   // сквозной номер тура с начала кампании
+function masteryDecay(L) {
+  const now = absTour(L, L.season, L.tour);
+  for (const p of [...Object.values(L.players), ...(L.free || [])]) {
+    if (!p.mastery) continue;
+    p.lastPlayed = p.lastPlayed || {};
+    for (const id of Object.keys(p.mastery)) {
+      if (p.lastPlayed[id] == null) { p.lastPlayed[id] = now; continue; }   // старые данные: отсчёт с этого момента
+      if (now - p.lastPlayed[id] < PATCH_EVERY) continue;
+      const m = p.mastery[id], loss = Math.max(1, Math.round(m * MASTERY_DECAY));
+      p.mastery[id] = m - loss;
+      if (p.mastery[id] <= 0) { delete p.mastery[id]; delete p.lastPlayed[id]; }
+    }
+  }
+}
 function patchDue(L) { return L.tour > 0 && L.tour % PATCH_EVERY === 0 && (!L.patch || L.patch.atTour !== L.season * 100 + L.tour); }
 function applyPatch(L) {
+  masteryDecay(L);
   const old = L.patch || newPatchState('1.0', {}, [], {});
   const games = Math.max(1, old.games);
   const k = L.tour >= L.schedule.length ? 0 : Math.round(L.tour / PATCH_EVERY);
@@ -276,6 +303,20 @@ function applyPatch(L) {
   L.patchHistory = L.patchHistory || [];
   L.patchHistory.push({ name: old.name, games: old.games, stats: old.stats });
   if (L.patchHistory.length > 8) L.patchHistory.shift();
+  // изменённый герой ощущается по-новому: мастерство всех игроков на нём падает (тем сильнее, чем крупнее правка)
+  for (const n of notes) {
+    const part = U.clamp(PATCH_MASTERY_LOSS * Math.abs(n.eff) / 0.04, PATCH_MASTERY_LOSS * 0.5, PATCH_MASTERY_LOSS * 1.5);
+    let hit = 0;
+    for (const p of [...Object.values(L.players), ...(L.free || [])]) {
+      const m = p.mastery && p.mastery[n.id];
+      if (!m) continue;
+      const loss = Math.max(1, Math.round(m * part));
+      p.mastery[n.id] = Math.max(0, m - loss); hit++;
+      if (!p.mastery[n.id]) delete p.mastery[n.id];
+    }
+    n.masteryLoss = Math.round(part * 100);
+    n.masteryHit = hit;
+  }
   L.patch = newPatchState(name, mods, notes, meta);
   L.patch.atTour = L.season * 100 + L.tour;
   L.patch.prev = old.name;

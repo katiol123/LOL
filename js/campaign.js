@@ -217,7 +217,7 @@ const Campaign = {
       </div>
       <div class="prof-r"><div class="cr-label">Характеристики</div>${statBars(p.stats)}
         <div class="cr-label">Мастерство на героях</div><div class="mlist">${masteryList(p, 10)}</div>
-        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.0+ (+1) и 9.5+ (+2). На герое с мастерством M все характеристики получают +M/4, форма даёт от −5 до +5: в матче характеристика может подняться выше 20 — до 30.</p>
+        <p class="cd-note">Мастерство растёт только за матчи с оценкой 8.0+ (+1) и 9.5+ (+2), и чем оно выше, тем труднее расти. Без игр на герое 10 туров мастерство понемногу забывается, а изменение героя в патче отнимает его часть. На герое с мастерством M все характеристики получают +M/4, форма даёт от −5 до +5: в матче характеристика может подняться выше 20 — до 30.</p>
         ${club ? `<button class="btn small" data-club-link="${club.id}">${club.emblem} Открыть клуб «${club.name}»</button>` : ''}
       </div></div>`;
   },
@@ -401,7 +401,7 @@ const Campaign = {
     const pct = v => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%`;
     const hd = id => HEROES.find(h => h.id === id);
     const what = n => !n.key || n.key === 'stat' ? 'сила' : `${{ q: 'Q', r: 'R', p: 'пассивка' }[n.key]} «${n.skill}»`;
-    const note = n => { const d = hd(n.id); return `<div class="pn-row ${n.delta > 0 ? 'buff' : 'nerf'} ${n.key && n.key !== 'stat' ? 'skill' : ''}"><span class="pn-face">${heroFace(d)}</span><b>${d.name}</b><span class="pn-d">${n.delta > 0 ? '▲' : '▼'} ${U.esc(what(n))} ${pct(n.delta)}</span>${full ? `<small>винрейт ${Math.round(n.wr * 100)}% в ${n.g} играх · ${n.key && n.key !== 'stat' ? 'меняется урон, лечение и щиты умения' : 'здоровье, атака и сила умений'} · итого ${pct(n.total)}</small>` : ''}</div>`; };
+    const note = n => { const d = hd(n.id); return `<div class="pn-row ${n.delta > 0 ? 'buff' : 'nerf'} ${n.key && n.key !== 'stat' ? 'skill' : ''}"><span class="pn-face">${heroFace(d)}</span><b>${d.name}</b><span class="pn-d">${n.delta > 0 ? '▲' : '▼'} ${U.esc(what(n))} ${pct(n.delta)}</span>${full ? `<small>винрейт ${Math.round(n.wr * 100)}% в ${n.g} играх · ${n.key && n.key !== 'stat' ? 'меняется урон, лечение и щиты умения' : 'здоровье, атака и сила умений'} · итого ${pct(n.total)}${n.masteryLoss ? ` · мастерство на герое −${n.masteryLoss}% (привыкать заново, у ${n.masteryHit} игроков)` : ''}</small>` : ''}</div>`; };
     const tiers = ['S', 'A', 'B', 'C', 'D'];
     const metaList = Object.entries(P.meta || {});
     const tierRows = metaList.length ? tiers.map(t => {
